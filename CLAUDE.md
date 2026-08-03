@@ -11,6 +11,8 @@ BranchPort 저장소에서 작업하는 AI 에이전트(Claude Code / Codex)와 
 
 Claude Code가 남기는 세션 로그(`~/.claude/projects/**/*.jsonl`)를 파싱해서 **하나의 트리로 시각화하는 완전 로컬 도구**입니다. 흩어진 세션 파일·서브에이전트 기록·되돌리기 분기를 지하철 노선도 한 장으로 합쳐 보여줍니다.
 
+**이 프로젝트의 목표는 [2026 오픈소스 개발자대회](https://osscontest.kr/overview) 출품입니다.** 자세한 방향성은 [DIRECTION.md](./DIRECTION.md)를 참고하세요.
+
 ---
 
 ## 작업 규칙 — PR 워크플로 (필수)
