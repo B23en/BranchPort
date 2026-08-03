@@ -1,0 +1,17 @@
+{
+  "name": "branchport",
+  "version": "0.1.0",
+  "description": "BranchPort prototype: render scattered Claude Code session logs as one tree in the browser",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc -p .",
+    "start": "node dist/server.js",
+    "dev": "tsc -p . && node dist/server.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "@types/node": "^20.14.10"
+  }
+}

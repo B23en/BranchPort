@@ -1,0 +1,15 @@
+# 의존성 / 빌드 산출물
+node_modules/
+dist/
+
+# 압축 패키지 — 대화 원문 일부가 그대로 담기므로 절대 커밋하지 않는다
+packages/
+
+# OS / 편집기 부산물
+.DS_Store
+*.swp
+
+# 로그 / 비밀값
+*.log
+.env
+.env.*
