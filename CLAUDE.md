@@ -66,3 +66,12 @@ node dist/server.js
 
 정상 기동되면 `http://127.0.0.1:4300`이 자동으로 열립니다.
 Claude Code에서는 `/branchport` 슬래시 커맨드로 빌드+실행이 한 번에 됩니다 (`.claude/commands/branchport.md`).
+
+---
+
+## 문서 보관 — `docs/`
+
+작업 과정에서 나온 **기획서 · 보고서 · 회의록 · 설계 메모** 등의 문서 파일은 [`docs/`](./docs/)에 보관합니다.
+
+- 파일명은 `YYYY-MM-DD-주제.md` 형식을 권장합니다
+- `CLAUDE.md` · `GLOSSARY.md` · `DIRECTION.md`는 계속 갱신되는 기준 문서이므로 루트에 그대로 둡니다
