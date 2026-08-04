@@ -11,20 +11,21 @@
   :root{
     --bg:#f7f6f2; --surface:#fefdfb; --ink:#1b1a17; --ink2:#55534c; --muted:#8d8a7f;
     --line:#e7e4da; --axis:#c9c5b7;
-    --edit:#3d6e8f; --exec:#4a8f7e; --explore:#6a9a5a; --chat:#9a9587;
-    --err:#c1503f; --sel:rgba(74,143,126,.12); --chip:rgba(27,26,23,.06);
+    /* 국면색은 색각 검증(all-pairs ΔE) 통과본 — 이전 청록/녹색 조합은 실행↔탐색 ΔE 7.4로 FAIL */
+    --edit:#eb6834; --exec:#2a78d6; --explore:#1baf7a; --chat:#9a9587;
+    --err:#d03b3b; --sel:rgba(42,120,214,.10); --chip:rgba(27,26,23,.06);
     --shadow:0 1px 3px rgba(20,18,12,.07), 0 10px 28px rgba(20,18,12,.06);
-    --glow:rgba(74,143,126,.35);
+    --glow:rgba(42,120,214,.35);
     color-scheme:light;
   }
   @media (prefers-color-scheme:dark){
     :root{
       --bg:#131210; --surface:#1c1b18; --ink:#f3f1ea; --ink2:#c2beb0; --muted:#8d8a7f;
       --line:#2d2b26; --axis:#4a473f;
-      --edit:#6ba3c7; --exec:#6fc2ad; --explore:#96c47c; --chat:#7b776b;
-      --err:#e07362; --sel:rgba(111,194,173,.16); --chip:rgba(255,255,255,.06);
+      --edit:#d95926; --exec:#3987e5; --explore:#199e70; --chat:#7b776b;
+      --err:#e07362; --sel:rgba(57,135,229,.16); --chip:rgba(255,255,255,.06);
       --shadow:0 1px 3px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.35);
-      --glow:rgba(111,194,173,.4);
+      --glow:rgba(57,135,229,.4);
       color-scheme:dark;
     }
   }
@@ -80,6 +81,9 @@
     overflow:hidden; text-overflow:ellipsis; text-align:center; pointer-events:none;
     opacity:0; animation:labelIn .3s ease forwards; transition:opacity .3s ease;}
   @keyframes labelIn{to{opacity:1}}
+  /* 조용한 갱신(자동 반영) 중에는 등장 애니메이션을 재생하지 않는다 */
+  #map.noanim .node,#map.noanim .node-label{animation:none; opacity:1;}
+  #map.noanim .link{animation:none; stroke-dashoffset:0;}
   .node-label.fork{color:#9b7fd4; font-weight:600;}
   .node-label.hide-self{opacity:0 !important;}
   #loading{position:fixed; top:96px; left:22px; font-size:13px; color:var(--muted); z-index:11;}
@@ -128,6 +132,7 @@
 
   .d-fork{color:#9b7fd4; font-size:12px; font-weight:700; margin-bottom:3px;}
   .d-title{font-size:16.5px; font-weight:700; line-height:1.42; margin-bottom:6px;}
+  .d-gist{font-size:13px; color:var(--ink2); line-height:1.55; margin-bottom:6px;}
   .d-meta{font-size:12px; color:var(--muted); margin-bottom:12px;}
   .d-chips{display:flex; gap:7px; flex-wrap:wrap; margin-bottom:14px;}
   .chip{font-size:11.5px; background:var(--chip); border-radius:99px; padding:3px 10px; color:var(--ink2);}
@@ -139,6 +144,23 @@
   .d-list{margin:0; padding-left:17px; font-size:12.5px; color:var(--ink2); line-height:1.78;}
   .d-close{position:absolute; top:12px; right:12px; width:26px; height:26px; border-radius:50%;
     border:0; background:var(--chip); color:var(--ink2); font-size:13px; cursor:pointer;}
+
+  /* ── 갈래(브랜치) 대화 ── */
+  .node .brb{position:absolute; bottom:-6px; right:-6px; font-size:9.5px; font-weight:700;
+    background:#9b7fd4; color:#fff; border-radius:99px; min-width:15px; height:15px; padding:0 4px;
+    display:flex; align-items:center; justify-content:center; line-height:1;}
+  .brchip{display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600;
+    background:var(--chip); border:1px dashed #9b7fd4; color:var(--ink2); border-radius:99px;
+    padding:4px 11px; cursor:pointer;}
+  .brchip:hover{border-style:solid; color:var(--ink);}
+  .br-msgs{display:flex; flex-direction:column; gap:6px; margin:8px 0;}
+  .br-msg{font-size:12.8px; line-height:1.55; padding:8px 11px; border-radius:10px;
+    white-space:pre-wrap; word-break:break-word;}
+  .br-msg.user{background:#9b7fd4; color:#fff; align-self:flex-end; max-width:88%;}
+  .br-msg.ai{background:var(--chip); color:var(--ink); align-self:flex-start; max-width:92%;}
+  .br-input{display:flex; gap:6px; margin-top:8px;}
+  .br-input input{flex:1; font:inherit; font-size:13px; padding:8px 11px; border-radius:10px;
+    border:1px solid var(--line); background:var(--surface); color:var(--ink);}
 
   /* Apple-notification-style banner: docked at the very top, dropping in from
      above the viewport and sliding back up the same way when dismissed —
@@ -268,6 +290,12 @@
     <span id="sb-hint">다른 턴을 <b>shift</b>+클릭하면 경로가 선택됩니다</span>
     <div id="sb-active-group">
       <span>경로 <b id="sb-n"></b>턴 선택됨</span>
+      <select id="sb-purpose" class="btn ghost" style="padding:7px 10px">
+        <option value="">받는 쪽 목적: 일반</option>
+        <option value="continue">이어서 구현</option>
+        <option value="bugfix">버그 수정</option>
+        <option value="handoff">팀원 설명</option>
+      </select>
       <button class="btn primary" id="sb-go">압축 패키지 생성</button>
       <button class="btn ghost" id="sb-clear">해제</button>
     </div>
@@ -286,6 +314,7 @@
         <button class="btn primary" id="m-copy">복사</button>
         <button class="btn ghost" id="m-dl-md">.md 다운로드</button>
         <button class="btn ghost" id="m-dl-json">.json 다운로드</button>
+        <button class="btn ghost" id="m-branch">⑂ 이 패키지로 갈래 대화</button>
       </div>
     </div>
   </div>
@@ -329,17 +358,14 @@ function hideTooltip() {
 const api = (url, body) => fetch(url, { method:"POST",
   headers:{ "Content-Type":"application/json", "X-BranchPort":"1" }, body: JSON.stringify(body) }).then(r => r.json());
 
-let TURNS = [], byId = {}, parentOf = {};
+let TURNS = [], byId = {}, parentOf = {}, LABELS = {};
+// LLM 제목·요약 — 없으면 서버가 만든 headline(프롬프트 절단)으로 폴백
+const labelOf = t => LABELS[t.hash];
+const titleOf = t => labelOf(t)?.t ?? t.headline;
+const tipText = t => { const lb = labelOf(t); return lb ? lb.t + "\n" + lb.g : t.headline; };
 let CURRENT_PROJECT = null;
 let selA = null, selB = null, expandedId = null, PKG = null;
 let LAST_POS = {}, NODE_EL = {}, CONTENT_W = 0, CONTENT_H = 0, KIDS = {};
-
-function flatten(roots) {
-  const out = [];
-  function walk(node, parentId) { out.push(node); parentOf[node.id] = parentId; for (const c of node.children) walk(c, node.id); }
-  for (const r of roots) walk(r, null);
-  return out;
-}
 
 function hideSplash() {
   const el = document.getElementById("splash");
@@ -357,39 +383,93 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function loadProjects() {
   const splashHold = sleep(MIN_SPLASH_MS);
   const sel = document.getElementById("project-select");
-  const projects = await fetch("/api/projects").then(r => r.json());
-  sel.innerHTML = "";
-  if (!projects.length) {
-    sel.innerHTML = "<option>세션을 찾을 수 없음</option>";
-    await splashHold; hideSplash(); return;
+  try {
+    const projects = await fetch("/api/projects").then(r => r.json());
+    sel.innerHTML = "";
+    if (!projects.length) {
+      sel.innerHTML = "<option>세션을 찾을 수 없음</option>";
+      return;
+    }
+    for (const p of projects) {
+      const opt = document.createElement("option");
+      opt.value = p.dirName; opt.textContent = `${p.displayPath} (${p.sessionCount})`;
+      sel.appendChild(opt);
+    }
+    sel.addEventListener("change", () => loadTurns(sel.value));
+    await loadTurns(projects[0].dirName);
+  } catch (e) {
+    // 서버가 죽어 있어도 스플래시 뒤에 갇히지 않도록 — 화면을 열고 오류를 보여준다
+    document.getElementById("loading").textContent = "서버에 연결할 수 없습니다. `npm run dev`로 서버를 켠 뒤 새로고침하세요.";
+  } finally {
+    await splashHold;
+    hideSplash();
   }
-  for (const p of projects) {
-    const opt = document.createElement("option");
-    opt.value = p.dirName; opt.textContent = `${p.displayPath} (${p.sessionCount})`;
-    sel.appendChild(opt);
-  }
-  sel.addEventListener("change", () => loadTurns(sel.value));
-  await loadTurns(projects[0].dirName);
-  await splashHold;
-  hideSplash();
 }
 
-async function loadTurns(project) {
+let LAST_FP = ""; // 마지막 렌더의 턴 지문 — 내용이 같으면 조용한 갱신은 화면을 건드리지 않는다
+async function loadTurns(project, opts = {}) {
+  if (CURRENT_PROJECT !== project) { lastMtime = 0; LAST_FP = ""; } // 프로젝트가 바뀌면 갱신 기준점 리셋
   CURRENT_PROJECT = project;
   const loading = document.getElementById("loading");
-  loading.textContent = "불러오는 중…";
-  expandedId = null; // a node id from the previous project would otherwise dim the whole new tree
-  clearSel();
+  if (!opts.silent) {
+    loading.textContent = "불러오는 중…";
+    expandedId = null; // a node id from the previous project would otherwise dim the whole new tree
+    clearSel();
+  }
   const data = await fetch(`/api/turns?project=${encodeURIComponent(project)}`).then(r => r.json());
   if (data.error) { loading.textContent = "오류: " + data.error; return; }
-  loading.textContent = "";
-  parentOf = {};
-  const flat = flatten(data.turns);
+  await fetchBranches(project);
+  if (!opts.silent) loading.textContent = "";
+  const nextParentOf = {}, flat = [];
+  (function walk(nodes, parentId) {
+    for (const n of nodes) { flat.push(n); nextParentOf[n.id] = parentId; walk(n.children, n.id); }
+  })(data.turns, null);
+  // 세션 파일은 메타 기록만으로도 계속 바뀌므로, 실제 턴 내용이 그대로면 재렌더하지 않는다
+  // (팝인·선 그리기 애니메이션이 주기적으로 재생되는 문제 방지)
+  const fp = flat.map(t => t.hash).join(",");
+  if (opts.silent && fp === LAST_FP) return;
+  LAST_FP = fp;
+  parentOf = nextParentOf;
   TURNS = flat;
   byId = Object.fromEntries(flat.map(t => [t.id, t]));
   document.getElementById("meta").textContent =
     `턴 ${flat.length} · 노드 ${data.stats.keptNodes} · 라인 ${data.stats.totalLines} · 파싱오류 ${data.stats.parseErrors}`;
+  NOANIM = KEEP_CAMERA = !!opts.silent; // 조용한 갱신은 등장 애니메이션·카메라 이동 없이 제자리 갱신
   render();
+  NOANIM = false;
+  refreshLabels(project);
+}
+
+// ── LLM 제목·요약: 캐시 조회 → 미라벨 턴이 있으면 배치 생성 요청, 도착분 즉시 반영 ──
+function applyLabels() {
+  document.querySelectorAll(".node-label").forEach(el => {
+    const t = byId[el.dataset.id];
+    if (t) el.textContent = titleOf(t);
+  });
+}
+async function fetchLabels(project) {
+  const j = await fetch(`/api/labels?project=${encodeURIComponent(project)}`).then(r => r.json());
+  return j.labels || {};
+}
+async function refreshLabels(project) {
+  const loading = document.getElementById("loading");
+  try {
+    LABELS = await fetchLabels(project);
+    if (project !== CURRENT_PROJECT) return;
+    applyLabels();
+    for (let guard = 0; guard < 20; guard++) {
+      if (!TURNS.some(t => !LABELS[t.hash])) break;
+      loading.textContent = "제목 생성 중…";
+      const r = await api("/api/label", { project });
+      if (project !== CURRENT_PROJECT) return;
+      if (r.error || r.busy || !r.labeled) break;
+      LABELS = await fetchLabels(project);
+      if (project !== CURRENT_PROJECT) return;
+      applyLabels();
+      if (!r.remaining) break;
+    }
+  } catch { /* 라벨은 장식층 — 실패해도 트리는 그대로 동작 */ }
+  if (project === CURRENT_PROJECT && loading.textContent === "제목 생성 중…") loading.textContent = "";
 }
 
 const COLW = 108, LANEH = 70, PADX = 60, PADY = 60;
@@ -400,6 +480,7 @@ const fmtTok = n => n >= 1000 ? (Math.round(n/100)/10) + "k" : n;
 function render() {
   document.getElementById("empty").style.display = TURNS.length ? "none" : "flex";
   const map = document.getElementById("map");
+  map.classList.toggle("noanim", NOANIM);
   map.querySelectorAll(".node,.seam,.node-label").forEach(e => e.remove());
   const svg = document.getElementById("links");
   svg.innerHTML = "";
@@ -469,8 +550,8 @@ function render() {
     n.style.width = side + "px"; n.style.height = side + "px";
     n.style.animationDelay = Math.min(i * 10, 450) + "ms";
     n.dataset.id = t.id;
-    n.innerHTML = `<span class="icon">${GLYPH[t.phase]}</span>`;
-    n.addEventListener("mouseenter", () => showTooltip(n, t.headline));
+    n.innerHTML = nodeBaseHtml(t);
+    n.addEventListener("mouseenter", () => showTooltip(n, tipText(t)));
     n.addEventListener("mouseleave", hideTooltip);
     n.addEventListener("click", (ev) => {
       ev.stopPropagation();
@@ -483,7 +564,7 @@ function render() {
 
     const lbl = document.createElement("div");
     lbl.className = "node-label" + (t.isForkRoot ? " fork" : "");
-    lbl.textContent = t.headline;
+    lbl.textContent = titleOf(t);
     lbl.style.left = X(t.id) + "px"; lbl.style.top = (Y(t.id) + side / 2 + 5) + "px";
     lbl.style.animationDelay = Math.min(i * 10, 450) + 60 + "ms";
     lbl.dataset.id = t.id;
@@ -492,8 +573,29 @@ function render() {
 
   applySelectionClasses();
   // animated (not instant) — the camera zooming out to reveal the whole tree is the intended entrance effect
-  requestAnimationFrame(() => { if (expandedId && byId[expandedId]) focusOn(expandedId); else fitAll(); });
+  requestAnimationFrame(() => {
+    if (KEEP_CAMERA) { KEEP_CAMERA = false; applyTransform(camTx, camTy, camScale, true); }
+    else if (expandedId && byId[expandedId]) focusOn(expandedId);
+    else fitAll();
+  });
 }
+
+// ── 자동 갱신: 세션 파일 변화를 폴링, 새 턴이 생기면 조용히 반영 ──
+// silent 갱신은 ① 턴 내용이 그대로면 아무것도 안 하고 ② 바뀌었을 때만
+// 애니메이션·카메라 이동 없이 제자리 갱신한다.
+let lastMtime = 0, KEEP_CAMERA = false, NOANIM = false;
+setInterval(async () => {
+  if (!CURRENT_PROJECT || document.hidden) return;
+  // 카드·모달·범위 선택 중엔 보류 — 보고 있는 화면을 갈아엎지 않는다
+  if (expandedId || selA !== null || modal.classList.contains("open")) return;
+  try {
+    const j = await fetch(`/api/mtime?project=${encodeURIComponent(CURRENT_PROJECT)}`).then(r => r.json());
+    if (!j.mtime || j.mtime === lastMtime) { lastMtime = j.mtime || lastMtime; return; }
+    const firstObservation = !lastMtime; // 기준값만 기록, 재로드는 실제 변화부터
+    lastMtime = j.mtime;
+    if (!firstObservation) await loadTurns(CURRENT_PROJECT, { silent: true });
+  } catch { /* 서버 재시작 등 일시 오류 무시 */ }
+}, 10_000);
 
 // ── camera: transform-based pan/zoom instead of native scrolling ──
 const viewport = document.getElementById("viewport");
@@ -604,7 +706,7 @@ function collapseNode(id) {
   el.classList.remove("expanded");
   el.style.transform = "";
   expandedId = null;
-  setTimeout(() => { if (!el.classList.contains("expanded")) el.innerHTML = `<span class="icon">${GLYPH[t.phase]}</span>`; }, 380);
+  setTimeout(() => { if (!el.classList.contains("expanded")) el.innerHTML = nodeBaseHtml(t); }, 380);
 }
 function detailHtml(t) {
   const dur = t.endTimestamp && t.timestamp ? Math.round((Date.parse(t.endTimestamp) - Date.parse(t.timestamp)) / 60000) : 0;
@@ -615,7 +717,8 @@ function detailHtml(t) {
   if (t.hasImage) chips.push("이미지");
   return `
     ${t.isForkRoot ? `<div class="d-fork">포크 · ${esc(t.forkName ?? "")}</div>` : ""}
-    <div class="d-title">${esc(t.headline)}</div>
+    <div class="d-title">${esc(titleOf(t))}</div>
+    ${labelOf(t) ? `<div class="d-gist">${esc(labelOf(t).g)}</div>` : ""}
     <div class="d-meta">${t.timestamp ? new Date(t.timestamp).toLocaleString("ko-KR") : ""}</div>
     <div class="d-chips">${chips.map(c => `<span class="chip">${esc(c)}</span>`).join("")}${t.hasError ? `<span class="chip err">⚠ 에러 포함</span>` : ""}</div>
     <div class="d-msg user">${esc(t.prompt)}</div>
@@ -623,7 +726,90 @@ function detailHtml(t) {
     <div class="d-h">도구 내역</div>
     <ul class="d-list">${t.tools.map(x => `<li>${esc(x.name)}${x.inputPreview ? " · " + esc(x.inputPreview) : ""}${x.isError ? " ⚠" : ""}</li>`).join("") || "<li>없음</li>"}</ul>
     <div class="d-h">만진 파일</div>
-    <ul class="d-list">${t.files.map(x => `<li>${esc(x)}</li>`).join("") || "<li>없음</li>"}</ul>`;
+    <ul class="d-list">${t.files.map(x => `<li>${esc(x)}</li>`).join("") || "<li>없음</li>"}</ul>
+    <div class="d-h">갈래 대화</div>
+    <div id="br-area">${brListHtml(t)}</div>`;
+}
+
+// ── 갈래(브랜치) 대화: 이 턴 시점의 맥락만 아는 AI와 나누는 곁가지 대화 ──
+let BRANCHES = [];
+const branchesFor = id => BRANCHES.filter(b => b.turnId === id);
+const nodeBaseHtml = t => {
+  const nbr = branchesFor(t.id).length;
+  return `<span class="icon">${GLYPH[t.phase]}</span>` + (nbr ? `<span class="brb">⑂${nbr}</span>` : "");
+};
+async function fetchBranches(project) {
+  try {
+    const j = await fetch(`/api/branches?project=${encodeURIComponent(project)}`).then(r => r.json());
+    if (project === CURRENT_PROJECT) BRANCHES = j.branches || [];
+  } catch { /* 갈래는 부가층 — 실패해도 트리는 동작 */ }
+}
+function refreshNodeBadge(turnId) {
+  const el = NODE_EL[turnId], t = byId[turnId];
+  if (el && t && !el.classList.contains("expanded")) el.innerHTML = nodeBaseHtml(t);
+}
+function brListHtml(t) {
+  const chips = branchesFor(t.id).map(b =>
+    `<button class="brchip" onclick="event.stopPropagation(); openBranch('${esc(b.id)}')">⑂ ${esc(b.title)} · ${Math.floor(b.messages.length / 2)}</button>`).join("");
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap">${chips}
+    <button class="brchip" onclick="event.stopPropagation(); createBranch('${esc(t.id)}')">＋ 새 갈래</button></div>`;
+}
+function backToBranchList(turnId) {
+  const area = document.getElementById("br-area"), t = byId[turnId];
+  if (area && t) area.innerHTML = brListHtml(t);
+}
+async function createBranch(turnId) {
+  try {
+    const t = byId[turnId];
+    const br = await api("/api/branch-create", { project: CURRENT_PROJECT, kind: "node", turnId, title: titleOf(t).slice(0, 40) });
+    if (br.error) throw new Error(br.error);
+    BRANCHES.push(br);
+    openBranch(br.id);
+  } catch (e) { alert("갈래 생성 실패: " + e.message); }
+}
+function openBranch(id) {
+  const br = BRANCHES.find(b => b.id === id); if (!br) return;
+  const area = document.getElementById("br-area"); if (!area) return;
+  area.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <button class="brchip" onclick="event.stopPropagation(); backToBranchList('${esc(br.turnId)}')">←</button>
+      <b style="font-size:12.5px">⑂ ${esc(br.title)}</b>
+      <span style="font-size:11px;color:var(--muted)">${br.kind === "compact" ? "압축 패키지만 아는 AI" : "이 시점까지만 아는 AI"}</span>
+    </div>
+    <div class="br-msgs" id="br-msgs">${br.messages.map(m => `<div class="br-msg ${m.role === "user" ? "user" : "ai"}">${esc(m.text)}</div>`).join("")}</div>
+    <div class="br-input">
+      <input id="br-q" placeholder="이 시점의 AI에게 질문…" onclick="event.stopPropagation()"
+        onkeydown="if(event.key==='Enter')sendBranchMsg('${esc(br.id)}')">
+      <button class="btn primary" onclick="event.stopPropagation(); sendBranchMsg('${esc(br.id)}')">보내기</button>
+    </div>`;
+  const msgs = document.getElementById("br-msgs");
+  if (msgs) msgs.scrollTop = 1e9;
+}
+async function sendBranchMsg(id) {
+  const input = document.getElementById("br-q"); if (!input) return;
+  const q = input.value.trim(); if (!q) return;
+  input.value = "";
+  const msgs = document.getElementById("br-msgs");
+  // 응답 대기 중 다른 갈래/카드로 이동할 수 있으므로 보낸 시점의 대상을 캡처(오귀속 방지)
+  const sentId = id, sentProject = CURRENT_PROJECT, sentMsgs = msgs;
+  const optimistic = document.createElement("div"); optimistic.className = "br-msg user"; optimistic.textContent = q;
+  const pending = document.createElement("div"); pending.className = "br-msg ai"; pending.textContent = "…생각 중 (최대 3분)";
+  if (msgs) { msgs.append(optimistic, pending); msgs.scrollTop = 1e9; }
+  try {
+    const j = await api("/api/branch-chat", { project: sentProject, id: sentId, question: q });
+    if (j.error) throw new Error(j.error);
+    const i = BRANCHES.findIndex(b => b.id === sentId);
+    if (i >= 0) BRANCHES[i] = j.branch;
+    if (document.getElementById("br-msgs") === sentMsgs) {
+      pending.textContent = j.answer;
+      sentMsgs.scrollTop = 1e9;
+    }
+  } catch (e) {
+    optimistic.remove(); pending.remove(); // 낙관 메시지 롤백
+    const inp = document.getElementById("br-q");
+    if (inp) inp.value = q;
+    alert("갈래 대화 실패: " + e.message);
+  }
 }
 
 function pathToRoot(id) { const p = []; let cur = id; while (cur) { p.unshift(cur); cur = parentOf[cur]; } return p; }
@@ -728,7 +914,7 @@ document.getElementById("sb-go").addEventListener("click", async (ev) => {
   const ids = rangeIds();
   btn.disabled = true; btn.textContent = "생성 중… (최대 3분)";
   try {
-    const j = await api("/api/compact", { project: CURRENT_PROJECT, turnIds: ids });
+    const j = await api("/api/compact", { project: CURRENT_PROJECT, turnIds: ids, purpose: document.getElementById("sb-purpose").value || undefined });
     if (j.error) throw new Error(j.error);
     PKG = j;
     document.getElementById("m-meta").textContent = `${ids.length}턴 · 파일 저장됨: ${j.savedTo}`;
@@ -745,6 +931,25 @@ function showTab(k) {
 document.getElementById("tab-md").addEventListener("click", () => showTab("md"));
 document.getElementById("tab-json").addEventListener("click", () => showTab("json"));
 document.getElementById("m-copy").addEventListener("click", () => navigator.clipboard.writeText(document.getElementById("m-pre").textContent));
+document.getElementById("m-branch").addEventListener("click", async () => {
+  const btn = document.getElementById("m-branch");
+  try {
+    const ids = rangeIds();
+    const anchor = ids[ids.length - 1]; // 선택 경로의 마지막 턴에 갈래를 매단다
+    if (!anchor || !PKG?.pkgFile) throw new Error("패키지 정보가 없습니다");
+    btn.disabled = true;
+    const br = await api("/api/branch-create", {
+      project: CURRENT_PROJECT, kind: "compact", turnId: anchor,
+      pkgFile: PKG.pkgFile, title: "압축 갈래 " + new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
+    });
+    if (br.error) throw new Error(br.error);
+    BRANCHES.push(br);
+    modal.classList.remove("open");
+    selectNode(anchor);   // 앵커 턴 카드를 열고
+    openBranch(br.id);    // 바로 갈래 채팅으로 진입
+  } catch (e) { alert("갈래 생성 실패: " + e.message); }
+  btn.disabled = false;
+});
 document.getElementById("m-dl-md").addEventListener("click", () => download("md"));
 document.getElementById("m-dl-json").addEventListener("click", () => download("json"));
 function download(kind) {
