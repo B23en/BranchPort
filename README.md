@@ -12,7 +12,7 @@ node dist/server.js
 
 정상 기동되면 `http://127.0.0.1:4300`이 자동으로 브라우저에서 열립니다.
 
-## Claude Code 슬래시 커맨드로 실행 (선택)
+## Claude Code 슬래시 커맨드로 실행
 
 이 폴더를 프로젝트 루트로 열고 `.claude/commands/branchport.md`가 있는 상태에서
 새 Claude Code 세션을 시작하면 `/branchport` 커맨드로 빌드+실행까지 한 번에 됩니다.
