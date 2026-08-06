@@ -726,7 +726,7 @@ document.getElementById("sb-go").addEventListener("click", async (ev) => {
   ev.stopPropagation();
   const btn = document.getElementById("sb-go");
   const ids = rangeIds();
-  btn.disabled = true; btn.textContent = "생성 중… (최대 3분)";
+  btn.disabled = true; btn.textContent = "생성 중… (최대 7분)";
   try {
     const j = await api("/api/compact", { project: CURRENT_PROJECT, turnIds: ids });
     if (j.error) throw new Error(j.error);
