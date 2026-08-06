@@ -122,16 +122,46 @@ function flattenTurns(turns: Turn[]): Turn[] {
   return out;
 }
 
+// 103세션 실측(sweep-v34 + fable5): 트랜스크립트가 이 미만이면 패키지 고정비
+// (사실층·앵커·섹션 골격) 때문에 원문보다 커진다 — 잔존율 168% 역효과 구간.
+const COMPACT_MIN_CHARS = 5000;
+
+async function resolveRange(project: string, turnIds: string[]) {
+  const forest = await buildForest(project);
+  const allTurns = flattenTurns(buildTurnForest(forest.roots, forest.compactBoundaries));
+  const byId = new Map(allTurns.map(t => [t.id, t]));
+  const range = turnIds.map((id: string) => byId.get(id)).filter((t: Turn | undefined): t is Turn => !!t)
+    .sort((a: Turn, b: Turn) => (a.timestamp ?? '').localeCompare(b.timestamp ?? ''));
+  return { forest, range };
+}
+
+// 압축 실행 전 구간 크기 견적 — UI가 손익분기 미만 구간을 경고할 수 있게 한다.
+function handleEstimate(req: http.IncomingMessage, res: http.ServerResponse) {
+  readBody(req, res, 10_000, async ({ project, turnIds }) => {
+    if (!project || !Array.isArray(turnIds) || !turnIds.length) {
+      return sendJson(res, 400, { error: 'project와 turnIds가 필요합니다' });
+    }
+    try {
+      const { forest, range } = await resolveRange(project, turnIds);
+      if (!range.length) return sendJson(res, 400, { error: '선택한 턴을 찾을 수 없습니다' });
+      const transcript = renderTranscript(range, forest.roots, forest.toolResults);
+      sendJson(res, 200, {
+        transcriptChars: transcript.length,
+        threshold: COMPACT_MIN_CHARS,
+        belowThreshold: transcript.length < COMPACT_MIN_CHARS,
+      });
+    } catch (e: any) {
+      sendJson(res, 500, { error: String(e?.message ?? e) });
+    }
+  });
+}
+
 function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
   readBody(req, res, 10_000, async ({ project, turnIds, model }) => {
     if (!project || !Array.isArray(turnIds) || !turnIds.length) {
       return sendJson(res, 400, { error: 'project와 turnIds가 필요합니다' });
     }
-    const forest = await buildForest(project);
-    const allTurns = flattenTurns(buildTurnForest(forest.roots, forest.compactBoundaries));
-    const byId = new Map(allTurns.map(t => [t.id, t]));
-    const range = turnIds.map((id: string) => byId.get(id)).filter((t: Turn | undefined): t is Turn => !!t)
-      .sort((a: Turn, b: Turn) => (a.timestamp ?? '').localeCompare(b.timestamp ?? ''));
+    const { forest, range } = await resolveRange(project, turnIds);
     if (!range.length) return sendJson(res, 400, { error: '선택한 턴을 찾을 수 없습니다' });
 
     const fileCount = new Map<string, number>();
@@ -159,10 +189,16 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
     const transcript = renderTranscript(range, forest.roots, forest.toolResults);
     const prompt = buildCompactPrompt(transcript);
 
-    askClaude(prompt, typeof model === 'string' ? model : undefined, (out, err, code, metrics) => {
+    // 스윕 실측: 드물게(106회 중 3회) 응답 JSON이 중간에서 끊긴다 — 일시적 절단이라
+    // 재실행이면 통과하므로, 모델이 실행됐는데 파싱만 실패한 경우 1회 자동 재시도한다.
+    const runCompact = (attempt: number) => askClaude(prompt, typeof model === 'string' ? model : undefined, (out, err, code, metrics) => {
       try {
         const S = parseSummary(out);
         if (!S) {
+          if (attempt === 1 && code !== null && out.trim()) {
+            console.warn('[compact] 응답 파싱 실패 (절단 추정) — 1회 재시도');
+            return runCompact(2);
+          }
           const why = !out.trim()
             ? (code === null ? '시간 초과 또는 claude 실행 불가: ' + err.slice(0, 200) : 'claude 실행 실패: ' + err.slice(0, 200))
             : '응답이 JSON 형식이 아님: ' + out.slice(0, 200);
@@ -195,7 +231,7 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
           ``, `## 원문 앵커`,
           ...anchors.map(x => `- ${(x.ts ?? '').slice(11, 19)} · \`${x.id}\` — ${x.headline}`),
         ].join('\n');
-        const jsonPkg = { meta: { generated: new Date().toISOString(), transcriptChars: transcript.length, promptChars: prompt.length, model: typeof model === 'string' && ALLOWED_MODELS.has(model) ? model : 'default', claude: metrics }, facts, summary: S, anchors };
+        const jsonPkg = { meta: { generated: new Date().toISOString(), transcriptChars: transcript.length, promptChars: prompt.length, model: typeof model === 'string' && ALLOWED_MODELS.has(model) ? model : 'default', attempts: attempt, claude: metrics }, facts, summary: S, anchors };
         if (metrics) console.log(`[compact 계측] 비용 ${metrics.costUsd != null ? '$' + metrics.costUsd.toFixed(4) : '?'} · 입력 ${metrics.inputTokens}(캐시생성 ${metrics.cacheCreationTokens}/캐시읽기 ${metrics.cacheReadTokens}) · 출력 ${metrics.outputTokens} · ${metrics.durationMs ?? '?'}ms (API ${metrics.durationApiMs ?? '?'}ms)`);
 
         const pkgDir = path.join(PKG_ROOT, project);
@@ -209,6 +245,7 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
         sendJson(res, 500, { error: '패키지 조립 실패: ' + String(e?.message ?? e) });
       }
     });
+    runCompact(1);
   });
 }
 
@@ -218,6 +255,7 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === 'POST' && req.url === '/api/compact') return handleCompact(req, res);
+  if (req.method === 'POST' && req.url === '/api/compact/estimate') return handleEstimate(req, res);
 
   const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
 
