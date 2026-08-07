@@ -65,6 +65,9 @@ export interface ParsedFile {
   interrupted: Map<string, boolean>;
   compactBoundaries: string[];
   forkContextRef: ForkContextRef | null;
+  // 작업 중 끼어든 사용자 메시지 — queue-operation 레코드는 uuid가 없어 체인에
+  // 못 들어가지만 진짜 사용자 텍스트라, 버리면 해당 턴이 "(계속)"으로 남는다.
+  queuedPrompts: { ts: string; text: string }[];
   stats: ParseStats;
 }
 
@@ -75,6 +78,10 @@ function truncate(s: string, n = 60): string {
 
 function isFakePrompt(text: string): boolean {
   const t = text.trim();
+  // 제네릭 태그 규칙: 시스템 주입 텍스트는 전부 <하이픈-포함-태그>로 시작한다
+  // (task-notification, system-reminder, bash-input …). 하이픈을 요구하는 이유:
+  // 사용자가 <div> 같은 HTML을 붙여넣으며 질문하는 경우를 오분류하지 않기 위해.
+  if (/^<[a-z]+(-[a-z]+)+[\s>]/.test(t)) return true;
   return FAKE_PREFIXES.some(p => t.startsWith(p));
 }
 
@@ -93,8 +100,13 @@ export async function parseSessionFile(filePath: string, sessionId: string): Pro
     interrupted: new Map(),
     compactBoundaries: [],
     forkContextRef: null,
+    queuedPrompts: [],
     stats: { totalLines: 0, parseErrors: 0, keptNodes: 0 },
   };
+
+  // 아직 전송 확정(dequeue) 전인 큐 항목들 — 파일 끝까지 남으면 미전송이므로 버려진다
+  const pendingQueue: { ts: string; text: string; fake: boolean }[] = [];
+  let queueUntrusted = false; // content 없는 remove를 만난 뒤에는 짝맞춤을 믿지 않는다
 
   const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
@@ -123,6 +135,33 @@ export async function parseSessionFile(filePath: string, sessionId: string): Pro
 
     if (d.type === 'system' && d.subtype === 'compact_boundary' && d.timestamp) {
       result.compactBoundaries.push(d.timestamp);
+      continue;
+    }
+
+    if (d.type === 'queue-operation') {
+      // enqueue=입력, dequeue=실제 전송 확정(FIFO, content 없음), remove=보내기 전 삭제.
+      // 실측: dequeue된 것의 86%가 정식 질문이 되고 remove된 것은 0.3%뿐 —
+      // enqueue만 믿고 복원하면 "쓰다가 지운 초안"을 질문으로 날조하게 된다.
+      // 시스템 주입(가짜)도 큐 순서에는 참여시키되(fake 표시) 결과에는 안 넣는다 —
+      // 안 그러면 dequeue가 엉뚱한 항목을 꺼내 짝이 밀린다.
+      if (d.operation === 'enqueue' && typeof d.content === 'string' && d.timestamp) {
+        const text = d.content.trim();
+        pendingQueue.push({ ts: d.timestamp, text: sanitize(text), fake: !text || isFakePrompt(text) });
+      } else if (d.operation === 'dequeue') {
+        const q = pendingQueue.shift();
+        if (q && !q.fake && !queueUntrusted) result.queuedPrompts.push({ ts: q.ts, text: q.text });
+      } else if (d.operation === 'remove') {
+        if (typeof d.content === 'string') {
+          const key = sanitize(d.content.trim());
+          const i = pendingQueue.findIndex(x => x.text === key);
+          if (i >= 0) pendingQueue.splice(i, 1); // 전송 전 삭제 — 복원 대상 아님
+        } else {
+          // 실측: remove의 89%가 content 없음 — 무엇을 지웠는지 특정할 수 없다.
+          // 여기서부터 이 파일의 큐 짝맞춤은 신뢰 불가 → 이후 복원을 중단한다.
+          // (지운 초안을 질문으로 날조하는 것보다 "(계속)"으로 남기는 쪽을 택함)
+          queueUntrusted = true;
+        }
+      }
       continue;
     }
 

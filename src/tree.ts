@@ -1,6 +1,28 @@
+import * as fs from 'node:fs';
 import { parseSessionFile, ParsedFile } from './parser';
 import { listSessionFiles, listForkFiles } from './discover';
 import { TreeNode, ToolCall, ParseStats } from './types';
+
+// 최신 포맷 대응: 에이전트 파일에 fork-context-ref 레코드가 없는 경우가 실측으로
+// 확인됨(레코드 자체가 사라진 포맷). 대신 부모 세션 쪽에 agentId를 언급하는 레코드가
+// 남으므로, 그 레코드의 uuid를 접합점으로 쓴다.
+function findAgentRefUuids(filePath: string, agentIds: string[]): Map<string, string> {
+  const out = new Map<string, string>();
+  if (!agentIds.length) return out;
+  let raw = '';
+  try { raw = fs.readFileSync(filePath, 'utf8'); } catch { return out; }
+  const remaining = new Set(agentIds);
+  for (const line of raw.split('\n')) {
+    if (!remaining.size) break;
+    for (const id of [...remaining]) {
+      if (!line.includes(id)) continue;
+      const m = line.match(/"uuid"\s*:\s*"([0-9a-f][0-9a-f-]{30,})"/);
+      if (m) { out.set(id, m[1]); remaining.delete(id); }
+      // break 없음 — 한 줄이 여러 agentId를 언급해도 각자 첫 언급에 묶인다
+    }
+  }
+  return out;
+}
 
 interface Merged {
   allParent: Map<string, string | null>;
@@ -33,6 +55,7 @@ export interface Forest {
   roots: TreeNode[];
   stats: ParseStats;
   compactBoundaries: string[];
+  queuedPrompts: { ts: string; text: string; session: string }[];
 }
 
 export async function buildForest(projectDirName: string): Promise<Forest> {
@@ -52,7 +75,10 @@ export async function buildForest(projectDirName: string): Promise<Forest> {
     stats: { totalLines: 0, parseErrors: 0, keptNodes: 0 },
   };
 
+  const queuedPrompts: { ts: string; text: string; session: string }[] = [];
+
   function absorb(pf: ParsedFile) {
+    for (const q of pf.queuedPrompts) queuedPrompts.push({ ...q, session: pf.sessionId });
     for (const [k, v] of pf.allParent) merged.allParent.set(k, v);
     for (const [k, v] of pf.kind) { merged.kind.set(k, v); merged.ownerSession.set(k, pf.sessionId); }
     for (const [k, v] of pf.preview) merged.preview.set(k, v);
@@ -76,22 +102,57 @@ export async function buildForest(projectDirName: string): Promise<Forest> {
     absorb(pf);
 
     const forkFiles = listForkFiles(projectDirName, s.sessionId);
+    const refUuids = findAgentRefUuids(s.filePath, forkFiles.map(f => f.agentId));
     for (const ff of forkFiles) {
       const forkPf = await parseSessionFile(ff.filePath, `${s.sessionId}::${ff.agentId}`);
       absorb(forkPf);
 
-      if (forkPf.forkContextRef) {
-        // find this fork file's local root (the uuid whose original parent was null)
-        let localRoot: string | null = null;
-        for (const [uuid, parent] of forkPf.allParent) {
-          if (parent === null) { localRoot = uuid; break; }
+      // find this fork file's local root (the uuid whose original parent was null)
+      let localRoot: string | null = null;
+      for (const [uuid, parent] of forkPf.allParent) {
+        if (parent === null) { localRoot = uuid; break; }
+      }
+      if (!localRoot) continue;
+
+      // splice the fork's chain onto the parent-session node it was spawned from.
+      // 접합점 우선순위: ① fork-context-ref(구 포맷) ② 부모 세션의 agentId 언급 레코드
+      //   — 단, 그 지점이 포크 시작보다 늦으면 버린다. /team형 에이전트는 agentId가
+      //   "완료 보고" 라인에서만 언급되어(실측 60/218) 몇 시간 뒤에 접합돼 버리기 때문.
+      // ③ 시간 폴백 — 에이전트 시작 직전의 부모 세션 마지막 노드
+      let startTs = '';
+      for (const ts of forkPf.timestamp.values())
+        if (ts && (!startTs || ts < startTs)) startTs = ts;
+      const keptTsOf = (uuid: string): string | null => {
+        const kept = merged.kind.has(uuid) ? uuid : nearestKeptAncestor(uuid, merged);
+        return kept ? (merged.timestamp.get(kept) ?? null) : null;
+      };
+
+      let anchor: string | null = forkPf.forkContextRef?.parentLastUuid ?? null;
+      if (!anchor) {
+        const ref = refUuids.get(ff.agentId);
+        if (ref) {
+          const refTs = keptTsOf(ref);
+          if (refTs && startTs && refTs <= startTs) anchor = ref;
         }
-        if (localRoot) {
-          // splice the fork's chain onto the exact parent-session node it was spawned from
-          merged.allParent.set(localRoot, forkPf.forkContextRef.parentLastUuid);
-          const name = ff.meta?.name ?? ff.meta?.description ?? 'fork';
-          merged.forkRoots.set(localRoot, { name });
+      }
+      if (!anchor && startTs) { // 포크에 kept 타임스탬프가 없으면 폴백도 무의미 — 건너뜀
+        let best: string | null = null, bestTs = '';
+        for (const u of merged.kind.keys()) {
+          if (merged.ownerSession.get(u) !== s.sessionId) continue;
+          const ts = merged.timestamp.get(u) ?? '';
+          if (ts && ts <= startTs && ts >= bestTs) { best = u; bestTs = ts; }
         }
+        anchor = best;
+      }
+      if (anchor) {
+        merged.allParent.set(localRoot, anchor);
+        const name = ff.meta?.name ?? ff.meta?.description ?? 'fork';
+        // 포크 표지는 실제 트리 노드가 되는 첫 kept 노드에 단다 — localRoot가
+        // teammate-message류로 걸러져 노드가 안 되는 경우가 실측 91/218이라,
+        // localRoot에 달면 표지가 조용히 사라진다.
+        let markUuid: string | null = forkPf.kind.has(localRoot) ? localRoot : null;
+        if (!markUuid) for (const u of forkPf.kind.keys()) { markUuid = u; break; }
+        if (markUuid) merged.forkRoots.set(markUuid, { name });
       }
     }
   }
@@ -145,5 +206,10 @@ export async function buildForest(projectDirName: string): Promise<Forest> {
   }
 
   merged.stats.keptNodes = merged.kind.size;
-  return { roots: roots.map(build), stats: merged.stats, compactBoundaries: merged.compactBoundaries.sort() };
+  return {
+    roots: roots.map(build),
+    stats: merged.stats,
+    compactBoundaries: merged.compactBoundaries.sort(),
+    queuedPrompts: queuedPrompts.sort((a, b) => a.ts.localeCompare(b.ts)),
+  };
 }

@@ -2,8 +2,13 @@
 node_modules/
 dist/
 
-# 압축 패키지 — 대화 원문 일부가 그대로 담기므로 절대 커밋하지 않는다
+# 대화 내용에서 파생된 데이터 — 절대 커밋하지 않는다
+# packages: 압축 패키지(대화 원문 일부 포함)
+# labels:   LLM이 지은 턴 제목·요약 캐시
+# branches: 갈래 대화 기록
 packages/
+labels/
+branches/
 
 # OS / 편집기 부산물
 .DS_Store

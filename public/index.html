@@ -11,20 +11,21 @@
   :root{
     --bg:#f7f6f2; --surface:#fefdfb; --ink:#1b1a17; --ink2:#55534c; --muted:#8d8a7f;
     --line:#e7e4da; --axis:#c9c5b7;
-    --edit:#3d6e8f; --exec:#4a8f7e; --explore:#6a9a5a; --chat:#9a9587;
-    --err:#c1503f; --sel:rgba(74,143,126,.12); --chip:rgba(27,26,23,.06);
+    /* 국면색은 색각 검증(all-pairs ΔE) 통과본 — 이전 청록/녹색 조합은 실행↔탐색 ΔE 7.4로 FAIL */
+    --edit:#eb6834; --exec:#2a78d6; --explore:#1baf7a; --chat:#9a9587;
+    --err:#d03b3b; --sel:rgba(42,120,214,.10); --chip:rgba(27,26,23,.06);
     --shadow:0 1px 3px rgba(20,18,12,.07), 0 10px 28px rgba(20,18,12,.06);
-    --glow:rgba(74,143,126,.35);
+    --glow:rgba(42,120,214,.35);
     color-scheme:light;
   }
   @media (prefers-color-scheme:dark){
     :root{
       --bg:#131210; --surface:#1c1b18; --ink:#f3f1ea; --ink2:#c2beb0; --muted:#8d8a7f;
       --line:#2d2b26; --axis:#4a473f;
-      --edit:#6ba3c7; --exec:#6fc2ad; --explore:#96c47c; --chat:#7b776b;
-      --err:#e07362; --sel:rgba(111,194,173,.16); --chip:rgba(255,255,255,.06);
+      --edit:#d95926; --exec:#3987e5; --explore:#199e70; --chat:#7b776b;
+      --err:#e07362; --sel:rgba(57,135,229,.16); --chip:rgba(255,255,255,.06);
       --shadow:0 1px 3px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.35);
-      --glow:rgba(111,194,173,.4);
+      --glow:rgba(57,135,229,.4);
       color-scheme:dark;
     }
   }
@@ -46,8 +47,9 @@
     background:linear-gradient(135deg,var(--exec),var(--edit));
     animation:breathe 3.5s ease-in-out infinite;}
   @keyframes breathe{0%,100%{transform:scale(1);opacity:.85} 50%{transform:scale(1.25);opacity:1}}
-  select#project-select{background:var(--chip); color:var(--ink); border:1px solid var(--line);
+  select#project-select,select#session-select{background:var(--chip); color:var(--ink); border:1px solid var(--line);
     border-radius:7px; padding:6px 10px; font-size:12.5px; max-width:340px;}
+  select#session-select{max-width:300px;}
   .meta{font-size:12px; color:var(--muted); margin-left:auto; font-variant-numeric:tabular-nums; white-space:nowrap;}
 
   .legend{display:flex; gap:14px; flex-wrap:wrap; padding:8px 22px; font-size:11.5px; color:var(--ink2);
@@ -59,6 +61,16 @@
   .ltile{width:15px;height:15px;border-radius:50%;background:var(--surface);border:2px solid;
     display:inline-flex;align-items:center;justify-content:center;flex:none;}
   .ltile svg{width:9px;height:9px;}
+  /* 범례 항목 = 국면 필터 토글. 아무것도 안 켜면 "전부 표시" 상태 */
+  .lg-f{display:inline-flex; align-items:center; gap:5px; font:inherit; color:var(--ink2);
+    background:none; border:1px solid transparent; border-radius:99px; padding:3px 10px 3px 4px;
+    transition:background .18s ease, border-color .18s ease, opacity .18s ease, color .18s ease;}
+  .lg-f:hover{background:var(--chip);}
+  .lg-f.on{border-color:var(--pc); background:color-mix(in srgb, var(--pc) 13%, transparent);
+    color:var(--ink); font-weight:650;}
+  .lg-f.off{opacity:.35;}
+  .lg-all{padding:3px 11px; color:var(--muted); border-color:var(--line);}
+  .lg-all.hide{display:none;}
 
   #stage{position:fixed; inset:87px 0 0 0; overflow:hidden; cursor:grab;}
   #stage.panning{cursor:grabbing;}
@@ -75,12 +87,22 @@
   .seam{position:absolute; font-size:9.5px; color:var(--muted); z-index:1;
     background:var(--bg); padding:1px 6px; border-radius:99px; border:1px dashed var(--axis);
     transform:translate(-50%,-50%); white-space:nowrap; transition:opacity .3s ease;}
+  /* 포탈로 내려가는 곡선이 라벨 띠를 가로지른다 — 글자 뒤에 배경색 후광을 깔아
+     선이 글자를 관통해 보이지 않게 한다(지하철 노선도의 역 이름 처리와 같은 방식) */
   .node-label{position:absolute; transform:translate(-50%,0); z-index:1;
     font-size:10.5px; color:var(--ink2); max-width:100px; white-space:nowrap;
     overflow:hidden; text-overflow:ellipsis; text-align:center; pointer-events:none;
+    text-shadow:0 0 3px var(--bg), 0 0 3px var(--bg), 0 0 4px var(--bg), 0 0 4px var(--bg);
     opacity:0; animation:labelIn .3s ease forwards; transition:opacity .3s ease;}
   @keyframes labelIn{to{opacity:1}}
+  /* 조용한 갱신(자동 반영) 중에는 등장 애니메이션을 재생하지 않는다 */
+  #map.noanim .node,#map.noanim .node-label{animation:none; opacity:1;}
+  #map.noanim .link{animation:none; stroke-dashoffset:0;}
   .node-label.fork{color:#9b7fd4; font-weight:600;}
+  .node-label.prov,.cap-title .prov{opacity:.5; font-style:italic;}
+  /* 펼쳐진 캡슐의 범위를 감싸는 은은한 영역 표시 — 어디부터 어디까지였는지 보이게 */
+  .cap-region{position:absolute; border:1.5px dashed var(--axis); border-radius:22px;
+    background:color-mix(in srgb, var(--chip) 55%, transparent); z-index:1; pointer-events:none;}
   .node-label.hide-self{opacity:0 !important;}
   #loading{position:fixed; top:96px; left:22px; font-size:13px; color:var(--muted); z-index:11;}
   #empty{position:fixed; inset:0; display:none; align-items:center; justify-content:center;
@@ -128,6 +150,7 @@
 
   .d-fork{color:#9b7fd4; font-size:12px; font-weight:700; margin-bottom:3px;}
   .d-title{font-size:16.5px; font-weight:700; line-height:1.42; margin-bottom:6px;}
+  .d-gist{font-size:13px; color:var(--ink2); line-height:1.55; margin-bottom:6px;}
   .d-meta{font-size:12px; color:var(--muted); margin-bottom:12px;}
   .d-chips{display:flex; gap:7px; flex-wrap:wrap; margin-bottom:14px;}
   .chip{font-size:11.5px; background:var(--chip); border-radius:99px; padding:3px 10px; color:var(--ink2);}
@@ -139,6 +162,110 @@
   .d-list{margin:0; padding-left:17px; font-size:12.5px; color:var(--ink2); line-height:1.78;}
   .d-close{position:absolute; top:12px; right:12px; width:26px; height:26px; border-radius:50%;
     border:0; background:var(--chip); color:var(--ink2); font-size:13px; cursor:pointer;}
+
+  /* ── 세션 뷰: 캡슐(접힌 구간 노드) · 포탈(워프) · 브레드크럼 · 챕터 바 ── */
+  .capsule{position:absolute; transform:translate(-50%,-50%); background:var(--surface);
+    border:2.5px solid var(--pc); border-radius:99px; cursor:pointer; z-index:2;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+    padding:6px 16px; box-shadow:0 0 0 0 transparent;
+    transition:box-shadow .25s ease, border-color .25s ease;
+    opacity:0; animation:popIn .32s cubic-bezier(.3,.7,.3,1.3) forwards;}
+  .capsule:hover{box-shadow:0 0 0 5px var(--glow);}
+  .capsule.selected{border-color:var(--exec); border-width:3px;
+    background:linear-gradient(var(--sel),var(--sel)), var(--surface);}
+  /* 폭 상한을 알약 자체에 묶는다 — 라벨이 나중에 더 긴 LLM 제목으로 교체돼도
+     알약 밖으로 새지 않고 말줄임으로 잘린다 (고정 px면 알약보다 넓어질 수 있음) */
+  .cap-title{font-size:11.5px; font-weight:650; color:var(--ink); white-space:nowrap;
+    max-width:100%; overflow:hidden; text-overflow:ellipsis;}
+  .cap-title .cap-n{color:var(--muted); font-weight:500;}
+  .cap-dots{display:flex; gap:2px; align-items:center; max-width:100%; overflow:hidden;}
+  .cap-dots i{width:4px; height:4px; border-radius:50%; flex:none;}
+  .cap-collapse{position:absolute; transform:translate(-50%,-50%); z-index:2; cursor:pointer;
+    font-size:11.5px; font-weight:650; color:var(--ink2); background:var(--surface);
+    border:1px dashed var(--axis); border-radius:99px; padding:7px 14px; white-space:nowrap;
+    box-shadow:var(--shadow);
+    transition:color .18s ease, background .18s ease, transform .18s ease;
+    opacity:0; animation:popIn .32s cubic-bezier(.3,.7,.3,1.3) forwards;}
+  .cap-collapse:hover{color:var(--ink); border-style:solid; background:var(--chip); transform:translate(-50%,-50%) scale(1.06);}
+  #map.noanim .capsule,#map.noanim .cap-collapse,#map.noanim .portal,#map.noanim .skip{animation:none; opacity:1;}
+
+  /* 필터로 가려진 구간 — 점선 이음선 + 몇 개가 접혔는지 */
+  .skip{position:absolute; transform:translate(-50%,-50%); z-index:2; cursor:pointer;
+    font-size:10.5px; font-weight:650; color:var(--muted); background:var(--bg);
+    border:1px dashed var(--axis); border-radius:99px; padding:5px 11px; white-space:nowrap;
+    transition:color .18s ease, background .18s ease, transform .18s ease;
+    opacity:0; animation:popIn .32s cubic-bezier(.3,.7,.3,1.3) forwards;}
+  .skip:hover{color:var(--ink); background:var(--chip); transform:translate(-50%,-50%) scale(1.07);}
+  .skip.open{border-style:solid; color:var(--ink2);}
+  /* 전체 트리의 +N은 표시 전용 — 접었다 폈다 할 "구간"이 선형이 아니라 클릭 대상이 아니다 */
+  .skip.static{cursor:default; font-size:10px; padding:4px 9px;}
+  .skip.static:hover{transform:translate(-50%,-50%); background:var(--bg); color:var(--ink);}
+  /* .link의 그려지는 애니메이션(dasharray 900)을 끄고 실제 점선으로 */
+  .link.skipline{stroke-dasharray:5 6; stroke-dashoffset:0; animation:none; opacity:.6;}
+  .node.muted{opacity:.32;}
+  .node-label.muted{opacity:.32;}
+  .cell.offphase{opacity:.18;}
+  .node.offphase{opacity:.22;}
+  .node-label.offphase{opacity:.22;}
+
+  .portal{position:absolute; width:22px; height:22px; transform:translate(-50%,-50%) rotate(45deg);
+    background:var(--surface); border:2.5px solid #9b7fd4; border-radius:5px; cursor:pointer; z-index:2;
+    transition:box-shadow .25s ease; opacity:0; animation:popIn .32s cubic-bezier(.3,.7,.3,1.3) forwards;}
+  .portal:hover{box-shadow:0 0 0 5px rgba(155,127,212,.35);}
+  .portal::after{content:"↷"; position:absolute; inset:0; display:flex; align-items:center;
+    justify-content:center; transform:rotate(-45deg); color:#9b7fd4; font-size:12px; font-weight:700;}
+  .portal.back::after{content:"↩";}
+
+  #crumbs{position:fixed; top:122px; left:22px; z-index:11; display:flex; gap:6px; flex-wrap:wrap;}
+  #crumbs .crumb{font-size:11.5px; font-weight:600; color:var(--ink2); background:var(--surface);
+    border:1px solid var(--line); border-radius:99px; padding:4px 12px; cursor:pointer;
+    box-shadow:var(--shadow);}
+  #crumbs .crumb:hover{color:var(--ink); border-color:#9b7fd4;}
+
+  #chapterbar{position:fixed; left:50%; transform:translateX(-50%); bottom:14px; z-index:20;
+    width:min(78vw,880px); background:color-mix(in srgb, var(--surface) 88%, transparent);
+    backdrop-filter:blur(16px) saturate(1.5); -webkit-backdrop-filter:blur(16px) saturate(1.5);
+    border:1px solid var(--line); border-radius:12px; padding:8px 12px;
+    box-shadow:var(--shadow); display:none;}
+  #chapterbar.on{display:block;}
+  #chapcells{display:flex; align-items:flex-end; gap:1px; height:16px; cursor:pointer;}
+  #chapcells .cell{flex:1 1 4px; max-width:9px; min-width:2px; height:12px; border-radius:1.5px;
+    opacity:.8;}
+  #chapcells .cell:hover{opacity:1; height:16px;}
+  #chapcells .cell.gapL{margin-left:5px;}
+  #chapcells .cell.selrange{outline:1.5px solid var(--exec); outline-offset:1px; opacity:1;}
+
+  /* 갈래 워프 뷰: 유령 앵커 노드 + 하단 이어쓰기 바 */
+  .node.ghost{border-style:dashed; opacity:.8;}
+  .node.pending{border-style:dashed; animation:popIn .32s cubic-bezier(.3,.7,.3,1.3) forwards, selPulse 1.6s ease-in-out infinite;}
+  #branchbar{position:fixed; left:50%; transform:translateX(-50%); bottom:14px; z-index:20;
+    width:min(78vw,880px); background:color-mix(in srgb, var(--surface) 88%, transparent);
+    backdrop-filter:blur(16px) saturate(1.5); -webkit-backdrop-filter:blur(16px) saturate(1.5);
+    border:1px solid var(--line); border-radius:12px; padding:8px 10px 8px 16px;
+    box-shadow:var(--shadow); display:none; align-items:center; gap:10px;}
+  #branchbar.on{display:flex;}
+  #bb-title{font-size:12.5px; font-weight:700; color:#9b7fd4; white-space:nowrap;
+    max-width:220px; overflow:hidden; text-overflow:ellipsis;}
+  #bb-q{flex:1; font:inherit; font-size:13px; padding:8px 12px; border-radius:9px;
+    border:1px solid var(--line); background:var(--surface); color:var(--ink);}
+  #bb-q:focus{border-color:#9b7fd4; outline:none;}
+
+  /* ── 갈래(브랜치) 대화 ── */
+  .node .brb{position:absolute; bottom:-6px; right:-6px; font-size:9.5px; font-weight:700;
+    background:#9b7fd4; color:#fff; border-radius:99px; min-width:15px; height:15px; padding:0 4px;
+    display:flex; align-items:center; justify-content:center; line-height:1;}
+  .brchip{display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600;
+    background:var(--chip); border:1px dashed #9b7fd4; color:var(--ink2); border-radius:99px;
+    padding:4px 11px; cursor:pointer;}
+  .brchip:hover{border-style:solid; color:var(--ink);}
+  .br-msgs{display:flex; flex-direction:column; gap:6px; margin:8px 0;}
+  .br-msg{font-size:12.8px; line-height:1.55; padding:8px 11px; border-radius:10px;
+    white-space:pre-wrap; word-break:break-word;}
+  .br-msg.user{background:#9b7fd4; color:#fff; align-self:flex-end; max-width:88%;}
+  .br-msg.ai{background:var(--chip); color:var(--ink); align-self:flex-start; max-width:92%;}
+  .br-input{display:flex; gap:6px; margin-top:8px;}
+  .br-input input{flex:1; font:inherit; font-size:13px; padding:8px 11px; border-radius:10px;
+    border:1px solid var(--line); background:var(--surface); color:var(--ink);}
 
   /* Apple-notification-style banner: docked at the very top, dropping in from
      above the viewport and sliding back up the same way when dismissed —
@@ -197,6 +324,7 @@
     width:27px; height:27px; border-radius:50%; font-size:13px;}
 
   .hint{position:fixed; bottom:16px; left:22px; font-size:11.5px; color:var(--muted); z-index:11;}
+  body.hasbar .hint{display:none;}
 
   #tooltip{position:fixed; z-index:50; pointer-events:none; max-width:280px;
     background:color-mix(in srgb, var(--ink) 92%, transparent); color:var(--bg);
@@ -206,6 +334,25 @@
     transform:translate(-50%,calc(-100% - 14px)) translateY(4px);
     transition:opacity .12s ease, transform .12s ease; white-space:pre-wrap; word-break:break-word;}
   #tooltip.show{opacity:1; transform:translate(-50%,calc(-100% - 14px)) translateY(0);}
+
+  /* ── busy: 오래 걸리는 작업(압축·갈래 응답) 동안 뜨는 대기 카드.
+     스플래시의 노선도 언어를 그대로 — 선 위로 열차(대시)가 흐르고 역이 숨쉰다.
+     pointer-events:none — 순수 안내용이라 화면 탐색을 막지 않는다 ── */
+  #busy{position:fixed; left:50%; top:44%; transform:translate(-50%,-50%); z-index:70;
+    display:none; flex-direction:column; align-items:center; gap:8px;
+    background:color-mix(in srgb, var(--surface) 94%, transparent);
+    border:1px solid var(--line); border-radius:18px; padding:20px 34px 18px;
+    box-shadow:0 18px 50px rgba(0,0,0,.3); pointer-events:none;
+    backdrop-filter:blur(14px) saturate(1.4); -webkit-backdrop-filter:blur(14px) saturate(1.4);}
+  #busy.on{display:flex; animation:fadeIn .18s ease;}
+  #busy .bz-line{fill:none; stroke:var(--exec); stroke-width:3; stroke-linecap:round;
+    stroke-dasharray:26 18; animation:bzflow 1.5s linear infinite;}
+  @keyframes bzflow{to{stroke-dashoffset:-88;}}
+  #busy .bz-n{fill:var(--surface); stroke:var(--exec); stroke-width:2.5;
+    transform-box:fill-box; transform-origin:center;
+    animation:breathe 1.4s ease-in-out infinite;}
+  #busy-msg{font-size:13.5px; font-weight:700; color:var(--ink);}
+  #busy-sub{font-size:11.5px; color:var(--muted);}
 
   /* ── splash: shown the instant the page paints (pure CSS, no JS delay),
      faded out once the first project's tree has actually rendered ── */
@@ -253,9 +400,11 @@
   <header>
     <h1><span class="dot"></span>BranchPort</h1>
     <select id="project-select"><option>프로젝트 불러오는 중…</option></select>
+    <select id="session-select"></select>
     <span class="meta" id="meta"></span>
   </header>
   <div class="legend" id="legend"></div>
+  <div id="crumbs"></div>
 
   <div id="stage">
     <div id="viewport"><div id="map"><svg id="links"></svg></div></div>
@@ -268,6 +417,12 @@
     <span id="sb-hint">다른 턴을 <b>shift</b>+클릭하면 경로가 선택됩니다</span>
     <div id="sb-active-group">
       <span>경로 <b id="sb-n"></b>턴 선택됨</span>
+      <select id="sb-purpose" class="btn ghost" style="padding:7px 10px">
+        <option value="">받는 쪽 목적: 일반</option>
+        <option value="continue">이어서 구현</option>
+        <option value="bugfix">버그 수정</option>
+        <option value="handoff">팀원 설명</option>
+      </select>
       <button class="btn primary" id="sb-go">압축 패키지 생성</button>
       <button class="btn ghost" id="sb-clear">해제</button>
     </div>
@@ -286,11 +441,30 @@
         <button class="btn primary" id="m-copy">복사</button>
         <button class="btn ghost" id="m-dl-md">.md 다운로드</button>
         <button class="btn ghost" id="m-dl-json">.json 다운로드</button>
+        <button class="btn ghost" id="m-branch">⑂ 이 패키지로 갈래 대화</button>
       </div>
     </div>
   </div>
 
   <div class="hint">마우스를 올리면 전체 제목이 보이고, 클릭하면 그 자리에서 확대되며 내용이 열립니다 · shift+클릭으로 경로 구간을 선택해 압축</div>
+  <div id="chapterbar"><div id="chapcells"></div></div>
+  <div id="branchbar">
+    <span id="bb-title">⑂</span>
+    <input id="bb-q" placeholder="이 시점의 AI에게 이어서 질문… (Enter)">
+    <button class="btn primary" id="bb-send">보내기</button>
+  </div>
+
+  <!-- 작업 대기 오버레이: 스플래시와 같은 노선도 애니메이션 문법 (흐르는 선 + 숨쉬는 역) -->
+  <div id="busy">
+    <svg width="132" height="46" viewBox="0 0 200 60">
+      <path class="bz-line" d="M14 30 L186 30"/>
+      <circle class="bz-n" cx="14" cy="30" r="7" style="animation-delay:0s"/>
+      <circle class="bz-n" cx="100" cy="30" r="7" style="animation-delay:.35s"/>
+      <circle class="bz-n" cx="186" cy="30" r="7" style="animation-delay:.7s"/>
+    </svg>
+    <div id="busy-msg"></div>
+    <div id="busy-sub"></div>
+  </div>
   <div id="tooltip"></div>
 
 <script>
@@ -301,9 +475,38 @@ const GLYPH = {
   explore: '<svg viewBox="0 0 24 24"><g transform="translate(-0.55,-0.55)"><circle cx="10.5" cy="10.5" r="5.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M15 15l5 5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></g></svg>',
   chat: '<svg viewBox="0 0 24 24"><g transform="translate(0,-0.5)"><path d="M4 5h16v11H10l-6 4V5z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></g></svg>',
 };
+// 국면 필터: 비어 있으면 전부 표시, 하나라도 켜지면 그 국면만 노드로 남고
+// 나머지는 "점선 + +N" 구간으로 접힌다.
+let PHASE_FILTER = new Set(), EXPANDED_SKIPS = new Set();
+
 document.getElementById("legend").innerHTML =
-  Object.keys(PHASE).map(k => `<span><i class="ltile" style="border-color:var(--${k});color:var(--${k})">${GLYPH[k]}</i>${PHASE[k]}</span>`).join("")
+  Object.keys(PHASE).map(k => `<button class="lg-f" data-phase="${k}" style="--pc:var(--${k})"><i class="ltile" style="border-color:var(--${k});color:var(--${k})">${GLYPH[k]}</i>${PHASE[k]}</button>`).join("")
+  + `<button class="lg-all hide lg-f" data-phase="">필터 해제</button>`
   + `<span style="color:var(--muted)">· 크기=작업량 · <b style="color:var(--err)">⚠</b>에러 · 점선=선택경로 · 이중테두리=위임 · <b style="color:#9b7fd4">보라 라벨</b>=포크</span>`;
+
+function paintLegend() {
+  const on = PHASE_FILTER.size > 0;
+  document.querySelectorAll(".lg-f[data-phase]").forEach(b => {
+    const k = b.dataset.phase;
+    if (!k) return;
+    b.classList.toggle("on", PHASE_FILTER.has(k));
+    b.classList.toggle("off", on && !PHASE_FILTER.has(k));
+  });
+  document.querySelector(".lg-all").classList.toggle("hide", !on);
+}
+document.getElementById("legend").addEventListener("click", (e) => {
+  const b = e.target.closest(".lg-f"); if (!b) return;
+  const k = b.dataset.phase;
+  if (!k) PHASE_FILTER = new Set();
+  else if (PHASE_FILTER.has(k)) PHASE_FILTER.delete(k);
+  else PHASE_FILTER.add(k);
+  EXPANDED_SKIPS = new Set(); // 필터가 바뀌면 펼쳐둔 생략 구간은 의미가 없다
+  paintLegend();
+  if (!TURNS.length) return;
+  // 카메라는 새로 맞춘다 — 필터로 선이 짧아지면 예전 시점은 빈 공간을 보게 된다
+  expandedId = null; clearSel();
+  render();
+});
 
 const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
 
@@ -329,17 +532,38 @@ function hideTooltip() {
 const api = (url, body) => fetch(url, { method:"POST",
   headers:{ "Content-Type":"application/json", "X-BranchPort":"1" }, body: JSON.stringify(body) }).then(r => r.json());
 
-let TURNS = [], byId = {}, parentOf = {};
+// 대기 오버레이 — 오래 걸리는 claude 호출 동안만
+function showBusy(msg, sub) {
+  document.getElementById("busy-msg").textContent = msg;
+  document.getElementById("busy-sub").textContent = sub ?? "";
+  document.getElementById("busy").classList.add("on");
+}
+function hideBusy() { document.getElementById("busy").classList.remove("on"); }
+
+let TURNS = [], byId = {}, parentOf = {}, LABELS = {}, HUMAN_SESS = new Set();
+// LLM 제목·요약. 라벨이 아직 없으면 원문 절단을 "임시 표시" 스타일(흐림·기울임)로
+// 보여주고, 라벨이 도착하는 대로 교체한다 — 화면을 "…"로 비우면 고장처럼 보인다.
+let LABELING = true;
+const labelOf = t => LABELS[t.hash];
+const titleOf = t => labelOf(t)?.t ?? t.headline;
+// 라벨 대기 중(임시 표시) 여부 — 생성 불가로 판명(LABELING=false)되면 흐림 표시도 해제
+const isProv = t => !labelOf(t) && !t._pseudo && LABELING;
+const tipText = t => {
+  const lb = labelOf(t);
+  if (lb) return lb.t + "\n" + lb.g;
+  return t.headline + (isProv(t) && LABELING ? "\n(제목·요약 생성 중…)" : "");
+};
 let CURRENT_PROJECT = null;
 let selA = null, selB = null, expandedId = null, PKG = null;
+// 선택 하이라이트는 shift로 '범위를 집는' 동안에만 보여준다. 그냥 클릭은 카드를
+// 여는 동작일 뿐인데, 여기에 초록 테두리+틴트를 씌우면 노드 고유의 국면색을 가린다.
+let selShift = false;
 let LAST_POS = {}, NODE_EL = {}, CONTENT_W = 0, CONTENT_H = 0, KIDS = {};
-
-function flatten(roots) {
-  const out = [];
-  function walk(node, parentId) { out.push(node); parentOf[node.id] = parentId; for (const c of node.children) walk(c, node.id); }
-  for (const r of roots) walk(r, null);
-  return out;
-}
+// 세션 뷰 상태: undefined=아직 미정(최신 세션으로), null=전체 트리, 문자열=해당 세션만
+let LAST_XY = {}, SESSION_SCOPE = undefined, CRUMBS = [], EXPANDED_CAPS = new Set();
+let VIEW_SESS = [], CAP_OF = {}, SKIP_OF = {};
+// 갈래 워프 뷰 상태: 갈래 id가 있으면 그 갈래 대화를 세션처럼 노드 선으로 렌더
+let BRANCH_SCOPE = null, PENDING_BR = null, BR_LAST_ID = null;
 
 function hideSplash() {
   const el = document.getElementById("splash");
@@ -357,59 +581,190 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function loadProjects() {
   const splashHold = sleep(MIN_SPLASH_MS);
   const sel = document.getElementById("project-select");
-  const projects = await fetch("/api/projects").then(r => r.json());
-  sel.innerHTML = "";
-  if (!projects.length) {
-    sel.innerHTML = "<option>세션을 찾을 수 없음</option>";
-    await splashHold; hideSplash(); return;
+  try {
+    const projects = await fetch("/api/projects").then(r => r.json());
+    sel.innerHTML = "";
+    if (!projects.length) {
+      sel.innerHTML = "<option>세션을 찾을 수 없음</option>";
+      return;
+    }
+    for (const p of projects) {
+      const opt = document.createElement("option");
+      opt.value = p.dirName; opt.textContent = `${p.displayPath} (${p.sessionCount})`;
+      sel.appendChild(opt);
+    }
+    sel.addEventListener("change", () => loadTurns(sel.value));
+    // 첫 화면 = 가장 최근에 대화한 프로젝트 (목록 첫 항목이 아니라)
+    let initial = projects[0].dirName;
+    try {
+      const mtimes = await Promise.all(projects.map(p =>
+        fetch(`/api/mtime?project=${encodeURIComponent(p.dirName)}`).then(r => r.json()).then(j => j.mtime || 0).catch(() => 0)));
+      initial = projects[mtimes.indexOf(Math.max(...mtimes))].dirName;
+    } catch { /* 실패하면 첫 항목 */ }
+    sel.value = initial;
+    await loadTurns(initial);
+  } catch (e) {
+    // 서버가 죽어 있어도 스플래시 뒤에 갇히지 않도록 — 화면을 열고 오류를 보여준다
+    document.getElementById("loading").textContent = "서버에 연결할 수 없습니다. `npm run dev`로 서버를 켠 뒤 새로고침하세요.";
+  } finally {
+    await splashHold;
+    hideSplash();
   }
-  for (const p of projects) {
-    const opt = document.createElement("option");
-    opt.value = p.dirName; opt.textContent = `${p.displayPath} (${p.sessionCount})`;
-    sel.appendChild(opt);
-  }
-  sel.addEventListener("change", () => loadTurns(sel.value));
-  await loadTurns(projects[0].dirName);
-  await splashHold;
-  hideSplash();
 }
 
-async function loadTurns(project) {
+let LAST_FP = ""; // 마지막 렌더의 턴 지문 — 내용이 같으면 조용한 갱신은 화면을 건드리지 않는다
+async function loadTurns(project, opts = {}) {
+  if (CURRENT_PROJECT !== project) { // 프로젝트가 바뀌면 갱신 기준점·세션 스코프 리셋
+    lastMtime = 0; LAST_FP = "";
+    SESSION_SCOPE = undefined; CRUMBS = []; EXPANDED_CAPS = new Set();
+  }
   CURRENT_PROJECT = project;
   const loading = document.getElementById("loading");
-  loading.textContent = "불러오는 중…";
-  expandedId = null; // a node id from the previous project would otherwise dim the whole new tree
-  clearSel();
+  if (!opts.silent) {
+    loading.textContent = "불러오는 중…";
+    expandedId = null; // a node id from the previous project would otherwise dim the whole new tree
+    clearSel();
+  }
   const data = await fetch(`/api/turns?project=${encodeURIComponent(project)}`).then(r => r.json());
+  if (project !== CURRENT_PROJECT) return; // 대기 중 다른 프로젝트로 바꿨으면 이 응답은 버린다
   if (data.error) { loading.textContent = "오류: " + data.error; return; }
-  loading.textContent = "";
-  parentOf = {};
-  const flat = flatten(data.turns);
+  await fetchBranches(project);
+  if (project !== CURRENT_PROJECT) return;
+  if (!opts.silent) loading.textContent = "";
+  const nextParentOf = {}, flat = [];
+  (function walk(nodes, parentId) {
+    for (const n of nodes) { flat.push(n); nextParentOf[n.id] = parentId; walk(n.children, n.id); }
+  })(data.turns, null);
+  // 세션 파일은 메타 기록만으로도 계속 바뀌므로, 실제 턴 내용이 그대로면 재렌더하지 않는다
+  // (팝인·선 그리기 애니메이션이 주기적으로 재생되는 문제 방지)
+  const fp = flat.map(t => t.hash).join(",");
+  if (opts.silent && fp === LAST_FP) return;
+  LAST_FP = fp;
+  parentOf = nextParentOf;
   TURNS = flat;
   byId = Object.fromEntries(flat.map(t => [t.id, t]));
+  HUMAN_SESS = new Set(data.humanSessions ?? []);
   document.getElementById("meta").textContent =
     `턴 ${flat.length} · 노드 ${data.stats.keptNodes} · 라인 ${data.stats.totalLines} · 파싱오류 ${data.stats.parseErrors}`;
+  rebuildSessionSelect();
+  NOANIM = KEEP_CAMERA = !!opts.silent; // 조용한 갱신은 등장 애니메이션·카메라 이동 없이 제자리 갱신
   render();
+  NOANIM = false;
+  refreshLabels(project);
 }
+
+// ── LLM 제목·요약: 캐시 조회 → 미라벨 턴이 있으면 배치 생성 요청, 도착분 즉시 반영 ──
+function applyLabels() {
+  document.querySelectorAll(".node-label").forEach(el => {
+    const t = byId[el.dataset.id];
+    if (t) { el.textContent = titleOf(t); el.classList.toggle("prov", isProv(t)); }
+  });
+  let capTitleChanged = false;
+  document.querySelectorAll(".cap-t").forEach(el => {
+    const t = byId[el.dataset.id];
+    if (!t) return;
+    const next = titleOf(t);
+    if (el.textContent !== next) capTitleChanged = true;
+    el.textContent = next; el.classList.toggle("prov", isProv(t));
+  });
+  const sessions = sessionsOf();
+  [...document.getElementById("session-select").options].forEach(o => {
+    const s = sessions.find(x => x.id === o.value);
+    if (s) o.textContent = sessOptLabel(s);
+  });
+  // 알약 폭은 렌더 시점의 제목 길이로 정해진다 — 나중에 도착한 LLM 제목이 더 길면
+  // 말줄임으로만 남으므로, 제목이 실제로 바뀐 경우에만 제자리 재배치한다
+  // 카드가 열려 있거나 범위를 잡는 중이면 건드리지 않는다(재렌더가 그 상태를 날림)
+  if (capTitleChanged && SESSION_SCOPE && !BRANCH_SCOPE && !expandedId && selB === null) {
+    KEEP_CAMERA = true; NOANIM = true;
+    renderSession();
+    NOANIM = false;
+  }
+}
+async function fetchLabels(project) {
+  const j = await fetch(`/api/labels?project=${encodeURIComponent(project)}`).then(r => r.json());
+  return j.labels || {};
+}
+async function refreshLabels(project) {
+  const loading = document.getElementById("loading");
+  let failed = false;
+  try {
+    LABELS = await fetchLabels(project);
+    if (project !== CURRENT_PROJECT) return;
+    applyLabels();
+    for (let guard = 0; guard < 20; guard++) {
+      if (!TURNS.some(t => !LABELS[t.hash])) break;
+      LABELING = true;
+      loading.textContent = `제목 생성 중… ${TURNS.filter(t => LABELS[t.hash]).length}/${TURNS.length}`;
+      // 지금 보고 있는 세션의 턴부터 우선 라벨링
+      const r = await api("/api/label", { project, session: SESSION_SCOPE || undefined });
+      if (project !== CURRENT_PROJECT) return;
+      if (r.error) { failed = true; break; }
+      if (r.busy || !r.labeled) break;
+      LABELS = await fetchLabels(project);
+      if (project !== CURRENT_PROJECT) return;
+      applyLabels();
+      if (!r.remaining) break;
+    }
+  } catch { failed = true; /* 라벨은 장식층 — 실패해도 트리는 그대로 동작 */ }
+  if (project !== CURRENT_PROJECT) return;
+  if (failed) { LABELING = false; applyLabels(); } // 생성 불가 판명 → 임시 표시 안내 제거
+  if (loading.textContent.startsWith("제목 생성 중…")) loading.textContent = "";
+}
+
+// 방금 끝난 턴(15→5분 신선 구간)은 라벨링에서 제외되므로, 시간이 지나면 다시 시도
+setInterval(() => {
+  if (!CURRENT_PROJECT || document.hidden) return;
+  if (TURNS.some(t => !LABELS[t.hash])) refreshLabels(CURRENT_PROJECT);
+}, 180_000);
 
 const COLW = 108, LANEH = 70, PADX = 60, PADY = 60;
 const tileSide = t => Math.round(Math.min(30, Math.max(16, 16 + 1.4 * Math.log2(1 + t.outputTokens / 800))));
 const fmtGap = m => m >= 60 ? (Math.round(m/6)/10) + "h" : m + "m";
 const fmtTok = n => n >= 1000 ? (Math.round(n/100)/10) + "k" : n;
 
+// 뷰 디스패처: 갈래 워프 > 세션 뷰 > 전체 트리
 function render() {
-  document.getElementById("empty").style.display = TURNS.length ? "none" : "flex";
+  const inBranch = !!BRANCH_SCOPE;
+  const inSession = !inBranch && !!SESSION_SCOPE;
+  document.getElementById("chapterbar").classList.toggle("on", inSession && TURNS.length > 0);
+  document.getElementById("branchbar").classList.toggle("on", inBranch);
+  // 하단 바가 떠 있을 때는 왼쪽 하단 힌트 문구를 숨김(겹침 방지)
+  document.body.classList.toggle("hasbar", inSession || inBranch);
+  renderCrumbs();
+  if (inBranch) renderBranchView();
+  else if (inSession) renderSession();
+  else renderTree();
+}
+
+function renderTree() {
   const map = document.getElementById("map");
-  map.querySelectorAll(".node,.seam,.node-label").forEach(e => e.remove());
+  map.classList.toggle("noanim", NOANIM);
+  map.querySelectorAll(".node,.seam,.node-label,.capsule,.cap-collapse,.skip,.portal,.cap-region").forEach(e => e.remove());
   const svg = document.getElementById("links");
   svg.innerHTML = "";
   NODE_EL = {};
-  if (!TURNS.length) return;
+
+  // 필터가 켜지면 걸러진 노드를 트리에서 빼고, 남은 노드를 가장 가까운 살아있는
+  // 조상에 다시 잇는다. 사이에 접힌 개수는 그 이음선에 +N으로 적는다.
+  // 세션 뷰처럼 한 줄로 접지 않는 이유 — 가지가 여러 갈래라 "사이 구간"이 선형이 아니다.
+  const filtering = PHASE_FILTER.size > 0;
+  const keep = t => !filtering || PHASE_FILTER.has(t.phase);
+  const VT = filtering ? TURNS.filter(keep) : TURNS;
+  const vparent = {}, vskip = {};
+  for (const t of VT) {
+    let p = parentOf[t.id] ?? null, n = 0;
+    while (p && byId[p] && !keep(byId[p])) { n++; p = parentOf[p] ?? null; }
+    vparent[t.id] = (p && byId[p]) ? p : null;
+    vskip[t.id] = n;
+  }
+  document.getElementById("empty").style.display = VT.length ? "none" : "flex";
+  if (!VT.length) return;
 
   const kids = {};
-  TURNS.forEach(t => { (kids[parentOf[t.id]] ??= []).push(t); });
+  VT.forEach(t => { (kids[vparent[t.id]] ??= []).push(t); });
   KIDS = kids; // exposed for arrow-key navigation
-  const roots = TURNS.filter(t => parentOf[t.id] === null);
+  const roots = VT.filter(t => vparent[t.id] === null);
 
   let laneCounter = 0;
   const pos = {};
@@ -432,9 +787,11 @@ function render() {
   svg.setAttribute("viewBox", `0 0 ${CONTENT_W} ${CONTENT_H}`);
 
   LAST_POS = pos;
+  LAST_XY = {};
+  VT.forEach(t => { LAST_XY[t.id] = { x: X(t.id), y: Y(t.id) }; });
 
-  TURNS.forEach(t => {
-    const pid = parentOf[t.id];
+  VT.forEach(t => {
+    const pid = vparent[t.id];
     if (pid === null || !byId[pid]) return;
     const x1 = X(pid), y1 = Y(pid), x2 = X(t.id), y2 = Y(t.id);
     let d;
@@ -445,13 +802,33 @@ function render() {
       d = `M ${x1} ${y1} L ${mx - 14} ${y1} Q ${mx} ${y1} ${mx} ${y1 + s*14} L ${mx} ${y2 - s*14} Q ${mx} ${y2} ${mx+14} ${y2} L ${x2} ${y2}`;
     }
     const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    p.setAttribute("d", d); p.setAttribute("class", "link");
+    const nSkip = vskip[t.id] || 0;
+    p.setAttribute("d", d);
+    p.setAttribute("class", "link" + (nSkip ? " skipline" : ""));
     p.dataset.from = pid; p.dataset.to = t.id;
     svg.appendChild(p);
 
     const marks = [];
     if (t.compactBefore) marks.push("⑊");
     if ((t.gapMin || 0) >= 30) marks.push("⋯" + fmtGap(t.gapMin));
+
+    // 이 이음선 하나가 접어 삼킨 노드 수 — 세션 뷰의 +N 칩과 같은 표기.
+    // ⑊/⋯ 표시가 같은 선에 있으면 그 아래로 비켜 놓는다(둘 다 선 한가운데라 겹침)
+    if (nSkip) {
+      const c = document.createElement("div");
+      c.className = "skip static";
+      c.textContent = "+" + nSkip;
+      c.style.left = ((x1 + x2) / 2) + "px";
+      c.style.top = ((y1 + y2) / 2 + (marks.length ? 15 : 0)) + "px";
+      const hidden = [];
+      for (let q = parentOf[t.id]; q && byId[q] && !keep(byId[q]); q = parentOf[q] ?? null) hidden.push(byId[q]);
+      const names = hidden.slice(0, 8).map(h => "· " + titleOf(h)).join("\n");
+      const more = hidden.length > 8 ? `\n… 외 ${hidden.length - 8}개` : "";
+      c.addEventListener("mouseenter", () => showTooltip(c, `필터에 걸러진 ${nSkip}턴\n${names}${more}`));
+      c.addEventListener("mouseleave", hideTooltip);
+      map.appendChild(c);
+    }
+
     if (marks.length) {
       const s = document.createElement("div");
       s.className = "seam"; s.textContent = marks.join(" ");
@@ -460,7 +837,7 @@ function render() {
     }
   });
 
-  TURNS.forEach((t, i) => {
+  VT.forEach((t, i) => {
     const side = tileSide(t);
     const n = document.createElement("div");
     n.className = "node" + (t.delegated ? " deleg" : "") + (t.hasError ? " err" : "");
@@ -469,21 +846,25 @@ function render() {
     n.style.width = side + "px"; n.style.height = side + "px";
     n.style.animationDelay = Math.min(i * 10, 450) + "ms";
     n.dataset.id = t.id;
-    n.innerHTML = `<span class="icon">${GLYPH[t.phase]}</span>`;
-    n.addEventListener("mouseenter", () => showTooltip(n, t.headline));
+    n.innerHTML = nodeBaseHtml(t);
+    n.addEventListener("mouseenter", () => showTooltip(n, tipText(t)));
     n.addEventListener("mouseleave", hideTooltip);
     n.addEventListener("click", (ev) => {
       ev.stopPropagation();
       hideTooltip();
-      if (ev.shiftKey && selA !== null) trySetRangeEnd(t.id);
-      else selectNode(t.id);
+      if (ev.shiftKey) {
+        if (expandedId) closeExpanded(); // 범위를 잡는 동안엔 열려 있던 카드도 치운다
+        if (selA === null) anchorAt(t.id); else trySetRangeEnd(t.id);
+        return;
+      }
+      selectNode(t.id);
     });
     map.appendChild(n);
     NODE_EL[t.id] = n;
 
     const lbl = document.createElement("div");
-    lbl.className = "node-label" + (t.isForkRoot ? " fork" : "");
-    lbl.textContent = t.headline;
+    lbl.className = "node-label" + (t.isForkRoot ? " fork" : "") + (isProv(t) ? " prov" : "");
+    lbl.textContent = titleOf(t);
     lbl.style.left = X(t.id) + "px"; lbl.style.top = (Y(t.id) + side / 2 + 5) + "px";
     lbl.style.animationDelay = Math.min(i * 10, 450) + 60 + "ms";
     lbl.dataset.id = t.id;
@@ -492,8 +873,581 @@ function render() {
 
   applySelectionClasses();
   // animated (not instant) — the camera zooming out to reveal the whole tree is the intended entrance effect
-  requestAnimationFrame(() => { if (expandedId && byId[expandedId]) focusOn(expandedId); else fitAll(); });
+  requestAnimationFrame(() => {
+    if (KEEP_CAMERA) { KEEP_CAMERA = false; applyTransform(camTx, camTy, camScale, true); }
+    else if (expandedId && byId[expandedId]) focusOn(expandedId);
+    else fitAll();
+  });
 }
+
+// ── 자동 갱신: 세션 파일 변화를 폴링, 새 턴이 생기면 조용히 반영 ──
+// silent 갱신은 ① 턴 내용이 그대로면 아무것도 안 하고 ② 바뀌었을 때만
+// 애니메이션·카메라 이동 없이 제자리 갱신한다.
+let lastMtime = 0, KEEP_CAMERA = false, NOANIM = false;
+setInterval(async () => {
+  if (!CURRENT_PROJECT || document.hidden) return;
+  // 카드·모달·"두 턴 이상" 범위 선택·갈래 응답 대기 중엔 보류. 단일 클릭(selA만)은
+  // 범위 시작점일 뿐이라 갱신을 막지 않는다 — 막으면 첫 클릭 후 자동 갱신이 영원히 죽는다.
+  // PENDING_BR 중 보류: 폴링의 fetchBranches가 방금 도착한 갈래 답변을 잠깐 덮는 경합 방지.
+  if (expandedId || selB !== null || PENDING_BR || modal.classList.contains("open")) return;
+  try {
+    const j = await fetch(`/api/mtime?project=${encodeURIComponent(CURRENT_PROJECT)}`).then(r => r.json());
+    if (!j.mtime || j.mtime === lastMtime) { lastMtime = j.mtime || lastMtime; return; }
+    const firstObservation = !lastMtime; // 기준값만 기록, 재로드는 실제 변화부터
+    lastMtime = j.mtime;
+    if (!firstObservation) await loadTurns(CURRENT_PROJECT, { silent: true });
+  } catch { /* 서버 재시작 등 일시 오류 무시 */ }
+}, 10_000);
+
+// ═══ 세션 뷰: 한 세션만 한 줄로 + 캡슐(접힌 구간) + 포탈(다른 세션 워프) ═══
+const SHORT_TS = ts => {
+  if (!ts) return "?";
+  const d = new Date(ts);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+
+function sessionsOf() {
+  const m = new Map();
+  for (const t of TURNS) {
+    const s = m.get(t.sessionId);
+    if (!s) m.set(t.sessionId, { id: t.sessionId, first: t, last: t, count: 1 });
+    else {
+      s.count++;
+      if ((t.timestamp ?? "") < (s.first.timestamp ?? "")) s.first = t;
+      if ((t.endTimestamp ?? "") > (s.last.endTimestamp ?? "")) s.last = t;
+    }
+  }
+  // 최근 활동순 정렬 — 새로 대화가 이어지면 그 세션이 목록 끝(=기본 선택)으로 온다
+  const lastTs = s => s.last.endTimestamp ?? s.last.timestamp ?? "";
+  return [...m.values()].sort((a, b) => lastTs(a).localeCompare(lastTs(b)));
+}
+// 표기 시간도 시작 시각이 아니라 "마지막으로 대화한 시각" — 이어서 대화하면 갱신됨
+const sessLastTs = s => s.last.endTimestamp ?? s.last.timestamp;
+const sessOptLabel = s => `${SHORT_TS(sessLastTs(s))} · ${titleOf(s.first).slice(0, 18)} (${s.count}턴)`;
+function sessShort(sid) {
+  const s = sessionsOf().find(x => x.id === sid);
+  return s ? `${SHORT_TS(sessLastTs(s))} · ${titleOf(s.first)}` : sid.slice(0, 8);
+}
+function rebuildSessionSelect() {
+  const sel = document.getElementById("session-select");
+  const sessions = sessionsOf();
+  // 루트 UUID.jsonl에서 온 세션 = 사람이 직접 대화한 세션. 나머지(subagents/의
+  // 에이전트 기록 등)는 뒤 그룹으로 — 턴 수 어림짐작이 아니라 저장 구조 신호로 구분.
+  const isHuman = s => HUMAN_SESS.size ? HUMAN_SESS.has(s.id) : s.count >= 3;
+  const majors = sessions.filter(isHuman);
+  const minors = sessions.filter(s => !isHuman(s));
+  // 미정(undefined)이거나 사라진 세션이면 "최신 주요 세션"으로 — "전체"(null)는 사용자의 선택이니 유지
+  if (SESSION_SCOPE === undefined || (SESSION_SCOPE && !sessions.some(s => s.id === SESSION_SCOPE)))
+    SESSION_SCOPE = (majors.length ? majors[majors.length - 1] : sessions[sessions.length - 1])?.id ?? null;
+  sel.innerHTML = "";
+  const addGroup = (label, list, toOpt) => {
+    if (!list.length) return;
+    const g = document.createElement("optgroup");
+    g.label = label;
+    for (const item of list) g.appendChild(toOpt(item));
+    sel.appendChild(g);
+  };
+  const sessOpt = s => {
+    const opt = document.createElement("option");
+    opt.value = s.id; opt.textContent = sessOptLabel(s);
+    return opt;
+  };
+  addGroup("세션", majors, sessOpt);
+  addGroup("⑂ 갈래", BRANCHES, b => {
+    const opt = document.createElement("option");
+    opt.value = "br:" + b.id;
+    opt.textContent = `⑂ ${b.title.slice(0, 20)} (${Math.floor(b.messages.length / 2)}문답)`;
+    return opt;
+  });
+  addGroup("에이전트·도구 기록", minors, sessOpt);
+  const all = document.createElement("option");
+  all.value = ""; all.textContent = "전체 트리";
+  sel.appendChild(all);
+  sel.value = BRANCH_SCOPE ? "br:" + BRANCH_SCOPE : (SESSION_SCOPE ?? "");
+  if (sel.selectedIndex < 0) sel.value = SESSION_SCOPE ?? "";
+}
+document.getElementById("session-select").addEventListener("change", (e) => {
+  const v = e.target.value;
+  CRUMBS = []; EXPANDED_CAPS = new Set(); PENDING_BR = null;
+  expandedId = null; clearSel();
+  if (v.startsWith("br:")) {
+    const br = BRANCHES.find(b => b.id === v.slice(3));
+    if (!br) { rebuildSessionSelect(); render(); return; } // 사라진 갈래 — 목록만 재구성, "br:x"를 세션으로 오인하지 않게
+    // 크럼에는 "떠나온 곳"을 담는다 — 전체 트리(null)에서 왔으면 그대로 전체 트리로 복귀
+    const origin = SESSION_SCOPE !== undefined ? SESSION_SCOPE : (byId[br.turnId]?.sessionId ?? null);
+    CRUMBS = [{ session: origin, turnId: br.turnId }];
+    SESSION_SCOPE = byId[br.turnId]?.sessionId ?? origin;
+    BRANCH_SCOPE = br.id;
+    render();
+    return;
+  }
+  SESSION_SCOPE = v || null;
+  BRANCH_SCOPE = null;
+  render();
+});
+
+function renderCrumbs() {
+  const el = document.getElementById("crumbs");
+  el.innerHTML = "";
+  if (!CRUMBS.length) return;
+  CRUMBS.forEach((c, i) => {
+    const chip = document.createElement("button");
+    chip.className = "crumb";
+    chip.textContent = `⟨ ${c.session ? sessShort(c.session).slice(0, 26) : "전체 트리"}`;
+    chip.addEventListener("click", () => {
+      CRUMBS = CRUMBS.slice(0, i);
+      SESSION_SCOPE = c.session;
+      BRANCH_SCOPE = null; PENDING_BR = null;
+      EXPANDED_CAPS = new Set(); expandedId = null; clearSel();
+      rebuildSessionSelect();
+      render();
+      requestAnimationFrame(() => requestAnimationFrame(() => focusOn(c.turnId)));
+    });
+    el.appendChild(chip);
+  });
+}
+
+function goPortal(anchorId, target) {
+  CRUMBS.push({ session: SESSION_SCOPE, turnId: anchorId });
+  if (CRUMBS.length > 8) CRUMBS.shift(); // 포탈을 오가도 무한히 안 쌓이게
+  SESSION_SCOPE = target.sessionId;
+  BRANCH_SCOPE = null; PENDING_BR = null;
+  EXPANDED_CAPS = new Set(); expandedId = null; clearSel();
+  rebuildSessionSelect();
+  render();
+  requestAnimationFrame(() => requestAnimationFrame(() => focusOn(target.id)));
+}
+
+// ── 캡슐 그룹핑: 결정 신호(공백·⑊)에서만 자르고, 중요 턴(에러·포크·갈래)과
+//    최근 5턴은 절대 삼키지 않는다. 접기는 무손실 — 펼치면 전부 나온다.
+// 실측: 세션 대부분이 20~44턴이라 문턱 40은 캡슐이 거의 안 생김 → 20으로
+const CAP_MIN_SESSION = 20, CAP_MIN_RUN = 4, CAP_TAIL_KEEP = 5;
+// 세션 뷰에서 이웃한 요소(노드·캡슐·접기 칩)의 가장자리 사이 간격 — 종류와 무관하게 동일.
+// 시간표(⋯/⑊)가 이 사이에 들어가므로 그 폭(≈72px)보다 넉넉해야 한다.
+const SESS_GAP = 84;
+const CHIP_W = 68; // "⟨ 접기" 칩의 실제 렌더 폭(11.5px 글자 + 좌우 패딩 14px)
+const skipLabel = el => (el.open ? "− 접기" : "+" + el.turns.length);
+// .skip은 10.5px — estTextW(11.5px 기준)에 비율을 곱하고 좌우 패딩 22 + 테두리를 더한다
+const skipChipW = el => Math.round(estTextW(skipLabel(el)) * 0.91 + 24);
+
+// 필터 모드: 켜진 국면의 턴만 노드로 남기고, 사이에 낀 턴들은 "+N" 한 칸으로 접는다.
+// 캡슐 그룹핑과 겹쳐 쓰지 않는 이유 — 접힌 게 시간 공백 때문인지 필터 때문인지
+// 화면에서 구분할 수 없게 된다.
+function buildFilteredElements(sess) {
+  const els = [];
+  let run = [];
+  const flush = () => {
+    if (!run.length) return;
+    const skipId = "skip:" + run[0].id;
+    const open = EXPANDED_SKIPS.has(skipId);
+    for (const t of run) SKIP_OF[t.id] = skipId;
+    els.push({ type: "skip", skipId, turns: run, open });
+    if (open) for (const t of run) els.push({ type: "turn", t, muted: true });
+    run = [];
+  };
+  for (const t of sess) {
+    if (PHASE_FILTER.has(t.phase)) { flush(); els.push({ type: "turn", t }); }
+    else run.push(t);
+  }
+  flush();
+  return els;
+}
+
+function buildSessionElements(sess, portals) {
+  const isSolo = t => t.hasError || t.isForkRoot || portals.has(t.id) || branchesFor(t.id).length > 0;
+  const els = [];
+  CAP_OF = {}; SKIP_OF = {};
+  if (PHASE_FILTER.size) return buildFilteredElements(sess);
+  if (sess.length < CAP_MIN_SESSION) {
+    for (const t of sess) els.push({ type: "turn", t });
+    return els;
+  }
+  let run = [];
+  const flush = () => {
+    if (run.length >= CAP_MIN_RUN) {
+      const capId = run[0].id;
+      for (const t of run) CAP_OF[t.id] = capId;
+      if (EXPANDED_CAPS.has(capId)) {
+        els.push({ type: "collapse", capId, t0: run[0] });
+        for (const t of run) els.push({ type: "turn", t, expandedCap: capId });
+      } else els.push({ type: "cap", capId, turns: run });
+    } else for (const t of run) els.push({ type: "turn", t });
+    run = [];
+  };
+  sess.forEach((t, i) => {
+    if (t.compactBefore || (t.gapMin || 0) >= 30) flush();
+    if (isSolo(t) || i >= sess.length - CAP_TAIL_KEEP) { flush(); els.push({ type: "turn", t }); }
+    else run.push(t);
+  });
+  flush();
+  return els;
+}
+
+// 알약 폭을 잡기 위한 텍스트 폭 추정(11.5px 기준). 실측(measureText) 대신 추정을
+// 쓰는 이유: 가로 배치는 DOM을 만들기 전에 각 요소의 x좌표를 확정해야 한다.
+// CJK는 거의 전각, ASCII는 반각으로 어림한다.
+function estTextW(s) {
+  let w = 0;
+  for (const ch of s) w += ch.codePointAt(0) < 0x2e80 ? 6.4 : 11.5;
+  return w;
+}
+// 알약이 실제로 담아야 하는 폭 — 제목과 점띠 중 넓은 쪽 + 좌우 패딩
+function capPillW(turns) {
+  const titleW = estTextW(titleOf(turns[0]) + ` · ${turns.length}턴`);
+  const dotsW = Math.min(turns.length, 40) * 6; // 점 4px + gap 2px
+  return Math.round(clamp(Math.max(titleW, dotsW) + 34, 110, 300));
+}
+
+function capPhase(turns) {
+  const cnt = { edit: 0, exec: 0, explore: 0, chat: 0 };
+  for (const t of turns) cnt[t.phase]++;
+  const max = Math.max(cnt.edit, cnt.exec, cnt.explore, cnt.chat);
+  return ["edit", "exec", "explore", "chat"].find(p => cnt[p] === max);
+}
+function capTip(el) {
+  const first = el.turns[0], last = el.turns[el.turns.length - 1];
+  const dur = first.timestamp && last.endTimestamp
+    ? Math.max(0, Math.round((Date.parse(last.endTimestamp) - Date.parse(first.timestamp)) / 60000)) : 0;
+  return `${titleOf(first)} → ${titleOf(last)}\n${el.turns.length}턴 · ${fmtGap(dur)} · 클릭=펼치기 · shift+클릭=범위선택`;
+}
+
+function renderSession() {
+  const map = document.getElementById("map");
+  const svg = document.getElementById("links");
+  map.classList.toggle("noanim", NOANIM);
+  map.querySelectorAll(".node,.seam,.node-label,.capsule,.cap-collapse,.skip,.portal,.cap-region").forEach(e => e.remove());
+  svg.innerHTML = "";
+  NODE_EL = {}; LAST_XY = {};
+
+  const kids = {};
+  TURNS.forEach(t => { (kids[parentOf[t.id]] ??= []).push(t); });
+  KIDS = kids;
+
+  const sess = TURNS.filter(t => t.sessionId === SESSION_SCOPE)
+    .sort((a, b) => (a.timestamp ?? "").localeCompare(b.timestamp ?? ""));
+  VIEW_SESS = sess;
+  document.getElementById("empty").style.display = sess.length ? "none" : "flex";
+  buildChapterBar(sess);
+  if (!sess.length) return;
+
+  // 포탈 대상: 이 세션의 턴에서 다른 세션으로 갈라진 자식들
+  const portals = new Map();
+  for (const t of sess) {
+    const out = (kids[t.id] ?? []).filter(c => c.sessionId !== SESSION_SCOPE);
+    if (out.length) portals.set(t.id, out);
+  }
+  const rootParent = parentOf[sess[0].id] ? byId[parentOf[sess[0].id]] : null;
+
+  const els = buildSessionElements(sess, portals);
+
+  // 가로 배치 — 요소의 "가장자리 사이 간격"을 일정하게 둔다.
+  // 예전엔 요소마다 고정 폭 칸(턴 108, 캡슐 pillW+40)을 배정했는데, 실제로 그려지는
+  // 크기는 제각각(노드 16~30px, 캡슐 110~300px)이라 눈에 보이는 간격이 29~92px로
+  // 들쭉날쭉했다. 이제 각자의 실제 폭을 재고 사이 간격만 GAP으로 고정한다.
+  const Y0 = PADY + 30;
+  let x = PADX + (rootParent ? 90 : 0);
+  for (const el of els) {
+    // 턴 수만으로 캡슐 폭을 잡으면 긴 제목이 알약 밖으로 삐져나온다 — 제목 길이 반영
+    if (el.type === "turn") el.halfW = tileSide(el.t) / 2;
+    else if (el.type === "cap") { el.pillW = capPillW(el.turns); el.halfW = el.pillW / 2; }
+    else if (el.type === "skip") el.halfW = skipChipW(el) / 2;
+    else el.halfW = CHIP_W / 2;
+    el.cx = x + el.halfW;
+    x += el.halfW * 2 + SESS_GAP;
+  }
+  const hasPortal = portals.size > 0 || rootParent;
+  CONTENT_W = (els.length ? x - SESS_GAP : x) + PADX;
+  CONTENT_H = Y0 + (hasPortal ? Math.round(LANEH * 0.85) + 60 : 70) + PADY;
+  map.style.width = CONTENT_W + "px";
+  map.style.height = CONTENT_H + "px";
+  svg.setAttribute("width", CONTENT_W); svg.setAttribute("height", CONTENT_H);
+  svg.setAttribute("viewBox", `0 0 ${CONTENT_W} ${CONTENT_H}`);
+
+  const elId = el => (el.type === "turn" ? el.t.id : el.capId ?? el.skipId);
+  for (let i = 1; i < els.length; i++) {
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", `M ${els[i - 1].cx} ${Y0} L ${els[i].cx} ${Y0}`);
+    // 생략 구간에 닿는 이음선은 점선 — 여기는 실제로 건너뛴 자리라는 표시
+    const skipSide = els[i - 1].type === "skip" || els[i].type === "skip";
+    p.setAttribute("class", "link" + (skipSide ? " skipline" : ""));
+    p.dataset.from = elId(els[i - 1]); p.dataset.to = elId(els[i]);
+    svg.appendChild(p);
+    const t0 = els[i].type === "turn" ? els[i].t : (els[i].turns?.[0] ?? els[i].t0);
+    const marks = [];
+    if (t0?.compactBefore) marks.push("⑊");
+    if ((t0?.gapMin || 0) >= 30) marks.push("⋯" + fmtGap(t0.gapMin));
+    if (marks.length) {
+      const s = document.createElement("div");
+      s.className = "seam"; s.textContent = marks.join(" ");
+      // 두 요소의 "가장자리 사이" 한가운데 — 중심끼리의 중점을 쓰면 폭이 넓은 캡슐
+      // 안쪽에 찍혀 제목 위에 겹쳤다
+      const gapL = els[i - 1].cx + els[i - 1].halfW;
+      const gapR = els[i].cx - els[i].halfW;
+      s.style.left = ((gapL + gapR) / 2) + "px";
+      s.style.top = (Y0 - 12) + "px";
+      map.appendChild(s);
+    }
+  }
+
+  // 펼쳐진 캡슐 범위를 감싸는 영역 표시 — 어디부터 어디까지가 그 캡슐이었는지
+  const regions = new Map();
+  for (const el of els) {
+    const rid = el.type === "collapse" ? el.capId : el.expandedCap;
+    if (!rid) continue;
+    const r = regions.get(rid) ?? { min: el.cx, max: el.cx };
+    r.min = Math.min(r.min, el.cx); r.max = Math.max(r.max, el.cx);
+    regions.set(rid, r);
+  }
+  const mapEl = document.getElementById("map");
+  for (const r of regions.values()) {
+    const d = document.createElement("div");
+    d.className = "cap-region";
+    d.style.left = (r.min - 48) + "px";
+    d.style.width = (r.max - r.min + 96) + "px";
+    d.style.top = (Y0 - 36) + "px";
+    d.style.height = "96px";
+    mapEl.appendChild(d);
+  }
+
+  let ni = 0;
+  for (const el of els) {
+    if (el.type === "turn") makeSessionTurnNode(el.t, el.cx, Y0, ni++, el.muted);
+    else if (el.type === "cap") makeCapsule(el, Y0, ni++);
+    else if (el.type === "skip") makeSkipChip(el, Y0, ni++);
+    else makeCollapseChip(el, Y0, ni++);
+  }
+
+  // 포탈 노드 (기존 차선 변경 곡선 문법 재사용)
+  for (const [anchorId, targets] of portals) {
+    const a = LAST_XY[anchorId]; if (!a) continue;
+    targets.forEach((tg, j) => {
+      const px = a.x + 46 + j * 64, py = Y0 + Math.round(LANEH * 0.85);
+      const mx = a.x + (px - a.x) * 0.5;
+      const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      p.setAttribute("d", `M ${a.x} ${Y0} L ${mx - 14} ${Y0} Q ${mx} ${Y0} ${mx} ${Y0 + 14} L ${mx} ${py - 14} Q ${mx} ${py} ${mx + 14} ${py} L ${px} ${py}`);
+      p.setAttribute("class", "link");
+      svg.appendChild(p);
+      const d = document.createElement("div");
+      d.className = "portal";
+      d.style.left = px + "px"; d.style.top = py + "px";
+      d.addEventListener("mouseenter", () => showTooltip(d, `↷ 포크 세션으로 이동\n${tipText(tg)}`));
+      d.addEventListener("mouseleave", hideTooltip);
+      d.addEventListener("click", (ev) => { ev.stopPropagation(); hideTooltip(); goPortal(anchorId, tg); });
+      map.appendChild(d);
+      const lbl = document.createElement("div");
+      lbl.className = "node-label fork";
+      lbl.textContent = tg.forkName ?? SHORT_TS(tg.timestamp);
+      lbl.style.left = px + "px"; lbl.style.top = (py + 14) + "px";
+      map.appendChild(lbl);
+    });
+  }
+
+  // 역방향 포탈: 이 세션이 다른 세션에서 갈라져 나온 경우
+  if (rootParent && els.length) {
+    const px = els[0].cx - 74, py = Y0;
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", `M ${px} ${py} L ${els[0].cx} ${py}`);
+    p.setAttribute("class", "link");
+    svg.appendChild(p);
+    const d = document.createElement("div");
+    d.className = "portal back";
+    d.style.left = px + "px"; d.style.top = py + "px";
+    d.addEventListener("mouseenter", () => showTooltip(d, `↩ 원 세션으로 돌아가기\n${tipText(rootParent)}`));
+    d.addEventListener("mouseleave", hideTooltip);
+    d.addEventListener("click", (ev) => { ev.stopPropagation(); hideTooltip(); goPortal(sess[0].id, rootParent); });
+    map.appendChild(d);
+    const lbl = document.createElement("div");
+    lbl.className = "node-label fork";
+    lbl.textContent = "원 세션";
+    lbl.style.left = px + "px"; lbl.style.top = (py + 14) + "px";
+    map.appendChild(lbl);
+  }
+
+  applySelectionClasses();
+  requestAnimationFrame(() => {
+    if (KEEP_CAMERA) { KEEP_CAMERA = false; applyTransform(camTx, camTy, camScale, true); }
+    else if (expandedId && byId[expandedId]) focusOn(expandedId);
+    else fitAll();
+  });
+}
+
+function makeSessionTurnNode(t, x, y, i, muted) {
+  const map = document.getElementById("map");
+  const side = tileSide(t);
+  const n = document.createElement("div");
+  // muted = 필터에 안 걸렸지만 생략 구간을 펼쳐서 드러난 턴 — 흐리게 구분
+  n.className = "node" + (t.delegated ? " deleg" : "") + (t.hasError ? " err" : "") + (muted ? " muted" : "");
+  n.style.setProperty("--pc", `var(--${t.phase})`);
+  n.style.left = x + "px"; n.style.top = y + "px";
+  n.style.width = side + "px"; n.style.height = side + "px";
+  n.style.animationDelay = Math.min(i * 10, 450) + "ms";
+  n.dataset.id = t.id;
+  n.innerHTML = nodeBaseHtml(t);
+  n.addEventListener("mouseenter", () => showTooltip(n, tipText(t)));
+  n.addEventListener("mouseleave", hideTooltip);
+  n.addEventListener("click", (ev) => {
+    ev.stopPropagation(); hideTooltip();
+    // ⑂ 배지를 직접 누르면 갈래가 하나일 때 바로 워프 (여러 개면 카드에서 선택)
+    const bs = branchesFor(t.id);
+    if (bs.length === 1 && ev.target.closest(".brb")) { enterBranchView(bs[0].id); return; }
+    if (ev.shiftKey) {
+      if (expandedId) closeExpanded(); // 범위를 잡는 동안엔 열려 있던 카드도 치운다
+      if (selA === null) anchorAt(t.id); else trySetRangeEnd(t.id);
+      return;
+    }
+    selectNode(t.id);
+  });
+  map.appendChild(n);
+  NODE_EL[t.id] = n;
+  LAST_XY[t.id] = { x, y };
+  const lbl = document.createElement("div");
+  lbl.className = "node-label" + (t.isForkRoot ? " fork" : "") + (isProv(t) ? " prov" : "") + (muted ? " muted" : "");
+  lbl.textContent = titleOf(t);
+  // 세션 뷰는 노드 간격이 좁아 제목이 서로 잘림 — 홀짝으로 두 줄에 엇갈려 배치해
+  // 폭을 넓게 쓴다(들어가자마자 제목이 온전히 읽히도록)
+  lbl.style.left = x + "px"; lbl.style.top = (y + side / 2 + 5 + (i % 2 ? 16 : 0)) + "px";
+  lbl.style.maxWidth = "150px";
+  lbl.style.animationDelay = Math.min(i * 10, 450) + 60 + "ms";
+  lbl.dataset.id = t.id;
+  map.appendChild(lbl);
+}
+
+function makeCapsule(el, y, i) {
+  const map = document.getElementById("map");
+  const first = el.turns[0], last = el.turns[el.turns.length - 1];
+  const c = document.createElement("div");
+  c.className = "capsule";
+  c.style.setProperty("--pc", `var(--${capPhase(el.turns)})`);
+  c.style.left = el.cx + "px"; c.style.top = y + "px";
+  c.style.width = el.pillW + "px";
+  c.style.animationDelay = Math.min(i * 10, 450) + "ms";
+  c.dataset.first = first.id; c.dataset.last = last.id;
+  const dots = el.turns.slice(0, 40).map(t => `<i style="background:var(--${t.phase})"></i>`).join("");
+  c.innerHTML = `<div class="cap-title"><span class="cap-t${isProv(first) ? " prov" : ""}" data-id="${esc(first.id)}">${esc(titleOf(first))}</span> <span class="cap-n">· ${el.turns.length}턴</span></div><div class="cap-dots">${dots}</div>`;
+  c.addEventListener("mouseenter", () => showTooltip(c, capTip(el)));
+  c.addEventListener("mouseleave", hideTooltip);
+  c.addEventListener("click", (ev) => {
+    ev.stopPropagation(); hideTooltip();
+    if (ev.shiftKey) { // 캡슐 통째 범위 선택
+      if (expandedId) closeExpanded(); // 범위를 잡는 동안엔 열려 있던 카드도 치운다
+      if (selA === null) { selA = first.id; selB = last.id; selShift = true; }
+      else trySetRangeEnd(last.id);
+      updateSel(); applySelectionClasses();
+      return;
+    }
+    KEEP_CAMERA = true;
+    EXPANDED_CAPS.add(el.capId);
+    renderSession();
+    requestAnimationFrame(() => requestAnimationFrame(() => focusOn(first.id)));
+  });
+  map.appendChild(c);
+  LAST_XY[el.capId] = { x: el.cx, y };
+}
+
+function makeSkipChip(el, y, i) {
+  const map = document.getElementById("map");
+  const c = document.createElement("div");
+  c.className = "skip" + (el.open ? " open" : "");
+  c.style.left = el.cx + "px"; c.style.top = y + "px";
+  c.style.animationDelay = Math.min(i * 10, 450) + "ms";
+  c.textContent = skipLabel(el);
+  const names = el.turns.slice(0, 8).map(t => "· " + titleOf(t)).join("\n");
+  const more = el.turns.length > 8 ? `\n… 외 ${el.turns.length - 8}개` : "";
+  c.addEventListener("mouseenter", () => showTooltip(c,
+    `필터에 걸러진 ${el.turns.length}턴 — 클릭하면 ${el.open ? "다시 접기" : "펼쳐 보기"}\n${names}${more}`));
+  c.addEventListener("mouseleave", hideTooltip);
+  c.addEventListener("click", (ev) => {
+    ev.stopPropagation(); hideTooltip();
+    KEEP_CAMERA = true;
+    if (el.open) EXPANDED_SKIPS.delete(el.skipId); else EXPANDED_SKIPS.add(el.skipId);
+    renderSession();
+  });
+  map.appendChild(c);
+  LAST_XY[el.skipId] = { x: el.cx, y };
+}
+
+function makeCollapseChip(el, y, i) {
+  const map = document.getElementById("map");
+  const c = document.createElement("div");
+  c.className = "cap-collapse";
+  c.style.left = el.cx + "px"; c.style.top = y + "px";
+  c.style.animationDelay = Math.min(i * 10, 450) + "ms";
+  c.textContent = "⟨ 접기";
+  c.addEventListener("click", (ev) => {
+    ev.stopPropagation(); hideTooltip();
+    KEEP_CAMERA = true;
+    EXPANDED_CAPS.delete(el.capId);
+    renderSession();
+    requestAnimationFrame(() => requestAnimationFrame(() => focusOn(el.capId)));
+  });
+  map.appendChild(c);
+}
+
+// ── 챕터 바: 세션 전체를 국면색 눈금으로 — 클릭=이동, 드래그=압축 범위 선택 ──
+function buildChapterBar(sess) {
+  const bar = document.getElementById("chapcells");
+  bar.innerHTML = "";
+  sess.forEach((t, i) => {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    const special = t.isForkRoot || branchesFor(t.id).length > 0
+      || (KIDS[t.id] ?? []).some(c => c.sessionId !== t.sessionId);
+    cell.style.background = t.hasError ? "var(--err)" : special ? "#9b7fd4" : `var(--${t.phase})`;
+    // 필터에 안 걸린 턴은 눈금에서도 흐리게 — 어디가 걸러졌는지 바에서도 읽히게
+    if (PHASE_FILTER.size && !PHASE_FILTER.has(t.phase)) cell.classList.add("offphase");
+    if (t.compactBefore || (t.gapMin || 0) >= 30) cell.classList.add("gapL");
+    cell.dataset.i = i;
+    bar.appendChild(cell);
+  });
+}
+function jumpToTurn(i) {
+  const t = VIEW_SESS[i]; if (!t) return;
+  if (revealHidden(t.id)) renderSession(); // 접힌 캡슐·필터로 가려진 턴이면 먼저 드러낸다
+  requestAnimationFrame(() => requestAnimationFrame(() => focusOn(t.id)));
+}
+// 화면에 없는 턴을 감싸고 있는 접힘(캡슐/생략 구간)을 펼친다 — 펼친 게 있으면 true
+function revealHidden(id) {
+  let did = false;
+  const cap = CAP_OF[id];
+  if (cap && !EXPANDED_CAPS.has(cap)) { EXPANDED_CAPS.add(cap); did = true; }
+  const sk = SKIP_OF[id];
+  if (sk && !EXPANDED_SKIPS.has(sk)) { EXPANDED_SKIPS.add(sk); did = true; }
+  if (did) KEEP_CAMERA = true;
+  return did;
+}
+const chapEl = document.getElementById("chapcells");
+let chapDrag = null;
+const chapIdx = target => { const c = target?.closest?.(".cell"); return c ? +c.dataset.i : null; };
+function paintChapSel() {
+  const [i0, i1] = chapDrag
+    ? (chapDrag.a <= chapDrag.b ? [chapDrag.a, chapDrag.b] : [chapDrag.b, chapDrag.a])
+    : [-1, -2];
+  chapEl.querySelectorAll(".cell").forEach((c, i) => c.classList.toggle("selrange", i >= i0 && i <= i1));
+}
+chapEl.addEventListener("pointerdown", (e) => {
+  const i = chapIdx(e.target); if (i === null) return;
+  chapDrag = { a: i, b: i }; paintChapSel();
+});
+window.addEventListener("pointermove", (e) => {
+  if (!chapDrag) return;
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const i = chapIdx(el);
+  if (i !== null) { chapDrag.b = i; paintChapSel(); }
+});
+window.addEventListener("pointerup", () => {
+  if (!chapDrag) return;
+  const { a, b } = chapDrag; chapDrag = null;
+  paintChapSel();
+  const [i0, i1] = a <= b ? [a, b] : [b, a];
+  if (i0 === i1) { jumpToTurn(i0); return; }
+  selA = VIEW_SESS[i0]?.id ?? null; selB = VIEW_SESS[i1]?.id ?? null; selShift = true;
+  updateSel(); applySelectionClasses();
+});
+chapEl.addEventListener("pointerover", (e) => {
+  const i = chapIdx(e.target);
+  if (i !== null && VIEW_SESS[i]) showTooltip(e.target, tipText(VIEW_SESS[i]));
+});
+chapEl.addEventListener("pointerout", hideTooltip);
 
 // ── camera: transform-based pan/zoom instead of native scrolling ──
 const viewport = document.getElementById("viewport");
@@ -525,9 +1479,11 @@ function fitAll(instant) {
 }
 const EXPAND_SCALE = 0.85; // fixed, so a click always lands dead-center at a predictable, tested zoom
 function focusOn(id, instant) {
-  const p = LAST_POS[id]; if (!p) return;
+  // 세션 뷰는 요소 폭이 가변이라 lane/depth 공식이 안 통함 — 두 렌더러 모두
+  // 실제 좌표를 LAST_XY에 기록하고 카메라는 그것만 본다
+  const p = LAST_XY[id]; if (!p) return;
   const r = stage.getBoundingClientRect();
-  const x = PADX + p.depth * COLW, y = PADY + p.lane * LANEH;
+  const x = p.x, y = p.y;
   applyTransform(r.width / 2 - x * EXPAND_SCALE, r.height / 2 - y * EXPAND_SCALE, EXPAND_SCALE, instant);
   atHome = false;
   document.getElementById("home-btn").classList.add("show");
@@ -535,9 +1491,22 @@ function focusOn(id, instant) {
 document.getElementById("home-btn").addEventListener("click", homeView);
 // background click / × just closes the card — it must NOT also reset the camera,
 // only the dedicated "전체 보기" button does that
-stage.addEventListener("click", () => { if (expandedId && !justDragged) closeExpanded(); });
+stage.addEventListener("click", () => {
+  if (justDragged) return;
+  if (expandedId) { closeExpanded(); return; }
+  collapseAllCaps(); // 작은 "⟨ 접기" 칩을 정확히 누르지 않아도 배경 클릭으로 접힌다
+});
 function closeExpanded() {
   if (expandedId) collapseNode(expandedId);
+}
+// 펼쳐둔 캡슐을 한 번에 되접는다 — 접힌 게 있었으면 true
+function collapseAllCaps() {
+  if ((!EXPANDED_CAPS.size && !EXPANDED_SKIPS.size) || !SESSION_SCOPE || BRANCH_SCOPE) return false;
+  EXPANDED_CAPS = new Set();
+  EXPANDED_SKIPS = new Set();
+  KEEP_CAMERA = true;
+  renderSession();
+  return true;
 }
 function homeView() {
   closeExpanded();
@@ -548,7 +1517,7 @@ function homeView() {
 // the "전체 보기" scale is still fully reachable
 let panState = null, justDragged = false;
 stage.addEventListener("pointerdown", (e) => {
-  if (expandedId || e.target.closest(".node")) return;
+  if (expandedId || e.target.closest(".node,.capsule,.portal,.cap-collapse")) return;
   panState = { x: e.clientX, y: e.clientY, tx: camTx, ty: camTy, moved: false };
   stage.classList.add("panning");
 });
@@ -580,7 +1549,7 @@ stage.addEventListener("wheel", (e) => {
 
 // ── selection / expansion ──
 function selectNode(id) {
-  selA = id; selB = null; updateSel();
+  selA = id; selB = null; selShift = false; updateSel();
   if (expandedId && expandedId !== id) collapseNode(expandedId);
   // focus first so camScale already holds its final value — expandNode reads
   // it to counter-scale the card, so the order here matters
@@ -604,7 +1573,7 @@ function collapseNode(id) {
   el.classList.remove("expanded");
   el.style.transform = "";
   expandedId = null;
-  setTimeout(() => { if (!el.classList.contains("expanded")) el.innerHTML = `<span class="icon">${GLYPH[t.phase]}</span>`; }, 380);
+  setTimeout(() => { if (!el.classList.contains("expanded")) el.innerHTML = nodeBaseHtml(t); }, 380);
 }
 function detailHtml(t) {
   const dur = t.endTimestamp && t.timestamp ? Math.round((Date.parse(t.endTimestamp) - Date.parse(t.timestamp)) / 60000) : 0;
@@ -613,25 +1582,247 @@ function detailHtml(t) {
   if (t.delegated) chips.push("위임");
   if (t.interrupted) chips.push("중단됨");
   if (t.hasImage) chips.push("이미지");
+  const lb = labelOf(t);
   return `
     ${t.isForkRoot ? `<div class="d-fork">포크 · ${esc(t.forkName ?? "")}</div>` : ""}
-    <div class="d-title">${esc(t.headline)}</div>
+    <div class="d-title">${esc(lb?.t ?? (LABELING && !t._pseudo ? "제목 생성 중…" : t.headline))}</div>
+    <div class="d-gist">${lb?.g ? esc(lb.g) : (LABELING && !t._pseudo ? "핵심 요약을 생성하고 있습니다 — 잠시 후 자동 표시됩니다." : "")}</div>
     <div class="d-meta">${t.timestamp ? new Date(t.timestamp).toLocaleString("ko-KR") : ""}</div>
     <div class="d-chips">${chips.map(c => `<span class="chip">${esc(c)}</span>`).join("")}${t.hasError ? `<span class="chip err">⚠ 에러 포함</span>` : ""}</div>
+    <div class="d-h">사용자</div>
     <div class="d-msg user">${esc(t.prompt)}</div>
-    <div class="d-msg ai">${esc(t.answer || "(도구 작업만 수행)")}</div>
+    <div class="d-h">에이전트</div>
+    <div class="d-msg ai">${esc(t.answer || "(도구 작업만 수행 — 아래 도구 내역이 실제 행동)")}</div>
     <div class="d-h">도구 내역</div>
     <ul class="d-list">${t.tools.map(x => `<li>${esc(x.name)}${x.inputPreview ? " · " + esc(x.inputPreview) : ""}${x.isError ? " ⚠" : ""}</li>`).join("") || "<li>없음</li>"}</ul>
     <div class="d-h">만진 파일</div>
-    <ul class="d-list">${t.files.map(x => `<li>${esc(x)}</li>`).join("") || "<li>없음</li>"}</ul>`;
+    <ul class="d-list">${t.files.map(x => `<li>${esc(x)}</li>`).join("") || "<li>없음</li>"}</ul>
+    ${t._pseudo ? "" : `<div class="d-h">갈래 대화</div><div id="br-area">${brListHtml(t)}</div>`}`;
 }
 
+// ── 갈래(브랜치) 대화: 이 턴 시점의 맥락만 아는 AI와 나누는 곁가지 대화 ──
+let BRANCHES = [];
+const branchesFor = id => BRANCHES.filter(b => b.turnId === id);
+const nodeBaseHtml = t => {
+  const nbr = branchesFor(t.id).length;
+  return `<span class="icon">${GLYPH[t.phase]}</span>` + (nbr ? `<span class="brb">⑂${nbr}</span>` : "");
+};
+async function fetchBranches(project) {
+  try {
+    const j = await fetch(`/api/branches?project=${encodeURIComponent(project)}`).then(r => r.json());
+    if (project === CURRENT_PROJECT) BRANCHES = j.branches || [];
+  } catch { /* 갈래는 부가층 — 실패해도 트리는 동작 */ }
+}
+function refreshNodeBadge(turnId) {
+  const el = NODE_EL[turnId], t = byId[turnId];
+  if (el && t && !el.classList.contains("expanded")) el.innerHTML = nodeBaseHtml(t);
+}
+function brListHtml(t) {
+  const chips = branchesFor(t.id).map(b =>
+    `<button class="brchip" onclick="event.stopPropagation(); enterBranchView('${esc(b.id)}')">⑂ ${esc(b.title)} · ${Math.floor(b.messages.length / 2)}</button>`).join("");
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap">${chips}
+    <button class="brchip" onclick="event.stopPropagation(); createBranch('${esc(t.id)}')">＋ 새 갈래</button></div>`;
+}
+async function createBranch(turnId) {
+  try {
+    const t = byId[turnId];
+    const br = await api("/api/branch-create", { project: CURRENT_PROJECT, kind: "node", turnId, title: titleOf(t).slice(0, 40) });
+    if (br.error) throw new Error(br.error);
+    BRANCHES.push(br);
+    enterBranchView(br.id);
+  } catch (e) { alert("갈래 생성 실패: " + e.message); }
+}
+
+// ── 갈래 워프 뷰: 갈래를 별도 세션처럼 노드 선으로 렌더 — 포탈과 같은 이동 문법 ──
+function enterBranchView(id) {
+  const br = BRANCHES.find(b => b.id === id); if (!br) return;
+  const anchor = byId[br.turnId];
+  if (BRANCH_SCOPE) CRUMBS.pop(); // 갈래 안에서 다른 갈래로 — 크럼 교체(중첩 누적 방지)
+  // 주의: SESSION_SCOPE가 null이면 "전체 트리"라는 유효한 선택 — ??로 덮어쓰면 안 된다
+  CRUMBS.push({ session: SESSION_SCOPE !== undefined ? SESSION_SCOPE : (anchor?.sessionId ?? null), turnId: br.turnId });
+  if (CRUMBS.length > 8) CRUMBS.shift();
+  BRANCH_SCOPE = id;
+  expandedId = null; clearSel(); hideTooltip();
+  rebuildSessionSelect();
+  render();
+  requestAnimationFrame(() => requestAnimationFrame(() => { if (BR_LAST_ID) focusOn(BR_LAST_ID); else fitAll(); }));
+}
+function exitBranchView() {
+  const c = CRUMBS.pop();
+  BRANCH_SCOPE = null; PENDING_BR = null;
+  if (c) SESSION_SCOPE = c.session;
+  rebuildSessionSelect();
+  expandedId = null; clearSel();
+  render();
+  if (c) requestAnimationFrame(() => requestAnimationFrame(() => focusOn(c.turnId)));
+}
+
+function renderBranchView() {
+  const map = document.getElementById("map");
+  const svg = document.getElementById("links");
+  map.classList.toggle("noanim", NOANIM);
+  map.querySelectorAll(".node,.seam,.node-label,.capsule,.cap-collapse,.skip,.portal,.cap-region").forEach(e => e.remove());
+  svg.innerHTML = "";
+  NODE_EL = {}; LAST_XY = {}; BR_LAST_ID = null;
+
+  const br = BRANCHES.find(b => b.id === BRANCH_SCOPE);
+  if (!br) { CRUMBS.pop(); BRANCH_SCOPE = null; render(); return; }
+  document.getElementById("empty").style.display = "none";
+  document.getElementById("bb-title").textContent =
+    `⑂ ${br.title} · ${br.kind === "compact" ? "압축 패키지만 아는 AI" : "이 시점까지만 아는 AI"}`;
+
+  const Y0 = PADY + 30;
+  const centers = [];
+  let x = PADX + 90, ni = 0;
+
+  // 유령 앵커: 갈래가 시작된 본선 턴 (읽기 전용 맥락)
+  const anchor = byId[br.turnId];
+  if (anchor) {
+    makeSessionTurnNode(anchor, x, Y0, ni++);
+    NODE_EL[anchor.id].classList.add("ghost");
+    centers.push({ id: anchor.id, cx: x });
+    x += COLW + 20;
+  }
+
+  // 갈래 메시지 = (질문+답) 쌍 하나가 노드 하나
+  const pairs = [];
+  for (let i = 0; i < br.messages.length; i += 2) {
+    const q = br.messages[i], a = br.messages[i + 1];
+    if (q?.role !== "user") continue;
+    pairs.push({ q: q.text, a: a?.text ?? "", ts: q.ts ?? null });
+  }
+  pairs.forEach((p, idx) => {
+    const pid = `${br.id}:${idx}`;
+    byId[pid] = {
+      id: pid, hash: pid, phase: "chat",
+      prompt: p.q, answer: p.a,
+      headline: p.q.replace(/\s+/g, " ").slice(0, 24),
+      timestamp: p.ts, endTimestamp: p.ts, sessionId: "branch:" + br.id,
+      isForkRoot: false, forkName: null, tools: [], toolCount: 0,
+      delegated: false, hasError: false, hasImage: false, interrupted: false,
+      files: [], outputTokens: Math.round((p.a?.length ?? 0) / 4),
+      gapMin: null, compactBefore: false, children: [], _pseudo: true,
+    };
+    makeSessionTurnNode(byId[pid], x, Y0, ni++);
+    NODE_EL[pid].style.setProperty("--pc", "#9b7fd4");
+    centers.push({ id: pid, cx: x });
+    BR_LAST_ID = pid;
+    x += COLW + 20;
+  });
+
+  // 응답 대기 중 노드
+  if (PENDING_BR && PENDING_BR.brId === br.id) {
+    const d = document.createElement("div");
+    d.className = "node pending";
+    d.style.setProperty("--pc", "#9b7fd4");
+    d.style.left = x + "px"; d.style.top = Y0 + "px";
+    d.style.width = "22px"; d.style.height = "22px";
+    d.innerHTML = `<span class="icon">${GLYPH.chat}</span>`;
+    map.appendChild(d);
+    centers.push({ id: "pending", cx: x });
+    LAST_XY["pending"] = { x, y: Y0 };
+    BR_LAST_ID = "pending";
+  }
+
+  // 본선 선
+  for (let i = 1; i < centers.length; i++) {
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", `M ${centers[i - 1].cx} ${Y0} L ${centers[i].cx} ${Y0}`);
+    p.setAttribute("class", "link");
+    svg.appendChild(p);
+  }
+
+  // 역방향 포탈: 본선으로 복귀
+  const bx = PADX + 16;
+  if (centers.length) {
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", `M ${bx} ${Y0} L ${centers[0].cx} ${Y0}`);
+    p.setAttribute("class", "link");
+    svg.appendChild(p);
+  }
+  const back = document.createElement("div");
+  back.className = "portal back";
+  back.style.left = bx + "px"; back.style.top = Y0 + "px";
+  back.addEventListener("mouseenter", () => showTooltip(back, "↩ 본선으로 돌아가기"));
+  back.addEventListener("mouseleave", hideTooltip);
+  back.addEventListener("click", (ev) => { ev.stopPropagation(); hideTooltip(); exitBranchView(); });
+  map.appendChild(back);
+  const blbl = document.createElement("div");
+  blbl.className = "node-label fork";
+  blbl.textContent = "본선";
+  blbl.style.left = bx + "px"; blbl.style.top = (Y0 + 14) + "px";
+  map.appendChild(blbl);
+
+  CONTENT_W = x + PADX;
+  CONTENT_H = Y0 + 70 + PADY;
+  map.style.width = CONTENT_W + "px";
+  map.style.height = CONTENT_H + "px";
+  svg.setAttribute("width", CONTENT_W); svg.setAttribute("height", CONTENT_H);
+  svg.setAttribute("viewBox", `0 0 ${CONTENT_W} ${CONTENT_H}`);
+
+  applySelectionClasses();
+  requestAnimationFrame(() => {
+    if (KEEP_CAMERA) { KEEP_CAMERA = false; applyTransform(camTx, camTy, camScale, true); }
+    else if (expandedId && byId[expandedId]) focusOn(expandedId);
+    else fitAll();
+  });
+}
+
+const BR_INFLIGHT = new Set(); // 갈래별 진행 중 요청 — 이탈·재진입해도 중복 전송 방지
+async function sendBranchWarp() {
+  const input = document.getElementById("bb-q");
+  const q = input.value.trim();
+  if (!q || !BRANCH_SCOPE || PENDING_BR || BR_INFLIGHT.has(BRANCH_SCOPE)) return;
+  input.value = "";
+  const brId = BRANCH_SCOPE, proj = CURRENT_PROJECT;
+  BR_INFLIGHT.add(brId);
+  PENDING_BR = { brId, q };
+  showBusy("갈래 응답 생성 중…", "이 시점까지만 아는 AI가 답을 쓰는 중 — 최대 3분");
+  render();
+  requestAnimationFrame(() => requestAnimationFrame(() => focusOn("pending")));
+  try {
+    const j = await api("/api/branch-chat", { project: proj, id: brId, question: q });
+    if (j.error) throw new Error(j.error);
+    const i = BRANCHES.findIndex(b => b.id === brId);
+    if (i >= 0) BRANCHES[i] = j.branch;
+    if (PENDING_BR?.brId === brId) PENDING_BR = null;
+    // 대기 중 다른 화면으로 이동했으면 데이터만 갱신(오귀속 방지)
+    if (BRANCH_SCOPE === brId && CURRENT_PROJECT === proj) {
+      render();
+      requestAnimationFrame(() => requestAnimationFrame(() => { if (BR_LAST_ID) focusOn(BR_LAST_ID); }));
+    }
+  } catch (e) {
+    if (PENDING_BR?.brId === brId) PENDING_BR = null;
+    if (BRANCH_SCOPE === brId) {
+      render();
+      const inp = document.getElementById("bb-q");
+      if (inp) inp.value = q; // 낙관 롤백 — 입력 복원
+    }
+    alert("갈래 대화 실패: " + e.message);
+  } finally {
+    BR_INFLIGHT.delete(brId);
+    hideBusy(); // 어떤 경로로 끝나든 오버레이는 반드시 걷는다
+  }
+}
+document.getElementById("bb-send").addEventListener("click", sendBranchWarp);
+document.getElementById("bb-q").addEventListener("keydown", (e) => {
+  // isComposing 체크: 한글 IME 조합 확정 Enter에 미완성 문장이 전송되는 것 방지
+  if (e.key === "Enter" && !e.isComposing) sendBranchWarp();
+});
+
 function pathToRoot(id) { const p = []; let cur = id; while (cur) { p.unshift(cur); cur = parentOf[cur]; } return p; }
+// shift 선택은 "범위를 집는" 제스처다 — 앵커만 옮기고 상세 카드는 열지 않는다
+function anchorAt(id) {
+  selA = id; selB = null; selShift = true;
+  updateSel(); applySelectionClasses();
+}
 function trySetRangeEnd(id) {
+  selShift = true;
   const pa = pathToRoot(selA), pb = pathToRoot(id);
   if (pa.includes(id)) { selB = selA; selA = id; }
   else if (pb.includes(selA)) { selB = id; }
-  else { selectNode(id); return; }
+  // 서로 조상·자손 관계가 아니면 범위가 안 된다 — 그 자리로 앵커만 새로 잡는다
+  else { if (NODE_EL[id]) anchorAt(id); return; } // 화면에 없는 턴이면 앵커를 옮기지 않는다
   updateSel(); applySelectionClasses();
 }
 function rangeIds() {
@@ -646,9 +1837,13 @@ function rangeIds() {
 // of what's expanded. Only range-selection highlighting and hiding the
 // expanded node's own (now-redundant) label remain.
 function applySelectionClasses() {
-  const range = new Set(rangeIds());
+  const range = new Set(selShift ? rangeIds() : []);
+  // 전체 트리 뷰는 선을 접을 수 없으니(가지가 여러 갈래) 필터를 흐리기로 표현한다.
+  // 세션 뷰에서는 걸러진 턴이 애초에 안 그려지므로 이 토글이 걸릴 일이 거의 없다.
+  const off = t => PHASE_FILTER.size > 0 && t && !PHASE_FILTER.has(t.phase);
   for (const [id, el] of Object.entries(NODE_EL)) {
     el.classList.toggle("selected", range.has(id));
+    el.classList.toggle("offphase", off(byId[id]));
   }
   document.querySelectorAll(".link").forEach(el => {
     const onSelPath = range.has(el.dataset.from) && range.has(el.dataset.to);
@@ -656,6 +1851,10 @@ function applySelectionClasses() {
   });
   document.querySelectorAll(".node-label").forEach(el => {
     el.classList.toggle("hide-self", expandedId === el.dataset.id);
+    el.classList.toggle("offphase", off(byId[el.dataset.id]));
+  });
+  document.querySelectorAll(".capsule").forEach(el => {
+    el.classList.toggle("selected", range.has(el.dataset.first) && range.has(el.dataset.last));
   });
 }
 // the banner shows the instant Shift goes down (a hint, before any range
@@ -681,10 +1880,30 @@ function updateSel() {
 // and the new one grows at the same time as the camera pans, instead of
 // closing fully before the next one opens.
 const ARROW_DIR = { ArrowRight: "right", ArrowLeft: "left", ArrowUp: "up", ArrowDown: "down" };
+// 접힌 캡슐 안의 턴은 화면에 노드가 없다 — 그대로 selectNode를 부르면 expandNode가
+// NODE_EL을 못 찾고 조용히 반환해서 "방향키가 먹통"으로 보인다. 먼저 캡슐을 펼친다.
+function revealAndSelect(id) {
+  if (SESSION_SCOPE && !BRANCH_SCOPE && revealHidden(id)) {
+    renderSession();
+    // 재렌더로 노드가 새로 생긴 뒤에 선택해야 카드가 제대로 열린다
+    requestAnimationFrame(() => requestAnimationFrame(() => selectNode(id)));
+    return;
+  }
+  selectNode(id);
+}
 function navigateArrow(dir) {
   if (selA === null) return;
   let target = null;
-  if (dir === "right") {
+  // 세션 뷰에서는 화면에 그려진 그 세션의 시간순 한 줄을 따라 움직인다.
+  // 트리 자식을 쓰면 포탈 건너편(다른 세션) 턴이 잡혀 화면 밖으로 나가버린다.
+  // 필터가 켜져 있으면 걸러진 턴은 화면에 없다 — 보이는 것만 이어서 훑는다
+  // (펼쳐둔 생략 구간의 턴은 화면에 있으므로 포함)
+  const visible = t => !PHASE_FILTER.size || PHASE_FILTER.has(t.phase) || NODE_EL[t.id];
+  const line = (!BRANCH_SCOPE && SESSION_SCOPE) ? VIEW_SESS.filter(visible) : null;
+  if (line && (dir === "right" || dir === "left")) {
+    const i = line.findIndex(t => t.id === selA);
+    if (i >= 0) target = line[dir === "right" ? i + 1 : i - 1]?.id ?? null;
+  } else if (dir === "right") {
     const children = KIDS[selA] || [];
     if (children.length) target = children[0].id;
   } else if (dir === "left") {
@@ -698,13 +1917,15 @@ function navigateArrow(dir) {
       if (nextIdx >= 0 && nextIdx < siblings.length) target = siblings[nextIdx].id;
     }
   }
-  if (target) selectNode(target);
+  if (target) revealAndSelect(target);
 }
 window.addEventListener("keydown", (e) => {
   if (e.key === "Shift" && !shiftHeld) { shiftHeld = true; updateSel(); }
   if (e.key === "Escape") {
+    // 바깥 겹침부터 차례로 벗긴다: 모달 → 열린 카드 → 펼쳐둔 캡슐
     if (modal.classList.contains("open")) modal.classList.remove("open");
     else if (expandedId) closeExpanded();
+    else collapseAllCaps();
     return;
   }
   const dir = ARROW_DIR[e.key];
@@ -719,7 +1940,7 @@ window.addEventListener("keyup", (e) => {
 window.addEventListener("blur", () => {
   if (shiftHeld) { shiftHeld = false; updateSel(); } // e.g. alt-tabbing away while held
 });
-function clearSel() { selA = selB = null; updateSel(); applySelectionClasses(); }
+function clearSel() { selA = selB = null; selShift = false; updateSel(); applySelectionClasses(); }
 document.getElementById("sb-clear").addEventListener("click", (ev) => { ev.stopPropagation(); clearSel(); });
 
 document.getElementById("sb-go").addEventListener("click", async (ev) => {
@@ -727,15 +1948,16 @@ document.getElementById("sb-go").addEventListener("click", async (ev) => {
   const btn = document.getElementById("sb-go");
   const ids = rangeIds();
   btn.disabled = true; btn.textContent = "생성 중… (최대 3분)";
+  showBusy("압축 패키지 생성 중…", `${ids.length}턴 요약 + 상태층 수집 — 최대 3분`);
   try {
-    const j = await api("/api/compact", { project: CURRENT_PROJECT, turnIds: ids });
+    const j = await api("/api/compact", { project: CURRENT_PROJECT, turnIds: ids, purpose: document.getElementById("sb-purpose").value || undefined });
     if (j.error) throw new Error(j.error);
     PKG = j;
     document.getElementById("m-meta").textContent = `${ids.length}턴 · 파일 저장됨: ${j.savedTo}`;
     showTab("md");
     document.getElementById("modal").classList.add("open");
-  } catch (e) { alert("압축 실패: " + e.message); }
-  btn.disabled = false; btn.textContent = "압축 패키지 생성";
+  } catch (e) { hideBusy(); alert("압축 실패: " + e.message); }
+  finally { hideBusy(); btn.disabled = false; btn.textContent = "압축 패키지 생성"; }
 });
 function showTab(k) {
   document.getElementById("tab-md").classList.toggle("on", k === "md");
@@ -745,6 +1967,24 @@ function showTab(k) {
 document.getElementById("tab-md").addEventListener("click", () => showTab("md"));
 document.getElementById("tab-json").addEventListener("click", () => showTab("json"));
 document.getElementById("m-copy").addEventListener("click", () => navigator.clipboard.writeText(document.getElementById("m-pre").textContent));
+document.getElementById("m-branch").addEventListener("click", async () => {
+  const btn = document.getElementById("m-branch");
+  try {
+    const ids = rangeIds();
+    const anchor = ids[ids.length - 1]; // 선택 경로의 마지막 턴에 갈래를 매단다
+    if (!anchor || !PKG?.pkgFile) throw new Error("패키지 정보가 없습니다");
+    btn.disabled = true;
+    const br = await api("/api/branch-create", {
+      project: CURRENT_PROJECT, kind: "compact", turnId: anchor,
+      pkgFile: PKG.pkgFile, title: "압축 갈래 " + new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
+    });
+    if (br.error) throw new Error(br.error);
+    BRANCHES.push(br);
+    modal.classList.remove("open");
+    enterBranchView(br.id); // 바로 갈래 워프 뷰로 진입
+  } catch (e) { alert("갈래 생성 실패: " + e.message); }
+  btn.disabled = false;
+});
 document.getElementById("m-dl-md").addEventListener("click", () => download("md"));
 document.getElementById("m-dl-json").addEventListener("click", () => download("json"));
 function download(kind) {
