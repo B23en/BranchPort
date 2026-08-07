@@ -30,6 +30,7 @@ export type Phase = 'edit' | 'exec' | 'explore' | 'chat';
 
 export interface Turn {
   id: string;
+  hash: string;
   phase: Phase;
   prompt: string;
   answer: string;
