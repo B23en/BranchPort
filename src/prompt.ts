@@ -17,6 +17,11 @@
 //  - errors 정의: 예상된 실패 제외·되돌린 접근 포함                          (감사 1·3)
 //  - open_threads: 기대값을 출력에 맞춘 워크어라운드는 부채로 기록           (감사 2)
 //  - gotchas: 재현 함정(개행·셸·경로) 우선 보존                              (감사 2, CRLF 누락 사례)
+//
+// v3.5 추가 규칙(2026-08-07, SWE-chat 트랙 13세션 QA 보존율 실측 근거):
+//  - numeric preservation: QA 오답 18건 전원이 본문 수치 탈락(줄 수·글자 제한·포트·설정값,
+//    전부 "모름" — 환각 0). 기존 규칙의 "numbers"가 문장 속 수치까지 못 지켜 별도 규칙으로 승격.
+//    회귀 측정(동일 13세션·동일 130문항): 보존율 86% → 92%, 잔존율 30% → 31%(크기 회귀 없음).
 // JSON 스키마 출력은 v2.2의 <analysis>/<summary>와 다르지만, 패키지는 서버가 md로
 // 조립하는 구조화 산출물이라 유지한다(HANDOFF "v2 지시부 + BranchPort 구조화 출력").
 
@@ -70,6 +75,7 @@ Hard rules:
 - Causality rule: link a problem to a fix only when the transcript itself states the diagnosis-fix connection. "Fix applied, then tests passed" is temporal adjacency, not proof that that fix solved that problem — when several fixes and several symptoms interleave, keep them separate unless the transcript ties them together.
 - Truncation rule: the transcript marks cut-off content ("…(truncated …)", output that stops mid-sentence). Never complete, infer, or paraphrase what the omitted part might have contained. If a truncated result matters (e.g. a report that ends mid-delivery), record that it was cut off — do not describe it as fully received.
 - Time-stamping rule: if code was edited during the range, do not present pre-edit observations (line numbers, behavior, missing features) as current state — qualify them ("before the edit") or re-verify against a later point in the transcript.
+- Numeric preservation rule: measured values in the transcript — line/character/file counts, sizes, percentages, durations, port numbers, version and config values, field limits — are identifiers, not prose: they are incompressible and must survive verbatim, each attached to its referent ("security.md: 70 → 519 lines", "backend :8001"). Never replace a number with a vague quantifier ("significantly larger", "a few"); whenever a fact you record has an associated number in the transcript, the recorded entry includes that number.
 - This is an excerpt: do not guess or describe anything that happened outside the selected range.
 - Density rule: the reader sees all fields together, so state each fact exactly once, in its single most appropriate field — never restate it in another field. Write entries as a senior engineer's handoff notes: strip framing phrases ("it was found that", "the assistant proceeded to"), drop adjectives that carry no facts, merge overlapping entries. Compression pressure must land on phrasing, never on facts: identifiers, error strings, numbers, and user constraints are incompressible.
 - Output budget: keep the entire JSON under ${outputBudget.toLocaleString('en-US')} characters. If a draft runs over, you are repeating facts across fields or padding phrasing — tighten wording and merge overlapping entries until it fits. The budget is subordinate to facts: identifiers (file paths, branch names, commit hashes, PR/issue numbers, URLs), error strings, numbers, and user constraints must all survive — if keeping every one of them requires exceeding the budget, exceed it.
