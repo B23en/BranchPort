@@ -8,6 +8,7 @@ import { buildForest } from './tree';
 import { buildTurnForest } from './turns';
 import { renderTranscript } from './transcript';
 import { buildCompactPrompt, parseSummary, COMPACT_SYSTEM_PROMPT } from './prompt';
+import { splitAncestorSegments, findAncestorEvidence, buildGlossaryPrompt, parseGlossary, GlossaryItem } from './glossary';
 import { Turn } from './types';
 
 const PORT = Number(process.env.PORT) || 4300;
@@ -458,7 +459,7 @@ ${hist ? '\n[이 브랜치에서 나눈 대화]\n' + hist : ''}
 }
 
 function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
-  readBody(req, res, 10_000, async ({ project, turnIds, model, purpose }) => {
+  readBody(req, res, 10_000, async ({ project, turnIds, model, purpose, glossary }) => {
     try { // 파싱 중 파일 로테이션 등 비동기 예외가 프로세스를 죽이지 않게 — 다른 핸들러와 동일
     if (!project || !Array.isArray(turnIds) || !turnIds.length) {
       return sendJson(res, 400, { error: 'project와 turnIds가 필요합니다' });
@@ -481,11 +482,16 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
       tokens += t.outputTokens;
       toolCalls += t.toolCount;
     }
+    // 명령 캡 20→60 (2026-08-08): key-fact recall 실측에서 캡 20이 명령 full recall을
+    // 65~81%로 깎는 유일한 원인으로 확인됨(수정 파일은 캡 없음 → 100%). preview가 90자
+    // 캡이라 60개여도 ~6KB. 초과분은 개수를 명시해 "다 있다"로 오독되지 않게 한다.
+    const CMD_CAP = 60;
     const facts = {
       project, turnCount: range.length,
       period: [range[0].timestamp, range[range.length - 1].endTimestamp],
       files: [...fileCount.entries()].sort((x, y) => y[1] - x[1]).map(([f, n]) => `${f}(${n})`),
-      commands: [...cmds].slice(0, 20),
+      commands: [...cmds].slice(0, CMD_CAP),
+      commandsOmitted: Math.max(0, cmds.size - CMD_CAP),
       errorTurns, delegatedTurns,
       outputTokens: tokens, toolCalls,
     };
@@ -531,7 +537,41 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
 
     // 시크릿 마스킹은 상태층뿐 아니라 LLM에 보내는 트랜스크립트 원문에도 적용한다
     const transcript = sanitize(renderTranscript(range, forest.roots, forest.toolResults));
-    const prompt = buildCompactPrompt(transcript, PURPOSE[purpose]);
+
+    // 세션 주 언어 결정론 판정 (v3.6) — 사용자 프롬프트의 한글 비율. 혼합 구간(5~15%)은
+    // 판정 보류(null)해 기존 추상 규칙으로 둔다. lang-preserve 실측·프로브 근거:
+    // 언어를 모델 판단에 맡기면 운영자 언어 설정이 비결정적으로 누출된다.
+    const hangulRatio = (text: string) => {
+      const h = (text.match(/[가-힣]/g) ?? []).length;
+      const l = (text.match(/[A-Za-z]/g) ?? []).length;
+      return h + l ? h / (h + l) : 0;
+    };
+    const userHangul = hangulRatio(range.map(t => t.prompt).filter(p => p && p !== '(계속)').join('\n'));
+    const lang = userHangul >= 0.15 ? 'ko' as const : userHangul < 0.05 ? 'en' as const : null;
+    const prompt = buildCompactPrompt(transcript, PURPOSE[purpose], lang);
+    const summaryLangText = (S: ReturnType<typeof parseSummary> & object) => [
+      S.goal, S.summary, ...S.decisions.flatMap(d => [d.d, d.why]),
+      ...S.state.done, ...S.state.todo, S.state.current_focus, ...S.open_threads,
+      ...S.errors.flatMap(e => [e.error, e.fix]), ...S.constraints, ...S.env, ...S.gotchas,
+    ].filter(Boolean).join('\n');
+
+    // 용어 부록(범위 밖 정의) 후보 — 범위에서 참조되는 식별자의 첫 등장 스니펫을
+    // 조상 턴(범위 이전)에서 기계 검색으로 수집. 실측 근거: OOR 보존율 23%
+    // (docs/2026-08-08-압축범위-밖-용어사전-조사.md §7). glossary:false로 끌 수 있다.
+    const rangeSet = new Set(range.map(t => t.id));
+    const rangeStart = range[0].timestamp ?? '';
+    const ancestors = [...byId.values()]
+      .filter(t => !rangeSet.has(t.id) && t.timestamp && rangeStart && t.timestamp < rangeStart)
+      .sort((a, b) => (a.timestamp ?? '').localeCompare(b.timestamp ?? ''));
+    let glossaryEvidence: ReturnType<typeof findAncestorEvidence> = [];
+    if (glossary !== false && ancestors.length) {
+      try {
+        const ancRender = sanitize(renderTranscript(ancestors, forest.roots, forest.toolResults, 150_000));
+        glossaryEvidence = findAncestorEvidence(transcript, splitAncestorSegments(ancRender, ancestors));
+      } catch (e: any) { console.error('[용어 부록 후보 수집 실패 — 생략]', e?.message); }
+    }
+    let glossaryItems: GlossaryItem[] = [];
+    let glossaryMetrics: ClaudeMetrics | null = null;
 
     // 스윕 실측: 드물게(106회 중 3회) 응답 JSON이 중간에서 끊긴다 — 일시적 절단이라
     // 재실행이면 통과하므로, 모델이 실행됐는데 파싱만 실패한 경우 1회 자동 재시도한다.
@@ -541,6 +581,15 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
     }, (out, err, code, metrics) => {
       try {
         const S = parseSummary(out);
+        // 언어 검증 (v3.6): 판정된 주 언어와 산출물 언어가 어긋나면 언어 설정 누출로 보고
+        // 1회 재시도 — 프로브 실측에서 누출은 비결정적이라 재실행이면 대체로 회복된다.
+        if (S && lang && attempt === 1) {
+          const outHangul = hangulRatio(summaryLangText(S));
+          if (lang === 'ko' ? outHangul < 0.15 : outHangul >= 0.05) {
+            console.warn(`[compact] 언어 불일치 (기대 ${lang}, 산출 한글 ${Math.round(outHangul * 100)}%) — 1회 재시도`);
+            return runCompact(2);
+          }
+        }
         if (!S) {
           if (attempt === 1 && code !== null && out.trim()) {
             console.warn('[compact] 응답 파싱 실패 (절단 추정) — 1회 재시도');
@@ -571,9 +620,14 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
           `- 구간이 속한 세션: ${rangeSessions.join(', ')}`,
           `- 구간까지 이어지는 같은 세션 조상 턴: ${priorSameSession}개 (미포함 — 필요하면 /expand로 조회)`,
           ...(forkChain.length ? forkChain.map(l => `- ${l}`) : ['- 부모 분기 없음 — 최상위 세션에서 시작된 흐름']),
+          ``, `## 용어 부록 (범위 밖 정의 — 조상 턴에서 추출)`,
+          ...(glossaryItems.length
+            ? glossaryItems.map(g => `- **${g.term}** — ${g.def} (정의 위치: 범위 밖 ${(g.ts ?? '').slice(11, 19)} · \`${g.turnId ?? '?'}\` — /expand로 원문 확인)`)
+            : [ancestors.length ? '- (범위 안에서 참조되면서 범위 밖에서 정의된 용어 없음)' : '- (범위 이전 조상 턴 없음)']),
           ``, `## 사실층`,
           `- 만진 파일: ${facts.files.join(', ') || '-'}`,
-          `- 실행 명령: ${facts.commands.length ? facts.commands.map(c => `\`${c}\``).join(', ') : '-'}`,
+          `- 실행 명령: ${facts.commands.length ? facts.commands.map(c => `\`${c}\``).join(', ') : '-'}` +
+            (facts.commandsOmitted ? ` — 외 ${facts.commandsOmitted}개 생략 (원문 앵커/expand로 조회)` : ''),
           `- 에러 턴: ${facts.errorTurns.join(', ') || '없음'} · 위임 턴: ${facts.delegatedTurns.join(', ') || '없음'}`,
           `- 도구 ${facts.toolCalls}회 · 출력 토큰(청구 기준) ${facts.outputTokens.toLocaleString()}`,
           ...(metrics ? [
@@ -596,8 +650,13 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
             transcriptChars: transcript.length, promptChars: prompt.length,
             model: typeof model === 'string' && ALLOWED_MODELS.has(model) ? model : 'default',
             attempts: attempt, claude: metrics,
+            lang, userHangulPct: Math.round(userHangul * 100),
           },
           facts, summary: S, anchors,
+          glossary: {
+            items: glossaryItems, candidates: glossaryEvidence.length,
+            ancestorTurns: ancestors.length, claude: glossaryMetrics,
+          },
           lineage: { sessions: rangeSessions, priorSameSessionTurns: priorSameSession, forkChain },
           state: {
             changes: [...state.changes.entries()].map(([f, c]) => ({ file: f, count: c.count, adds: c.adds, dels: c.dels })),
@@ -617,7 +676,28 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
         sendJson(res, 500, { error: '패키지 조립 실패: ' + String(e?.message ?? e) });
       }
     });
-    runCompact(1);
+    // 부록 생성은 요약과 독립이지만 md 조립이 결과를 쓰므로 먼저 실행.
+    // 실패해도 compact는 진행한다 (부록은 보강 계층이지 필수 아님).
+    const runGlossary = (attempt: number) => askClaude(buildGlossaryPrompt(glossaryEvidence), {
+      model: typeof model === 'string' ? model : undefined,
+      systemPrompt: COMPACT_SYSTEM_PROMPT, json: true, noTools: true, timeoutMs: 180_000,
+    }, (gout, gerr, _gcode, gm) => {
+      glossaryItems = parseGlossary(gout, glossaryEvidence);
+      glossaryMetrics = gm;
+      // 후보가 있는데 항목 0이고 출력이 명시적 빈 배열도 아니면 절단·형식 붕괴 추정 —
+      // compact 본체의 파싱 실패 재시도와 같은 관례로 1회 재시도. 명시적 []는
+      // "스니펫에 정의 없음 → 전부 스킵"이라는 정당한 판단이므로 존중한다.
+      // (실측: oor-terms v3에서 후보 36 → 항목 0 이상 사례 1건 — 조사 문서 §7.2)
+      if (!glossaryItems.length && !/\[\s*\]/.test(gout) && attempt === 1) {
+        console.warn('[용어 부록] 항목 0 + 빈 배열 아님 (절단 추정) — 1회 재시도');
+        return runGlossary(2);
+      }
+      if (!glossaryItems.length && gerr) console.warn('[용어 부록] 생성 실패 — 부록 없이 진행:', gerr.slice(0, 150));
+      else console.log(`[용어 부록] 후보 ${glossaryEvidence.length} → 항목 ${glossaryItems.length}${attempt > 1 ? ' (재시도)' : ''}${gm?.costUsd != null ? ' · $' + gm.costUsd.toFixed(4) : ''}`);
+      runCompact(1);
+    });
+    if (glossaryEvidence.length) runGlossary(1);
+    else runCompact(1);
     } catch (e: any) { sendJson(res, 500, { error: e?.message ?? String(e) }); }
   });
 }

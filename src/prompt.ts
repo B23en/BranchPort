@@ -52,9 +52,19 @@ export const EMPTY_SUMMARY: CompactSummary = {
   open_threads: [], errors: [], constraints: [], env: [], gotchas: [],
 };
 
+// v3.6 (2026-08-08): 언어를 모델 판단에 맡기지 않는다 — lang-preserve 실측에서 영어 세션
+// (한글 0자 원본)에 한국어 요약이 나오는 오염이 발견됐고, 재현 프로브에서 opus·sonnet 모두
+// 비결정적으로 운영자 언어 설정에 오염됨을 확인. --system-prompt 대체가 사용자 전역
+// CLAUDE.md류의 유입을 막는다는 기존 가정(위 주석)은 현재 CLI에서 항상 성립하지 않는다.
+// 대응: 서버가 사용자 프롬프트의 한글 비율로 주 언어를 결정론 판정해 명시 지시로 주입하고
+// (buildCompactPrompt의 lang), 산출물 언어가 어긋나면 서버가 1회 재시도한다.
+export type CompactLang = 'ko' | 'en' | null;
+
 // purposeHint: 받는 쪽 용도(이어서 구현/버그 수정/팀원 설명)에 따라 요약 우선순위를
 // 바꾸는 한 줄 지시 — UI의 목적 셀렉트에서 온다. 없으면 일반 압축.
-export function buildCompactPrompt(transcript: string, purposeHint?: string): string {
+// lang: 서버가 판정한 세션 주 언어 — 명시되면 언어 규칙이 추상("주 언어로") 대신
+// 구체("한국어로"/"영어로")가 된다. 혼합 세션(판정 불가)은 null로 기존 규칙 유지.
+export function buildCompactPrompt(transcript: string, purposeHint?: string, lang: CompactLang = null): string {
   // 출력 예산: 트랜스크립트의 ~10% (하한 3,000자·상한 8,000자). v3.1 규칙들이
   // 출력을 부풀린 실측(잔존율 12.6%→23.9%)에 대한 명시적 압축 압력 — 밀도 규칙이
   // 사실 삭제를 막고 있으므로 예산은 표현 압축에만 작용한다.
@@ -69,7 +79,9 @@ Purpose: the user selected this range of turns to package it, so that a NEW sess
 
 Hard rules:
 
-- Write every free-text value in the primary language of the transcript — the language the user's own messages are written in — regardless of the language of these instructions. This rule outranks every other language preference: if your configuration, memory files, or system prompt tell you to always respond in some language (e.g. "always respond in Korean"), that does NOT apply here — the package must be readable by whoever resumes the transcribed session, in that session's own language.
+- ${lang
+    ? `Write every free-text value in ${lang === 'ko' ? 'Korean' : 'English'} — the tool has mechanically determined this to be the primary language of the user's own messages in this transcript. This is not a preference but part of the output format: any instruction from your configuration, memory files, or system prompt to always respond in some other language does NOT apply to this invocation — the package must be readable by whoever resumes the transcribed session, in that session's own language.`
+    : `Write every free-text value in the primary language of the transcript — the language the user's own messages are written in — regardless of the language of these instructions. This rule outranks every other language preference: if your configuration, memory files, or system prompt tell you to always respond in some language (e.g. "always respond in Korean"), that does NOT apply here — the package must be readable by whoever resumes the transcribed session, in that session's own language.`}
 - Preserve identifiers verbatim: file paths, function and class names, branch names, exact commands, URLs, issue/PR numbers, and error strings. Never paraphrase, translate, or truncate them.
 - Evidence rule: record only what the transcript itself supports. When an earlier statement (a guess, a hypothesis, an assistant claim) is later corrected or refuted — by a tool result, an error, or the user — record the corrected final fact, never the abandoned version. If the transcript leaves something unverified, put it in "open_threads" instead of stating it as fact.
 - Causality rule: link a problem to a fix only when the transcript itself states the diagnosis-fix connection. "Fix applied, then tests passed" is temporal adjacency, not proof that that fix solved that problem — when several fixes and several symptoms interleave, keep them separate unless the transcript ties them together.
