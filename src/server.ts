@@ -459,7 +459,7 @@ ${hist ? '\n[이 브랜치에서 나눈 대화]\n' + hist : ''}
 }
 
 function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
-  readBody(req, res, 10_000, async ({ project, turnIds, model, purpose, glossary }) => {
+  readBody(req, res, 10_000, async ({ project, turnIds, model, purpose, glossary, glossaryModel }) => {
     try { // 파싱 중 파일 로테이션 등 비동기 예외가 프로세스를 죽이지 않게 — 다른 핸들러와 동일
     if (!project || !Array.isArray(turnIds) || !turnIds.length) {
       return sendJson(res, 400, { error: 'project와 turnIds가 필요합니다' });
@@ -678,8 +678,10 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
     });
     // 부록 생성은 요약과 독립이지만 md 조립이 결과를 쓰므로 먼저 실행.
     // 실패해도 compact는 진행한다 (부록은 보강 계층이지 필수 아님).
+    // glossaryModel: 부록 전용 모델 오버라이드 — 정의 추출은 기계적 성격이라 저비용 모델
+    // 라우팅 후보(비용 실측: 부록이 compact 본체와 맞먹는 $0.15/세션). 미지정 시 compact와 동일.
     const runGlossary = (attempt: number) => askClaude(buildGlossaryPrompt(glossaryEvidence), {
-      model: typeof model === 'string' ? model : undefined,
+      model: typeof glossaryModel === 'string' ? glossaryModel : typeof model === 'string' ? model : undefined,
       systemPrompt: COMPACT_SYSTEM_PROMPT, json: true, noTools: true, timeoutMs: 180_000,
     }, (gout, gerr, _gcode, gm) => {
       glossaryItems = parseGlossary(gout, glossaryEvidence);
