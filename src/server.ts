@@ -7,7 +7,7 @@ import { listProjects, listSessionFiles } from './discover';
 import { buildForest } from './tree';
 import { buildTurnForest } from './turns';
 import { renderTranscript } from './transcript';
-import { buildCompactPrompt, parseSummary, COMPACT_SYSTEM_PROMPT } from './prompt';
+import { buildCompactPrompt, parseSummary, normalizePurpose, COMPACT_SYSTEM_PROMPT } from './prompt';
 import { splitAncestorSegments, findAncestorEvidence, buildGlossaryPrompt, parseGlossary, GlossaryItem } from './glossary';
 import { Turn } from './types';
 
@@ -240,11 +240,8 @@ ${items}
   });
 }
 
-const PURPOSE: Record<string, string> = {
-  continue: '이 패키지를 받은 쪽은 같은 작업을 이어서 구현한다 — 미완 항목·다음 단계·구현 세부를 우선하라',
-  bugfix: '이 패키지를 받은 쪽은 이 구간의 문제를 진단하고 고친다 — 에러·재현 조건·시도했던 해결책을 우선하라',
-  handoff: '이 패키지를 받은 쪽은 이 작업을 처음 보는 팀원이다 — 배경·용어·왜 이렇게 했는지를 우선하라',
-};
+// 목적별 지시는 prompt.ts의 PURPOSE_BLOCKS(v3.7)로 옮겼다 — 한국어 한 줄을 영어 프롬프트에
+// 삽입하던 기존 방식이 v3.6 언어 판정과 충돌했다. 서버는 UI가 보낸 키를 그대로 넘긴다.
 
 interface FileChange { count: number; adds: number; dels: number; sample: string[]; }
 
@@ -548,7 +545,7 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
     };
     const userHangul = hangulRatio(range.map(t => t.prompt).filter(p => p && p !== '(계속)').join('\n'));
     const lang = userHangul >= 0.15 ? 'ko' as const : userHangul < 0.05 ? 'en' as const : null;
-    const prompt = buildCompactPrompt(transcript, PURPOSE[purpose], lang);
+    const prompt = buildCompactPrompt(transcript, purpose, lang);
     const summaryLangText = (S: ReturnType<typeof parseSummary> & object) => [
       S.goal, S.summary, ...S.decisions.flatMap(d => [d.d, d.why]),
       ...S.state.done, ...S.state.todo, S.state.current_focus, ...S.open_threads,
@@ -646,7 +643,7 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
         ].join('\n');
         const jsonPkg = {
           meta: {
-            generated: new Date().toISOString(), purpose: purpose ?? null,
+            generated: new Date().toISOString(), purpose: normalizePurpose(purpose),
             transcriptChars: transcript.length, promptChars: prompt.length,
             model: typeof model === 'string' && ALLOWED_MODELS.has(model) ? model : 'default',
             attempts: attempt, claude: metrics,
