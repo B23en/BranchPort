@@ -129,6 +129,13 @@
   /* the tint reads fine on a small circle but muddies text once it grows into
      the detail card — drop it there, keep the border + pulse only */
   .node.expanded.selected{background:var(--surface);}
+  /* 손익분기(5,000자) 미만 구간: 선택 하이라이트 전체가 빨간 경고색으로 바뀐다 */
+  body.below-be .node.selected{border-color:#d64545;}
+  body.below-be .link.path{stroke:#d64545;}
+  body.below-be #selbar{border-color:#d64545;}
+  body.below-be #selbar b{color:#d64545;}
+  #sb-be-note{display:none; color:#d64545; font-weight:650;}
+  body.below-be #selbar.active #sb-be-note{display:inline;}
   /* absolute + translate(-50%,-50%) centers the icon's own box on the node's
      exact center point — robust regardless of odd/even pixel rounding on the
      node's size, unlike relying purely on flex + percentage sizing. */
@@ -417,6 +424,7 @@
     <span id="sb-hint">다른 턴을 <b>shift</b>+클릭하면 경로가 선택됩니다</span>
     <div id="sb-active-group">
       <span>경로 <b id="sb-n"></b>턴 선택됨</span>
+      <span id="sb-be-note">손익분기 미만 — 패키지가 원문보다 클 수 있음</span>
       <select id="sb-purpose" class="btn ghost" style="padding:7px 10px">
         <option value="">받는 쪽 목적: 일반</option>
         <option value="continue">이어서 구현</option>
@@ -1857,6 +1865,26 @@ function applySelectionClasses() {
     el.classList.toggle("selected", range.has(el.dataset.first) && range.has(el.dataset.last));
   });
 }
+// 범위가 바뀔 때마다 서버 견적으로 손익분기(5,000자) 미만 여부를 확인해
+// 선택 하이라이트를 빨간색으로 전환한다. 디바운스로 shift+클릭 연타를 흡수.
+let beTimer = null, beKey = null, beEst = null;
+function setBelowBE(v) { document.body.classList.toggle("below-be", !!v); }
+function scheduleBreakEvenCheck() {
+  const ids = rangeIds();
+  if (ids.length < 2) { beKey = null; beEst = null; setBelowBE(false); return; }
+  const key = ids.join(",");
+  if (key === beKey) return; // 같은 구간이면 재조회 불필요
+  beKey = key;
+  clearTimeout(beTimer);
+  beTimer = setTimeout(async () => {
+    try {
+      const est = await api("/api/compact/estimate", { project: CURRENT_PROJECT, turnIds: ids });
+      if (beKey !== key) return; // 응답 도착 전에 구간이 바뀜 — 폐기
+      beEst = est.error ? null : est;
+      setBelowBE(!!beEst?.belowThreshold);
+    } catch (e) { beEst = null; setBelowBE(false); }
+  }, 350);
+}
 // the banner shows the instant Shift goes down (a hint, before any range
 // exists yet) and switches to the live count once shift+click has actually
 // picked a second turn — it only fully leaves once both are false
@@ -1872,6 +1900,13 @@ function updateSel() {
     countEl.classList.remove("bump"); void countEl.offsetWidth; countEl.classList.add("bump");
   }
   bar.classList.toggle("on", shiftHeld || active);
+  // 구간이 바뀌면 손익분기 경고 상태를 초기화한다
+  const goBtn = document.getElementById("sb-go");
+  if (typeof compactWarnedKey !== "undefined" && compactWarnedKey !== null && compactWarnedKey !== rangeIds().join(",")) {
+    compactWarnedKey = null;
+    if (!goBtn.disabled) goBtn.textContent = "압축 패키지 생성";
+  }
+  scheduleBreakEvenCheck();
 }
 // arrow keys walk the tree from the currently selected turn: →/← are
 // child/parent (forward/back in time), ↑/↓ cycle between sibling branches
@@ -1943,12 +1978,30 @@ window.addEventListener("blur", () => {
 function clearSel() { selA = selB = null; selShift = false; updateSel(); applySelectionClasses(); }
 document.getElementById("sb-clear").addEventListener("click", (ev) => { ev.stopPropagation(); clearSel(); });
 
+let compactWarnedKey = null; // 손익분기 미만 경고를 이미 보여준 구간 (재클릭 시 진행)
 document.getElementById("sb-go").addEventListener("click", async (ev) => {
   ev.stopPropagation();
   const btn = document.getElementById("sb-go");
   const ids = rangeIds();
-  btn.disabled = true; btn.textContent = "생성 중… (최대 3분)";
-  showBusy("압축 패키지 생성 중…", `${ids.length}턴 요약 + 상태층 수집 — 최대 3분`);
+  const idsKey = ids.join(",");
+  // 실측 임계값(103세션): 구간이 너무 작으면 패키지가 원문보다 커진다 — 먼저 견적을 내서 경고
+  if (compactWarnedKey !== idsKey) {
+    btn.disabled = true; btn.textContent = "구간 크기 확인 중…";
+    try {
+      // 선택 시점에 이미 견적을 받아뒀으면 재조회 없이 재사용
+      const est = (beKey === idsKey && beEst) ? beEst
+        : await api("/api/compact/estimate", { project: CURRENT_PROJECT, turnIds: ids });
+      if (est.belowThreshold) {
+        compactWarnedKey = idsKey;
+        btn.disabled = false;
+        btn.textContent = `구간이 작아 이득 없음 (${est.transcriptChars.toLocaleString()}자 < ${est.threshold.toLocaleString()}자) — 그래도 생성`;
+        return;
+      }
+    } catch (e) { /* 견적 실패는 치명적이지 않음 — 그대로 진행 */ }
+  }
+  compactWarnedKey = null;
+  btn.disabled = true; btn.textContent = "생성 중… (최대 7분)";
+  showBusy("압축 패키지 생성 중…", `${ids.length}턴 원문 압축 — 최대 7분`);
   try {
     const j = await api("/api/compact", { project: CURRENT_PROJECT, turnIds: ids, purpose: document.getElementById("sb-purpose").value || undefined });
     if (j.error) throw new Error(j.error);

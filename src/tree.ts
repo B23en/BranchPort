@@ -31,6 +31,7 @@ interface Merged {
   text: Map<string, string>;
   timestamp: Map<string, string | null>;
   toolsByOwner: Map<string, ToolCall[]>;
+  toolResultFull: Map<string, string>;
   outputTokens: Map<string, number>;
   hasImage: Map<string, boolean>;
   interrupted: Map<string, boolean>;
@@ -55,6 +56,8 @@ export interface Forest {
   roots: TreeNode[];
   stats: ParseStats;
   compactBoundaries: string[];
+  // 압축 입력 전용 (API 응답으로 직렬화하지 말 것) — toolUseId -> 전체 결과 텍스트
+  toolResults: Map<string, string>;
   queuedPrompts: { ts: string; text: string; session: string }[];
 }
 
@@ -66,6 +69,7 @@ export async function buildForest(projectDirName: string): Promise<Forest> {
     text: new Map(),
     timestamp: new Map(),
     toolsByOwner: new Map(),
+    toolResultFull: new Map(),
     outputTokens: new Map(),
     hasImage: new Map(),
     interrupted: new Map(),
@@ -85,6 +89,7 @@ export async function buildForest(projectDirName: string): Promise<Forest> {
     for (const [k, v] of pf.text) merged.text.set(k, v);
     for (const [k, v] of pf.timestamp) merged.timestamp.set(k, v);
     for (const [k, v] of pf.toolsByOwner) merged.toolsByOwner.set(k, v);
+    for (const [k, v] of pf.toolResultFull) merged.toolResultFull.set(k, v);
     for (const [k, v] of pf.outputTokens) merged.outputTokens.set(k, v);
     for (const [k, v] of pf.hasImage) merged.hasImage.set(k, v);
     for (const [k, v] of pf.interrupted) merged.interrupted.set(k, v);
@@ -210,6 +215,7 @@ export async function buildForest(projectDirName: string): Promise<Forest> {
     roots: roots.map(build),
     stats: merged.stats,
     compactBoundaries: merged.compactBoundaries.sort(),
+    toolResults: merged.toolResultFull,
     queuedPrompts: queuedPrompts.sort((a, b) => a.ts.localeCompare(b.ts)),
   };
 }

@@ -2,7 +2,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
-export const CLAUDE_PROJECTS_ROOT = path.join(os.homedir(), '.claude', 'projects');
+// BRANCHPORT_PROJECTS_ROOT로 탐색 루트를 바꿀 수 있다 — 평가용 외부 데이터셋이나
+// 픽스처를 실제 ~/.claude/projects와 격리해서 물릴 때 사용 (배치 측정·재현 실험).
+export const CLAUDE_PROJECTS_ROOT = process.env.BRANCHPORT_PROJECTS_ROOT
+  || path.join(os.homedir(), '.claude', 'projects');
 
 function realpathOrSelf(p: string): string {
   try { return fs.realpathSync(p); } catch { return p; }

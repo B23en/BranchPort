@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BranchPort compact 파이프라인</title>
+<style>
+  :root {
+    --bg: #F6F7F9; --surface: #FFFFFF; --ink: #1E2630; --muted: #5C6774;
+    --line: #E3E7EC; --line-soft: #EDF0F3;
+    --accent: #0A8A62; --accent-soft: #E3F2EC;
+    --c1: #0A8A62; --c2: #4059C7; --c3: #C2701E; --c4: #B04477;
+    --base: #8A94A0; --base-soft: #C6CCD3;
+    --code-bg: #EFF1F4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14181E; --surface: #1C222B; --ink: #E8ECF1; --muted: #98A2AE;
+      --line: #2A323D; --line-soft: #232A34;
+      --accent: #28A88F; --accent-soft: #1E3A33;
+      --c1: #28A88F; --c2: #6E88E0; --c3: #CE7E33; --c4: #C9699F;
+      --base: #6B7684; --base-soft: #454F5B;
+      --code-bg: #232A34;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181E; --surface: #1C222B; --ink: #E8ECF1; --muted: #98A2AE;
+    --line: #2A323D; --line-soft: #232A34;
+    --accent: #28A88F; --accent-soft: #1E3A33;
+    --c1: #28A88F; --c2: #6E88E0; --c3: #CE7E33; --c4: #C9699F;
+    --base: #6B7684; --base-soft: #454F5B;
+    --code-bg: #232A34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink); margin: 0;
+    font-family: "Pretendard Variable", Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    font-size: 15px; line-height: 1.7; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.doc { border-bottom: 2px solid var(--ink); padding-bottom: 28px; margin-bottom: 40px; }
+  .kicker { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: .08em; margin: 0 0 10px; }
+  h1 { font-size: 34px; line-height: 1.25; font-weight: 800; margin: 0 0 14px; letter-spacing: -.02em; text-wrap: balance; }
+  .lede { color: var(--muted); max-width: 62ch; margin: 0; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 18px; font-size: 13px; color: var(--muted); }
+  .meta-row b { color: var(--ink); font-weight: 600; }
+  h2 { font-size: 22px; font-weight: 800; letter-spacing: -.01em; margin: 0 0 6px; text-wrap: balance; }
+  section.blk { margin: 52px 0 0; }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .1em; color: var(--accent); margin: 0 0 6px; }
+  p { max-width: 72ch; }
+  code, .mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: .92em; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px 22px; margin: 16px 0; }
+  .tbl-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; background: var(--surface); }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--line-soft); font-weight: 700; font-size: 12.5px; }
+  .good { color: var(--accent); font-weight: 700; }
+  figure { margin: 20px 0; }
+  figcaption { font-size: 12px; color: var(--muted); margin-top: 8px; max-width: 78ch; }
+  svg { max-width: 100%; height: auto; display: block; }
+  .fig-scroll { overflow-x: auto; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* 프롬프트 구조 리스트 */
+  .prom { border-left: 3px solid var(--line); padding-left: 0; margin: 16px 0; list-style: none; }
+  .prom li { position: relative; padding: 10px 0 10px 22px; border-bottom: 1px dashed var(--line-soft); }
+  .prom li:last-child { border-bottom: none; }
+  .prom li::before { content: ""; position: absolute; left: -7px; top: 18px; width: 11px; height: 11px; border-radius: 50%; background: var(--surface); border: 3px solid var(--base-soft); }
+  .prom li.hot::before { border-color: var(--accent); }
+  .prom .t { font-weight: 700; font-size: 13.5px; }
+  .prom .d { font-size: 12.5px; color: var(--muted); max-width: 70ch; }
+  .badge { display: inline-block; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 700; border-radius: 4px; padding: 1px 7px; margin-left: 6px; vertical-align: 1px; }
+  ul.find { margin: 14px 0 0; padding-left: 18px; max-width: 76ch; }
+  ul.find li { margin-bottom: 8px; }
+  @media (max-width: 560px) { h1 { font-size: 27px; } }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+  <p class="kicker">BRANCHPORT · 시스템 문서</p>
+  <h1>compact 파이프라인 한눈에 보기</h1>
+  <p class="lede">"트리에서 구간을 고르면 다른 세션에 이어붙일 패키지가 나온다" 사이에서 실제로 일어나는 일 전부 — 무손실 준비, LLM 호출과 검증 루프, 기계 병합, 그리고 각 단계가 어떤 실측 위에 서 있는지. 코드 기준 <code>src/server.ts</code> · <code>src/prompt.ts</code> (v3.8.1).</p>
+  <div class="meta-row">
+    <span>구조 <b>3계층 무손실</b></span>
+    <span>LLM 호출 <b>본문 1회 + 부록 1회</b> (재시도 최대 각 1회)</span>
+    <span>비용 실측 <b>~$0.3 + 부록 $0.15</b>/구간</span>
+    <span>함께 보기 <b>압축 검증 실험 리포트</b> (같은 폴더)</span>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<section class="blk">
+  <p class="eyebrow">핵심 설계</p>
+  <h2>3계층 방어 — 놓치면 아래 층이 받는다</h2>
+  <p>LLM 요약은 반드시 무언가를 잃는다(실측: 요약층 단독의 수정 파일 보존 32~78%). BranchPort는 잃는 것을 막는 대신, <b>잃어도 복구되는 구조</b>를 쌓았다. 각 층의 보증은 별도 실험으로 측정되어 있다.</p>
+  <p style="font-size:13.5px;color:var(--muted);border-left:3px solid var(--line);padding-left:12px;max-width:72ch">주의해서 읽을 것: 이 3계층은 <b style="color:var(--ink)">보증의 위계</b>(위가 놓치면 아래가 받는다)이지 실행 순서가 아니다. 실제 실행은 아래 흐름도처럼 <b style="color:var(--ink)">기계 수집 → LLM 요약 → 기계 조립</b>의 샌드위치 — 사실층 재료가 LLM 호출 <i>전에</i> 만들어지므로, 요약이 부실해도 식별자 보증은 영향을 받지 않는다. 원본층은 compact 시점엔 아무것도 실행되지 않으며(앵커 ID만 심음), 패키지를 받은 쪽이 <code>/expand</code>를 부르는 순간 동작한다.</p>
+  <figure>
+    <svg viewBox="0 0 660 320" role="img" aria-label="3계층 구조: LLM층은 이해형 사실을 QA 92%로, 사실층은 식별자를 100%로, 원본층은 나머지 전부를 무손실로 보존한다. 위 층이 놓친 것이 아래 층으로 떨어진다">
+      <defs><marker id="a1" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
+      <!-- 층 1 -->
+      <rect x="30" y="20" width="440" height="80" rx="8" fill="var(--c1)" opacity=".14"/>
+      <rect x="30" y="20" width="6" height="80" rx="3" fill="var(--c1)"/>
+      <text x="52" y="48" font-size="14" font-weight="700" fill="currentColor">LLM층 — 9키 요약 JSON</text>
+      <text x="52" y="70" font-size="12" fill="currentColor" fill-opacity=".75">목표·요약·결정·상태·에러·제약·환경·스레드·주의 (이해형 사실)</text>
+      <text x="52" y="88" font-size="12" font-weight="700" fill="var(--c1)">보증: QA 보존율 92% · 환각 0</text>
+      <!-- 층 2 -->
+      <rect x="30" y="130" width="440" height="80" rx="8" fill="var(--c2)" opacity=".14"/>
+      <rect x="30" y="130" width="6" height="80" rx="3" fill="var(--c2)"/>
+      <text x="52" y="158" font-size="14" font-weight="700" fill="currentColor">사실층 — 툴콜 레코드 기계 병합</text>
+      <text x="52" y="180" font-size="12" fill="currentColor" fill-opacity=".75">만진 파일 전량 · 명령 60개 · diff 표본 · 에러 원문 · 계보 · 용어 부록</text>
+      <text x="52" y="198" font-size="12" font-weight="700" fill="var(--c2)">보증: 수정 파일 100% (397/397) · 명령 97%</text>
+      <!-- 층 3 -->
+      <rect x="30" y="240" width="440" height="66" rx="8" fill="currentColor" opacity=".07"/>
+      <rect x="30" y="240" width="6" height="66" rx="3" fill="var(--base)"/>
+      <text x="52" y="268" font-size="14" font-weight="700" fill="currentColor">원본층 — 턴 앵커 + /expand API</text>
+      <text x="52" y="290" font-size="12" fill="currentColor" fill-opacity=".75">보증: 무손실 — 앵커 ID로 원문 레코드 100% 복원</text>
+      <!-- 낙하 화살표 -->
+      <g stroke="currentColor" stroke-width="1.6" fill="none" opacity=".65">
+        <path d="M510,60 C560,60 560,100 560,110 C560,120 550,130 535,140" marker-end="url(#a1)"/>
+        <path d="M510,170 C560,170 560,210 560,220 C560,230 550,240 535,250" marker-end="url(#a1)"/>
+      </g>
+      <g font-size="11.5" fill="currentColor" fill-opacity=".7">
+        <text x="575" y="95">요약이 누른 열거·</text>
+        <text x="575" y="110">식별자가 떨어짐</text>
+        <text x="575" y="205">값·사건형 사실,</text>
+        <text x="575" y="220">명령 전문이 떨어짐</text>
+      </g>
+    </svg>
+    <figcaption>실측이 이 구조의 필요를 증명한다: 요약층의 열거 붕괴(수정 파일 ~30개 임계)는 어떤 프롬프트로도 못 막지만 사실층 병합은 임계와 무관하게 100%. 용어 부록이 못 푸는 값·사건형 질문(OOR 잔여 60%)은 /expand가 받는다.</figcaption>
+  </figure>
+</section>
+
+<!-- ============================================================ -->
+<section class="blk">
+  <p class="eyebrow">전체 흐름</p>
+  <h2>요청에서 패키지까지</h2>
+  <figure class="fig-scroll">
+    <svg viewBox="0 0 700 790" role="img" aria-label="compact 요청 처리 흐름: 로그 파싱과 턴 트리, 구간 선택, 기계 수집 3갈래, 언어 판정과 프롬프트 조립, claude 호출과 재시도 루프 2종, 용어 부록, md 조립과 저장" style="min-width:560px">
+      <defs><marker id="a2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
+      <!-- 1. 로그 -->
+      <rect x="40" y="14" width="380" height="52" rx="8" fill="var(--surface)" stroke="currentColor" stroke-opacity=".3"/>
+      <text x="58" y="36" font-size="13" font-weight="700" fill="currentColor">세션 로그 <tspan font-family="ui-monospace,Consolas,monospace" font-weight="400">~/.claude/projects/**/*.jsonl</tspan></text>
+      <text x="58" y="54" font-size="11.5" fill="currentColor" fill-opacity=".65">본세션 + 서브에이전트 기록 + 되돌리기 분기 — 레코드 수백~수천</text>
+      <line x1="230" y1="66" x2="230" y2="88" stroke="currentColor" marker-end="url(#a2)"/>
+      <!-- 2. 파싱 -->
+      <rect x="40" y="90" width="380" height="52" rx="8" fill="var(--surface)" stroke="currentColor" stroke-opacity=".3"/>
+      <text x="58" y="112" font-size="13" font-weight="700" fill="currentColor">파싱 → 턴 트리 조립 <tspan font-family="ui-monospace,Consolas,monospace" font-weight="400">buildForest · buildTurnForest</tspan></text>
+      <text x="58" y="130" font-size="11.5" fill="currentColor" fill-opacity=".65">구조적 압축 ≈94% (161→10 중앙값) · 무손실 접기 · 시크릿 마스킹</text>
+      <line x1="230" y1="142" x2="230" y2="164" stroke="currentColor" marker-end="url(#a2)"/>
+      <!-- 3. UI -->
+      <rect x="40" y="166" width="380" height="52" rx="8" fill="var(--surface)" stroke="currentColor" stroke-opacity=".3"/>
+      <text x="58" y="188" font-size="13" font-weight="700" fill="currentColor">UI에서 구간 선택 → <tspan font-family="ui-monospace,Consolas,monospace" font-weight="400">POST /api/compact</tspan></text>
+      <text x="58" y="206" font-size="11.5" fill="currentColor" fill-opacity=".65">+ 목적(continue/bugfix/handoff) · 모델 셀렉트 · 손익분기 안내</text>
+      <line x1="230" y1="218" x2="230" y2="240" stroke="currentColor" marker-end="url(#a2)"/>
+      <!-- 4. 기계 수집 (3갈래) -->
+      <rect x="24" y="242" width="652" height="96" rx="10" fill="var(--c2)" opacity=".08"/>
+      <text x="40" y="264" font-size="12" font-weight="700" fill="var(--c2)">기계 수집 — LLM 없음, 결정론</text>
+      <rect x="40" y="274" width="196" height="52" rx="7" fill="var(--surface)" stroke="var(--c2)" stroke-opacity=".5"/>
+      <text x="52" y="294" font-size="12" font-weight="700" fill="currentColor">사실 집계</text>
+      <text x="52" y="312" font-size="11" fill="currentColor" fill-opacity=".65">파일 빈도 · 명령 캡 60 · 에러/위임 턴</text>
+      <rect x="252" y="274" width="196" height="52" rx="7" fill="var(--surface)" stroke="var(--c2)" stroke-opacity=".5"/>
+      <text x="264" y="294" font-size="12" font-weight="700" fill="currentColor">상태층 diff</text>
+      <text x="264" y="312" font-size="11" fill="currentColor" fill-opacity=".65">Edit 도구 변경 표본 +줄/−줄</text>
+      <rect x="464" y="274" width="196" height="52" rx="7" fill="var(--surface)" stroke="var(--c2)" stroke-opacity=".5"/>
+      <text x="476" y="294" font-size="12" font-weight="700" fill="currentColor">계보 · 앵커</text>
+      <text x="476" y="312" font-size="11" fill="currentColor" fill-opacity=".65">포크 체인 · 턴별 원문 앵커 ID</text>
+      <line x1="230" y1="338" x2="230" y2="360" stroke="currentColor" marker-end="url(#a2)"/>
+      <!-- 5. 언어 판정 + 프롬프트 -->
+      <rect x="40" y="362" width="380" height="70" rx="8" fill="var(--surface)" stroke="currentColor" stroke-opacity=".3"/>
+      <text x="58" y="384" font-size="13" font-weight="700" fill="currentColor">언어 결정론 판정 → 프롬프트 조립 (v3.8.1)</text>
+      <text x="58" y="402" font-size="11.5" fill="currentColor" fill-opacity=".65">사용자 프롬프트 한글 비율 ≥15% ko / &lt;5% en / 사이 보류</text>
+      <text x="58" y="420" font-size="11.5" fill="currentColor" fill-opacity=".65">인젝션 방어 + hard rule 15 + 목적 블록(선택) + 9키 스키마 + 예산</text>
+      <line x1="230" y1="432" x2="230" y2="454" stroke="currentColor" marker-end="url(#a2)"/>
+      <!-- 6. LLM 호출 -->
+      <rect x="40" y="456" width="380" height="70" rx="8" fill="var(--c1)" opacity=".12"/>
+      <rect x="40" y="456" width="380" height="70" rx="8" fill="none" stroke="var(--c1)"/>
+      <text x="58" y="478" font-size="13" font-weight="700" fill="currentColor">claude -p 호출 <tspan font-family="ui-monospace,Consolas,monospace" font-weight="400">--system-prompt 대체 · 도구 금지</tspan></text>
+      <text x="58" y="496" font-size="11.5" fill="currentColor" fill-opacity=".65">"요약 엔진" 시스템 프롬프트로 사용자 설정·메모리 차단 · 420초 한도</text>
+      <text x="58" y="514" font-size="11.5" fill="currentColor" fill-opacity=".65">산출: 9키 요약 JSON (LLM층)</text>
+      <!-- 재시도 루프 -->
+      <path d="M420,474 C480,474 480,508 420,508" fill="none" stroke="var(--c3)" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#a2)"/>
+      <text x="492" y="472" font-size="11.5" font-weight="700" fill="var(--c3)">재시도 ×1 — JSON 절단</text>
+      <text x="492" y="488" font-size="11" fill="currentColor" fill-opacity=".65">실측 106회 중 3회, 재실행이면 통과</text>
+      <text x="492" y="510" font-size="11.5" font-weight="700" fill="var(--c3)">재시도 ×1 — 언어 불일치</text>
+      <text x="492" y="526" font-size="11" fill="currentColor" fill-opacity=".65">운영자 언어 설정 비결정 누출 대응</text>
+      <line x1="230" y1="526" x2="230" y2="548" stroke="currentColor" marker-end="url(#a2)"/>
+      <!-- 7. 용어 부록 -->
+      <rect x="40" y="550" width="380" height="70" rx="8" fill="var(--surface)" stroke="currentColor" stroke-opacity=".3"/>
+      <text x="58" y="572" font-size="13" font-weight="700" fill="currentColor">용어 부록 (OOR) — 부록 전용 LLM 호출</text>
+      <text x="58" y="590" font-size="11.5" fill="currentColor" fill-opacity=".65">범위 밖 조상 턴에서 용어 정의 근거를 기계 검색 → 부록 프롬프트</text>
+      <text x="58" y="608" font-size="11.5" fill="currentColor" fill-opacity=".65">실패해도 진행 (부록 없이) · glossaryModel로 모델 오버라이드 가능</text>
+      <line x1="230" y1="620" x2="230" y2="642" stroke="currentColor" marker-end="url(#a2)"/>
+      <!-- 8. 조립 저장 -->
+      <rect x="40" y="644" width="380" height="70" rx="8" fill="var(--surface)" stroke="currentColor" stroke-opacity=".3"/>
+      <text x="58" y="666" font-size="13" font-weight="700" fill="currentColor">md 조립 → 저장 <tspan font-family="ui-monospace,Consolas,monospace" font-weight="400">packages/&lt;project&gt;/pkg-*.md + .json</tspan></text>
+      <text x="58" y="684" font-size="11.5" fill="currentColor" fill-opacity=".65">LLM층 9섹션 + 계보 + 부록 + 사실층 + 변경 내역 + 에러 + 앵커</text>
+      <text x="58" y="702" font-size="11.5" fill="currentColor" fill-opacity=".65">meta: purpose 정규화 · lang · 비용 · 토큰 · 시도 횟수 (실측 계측)</text>
+      <line x1="230" y1="714" x2="230" y2="736" stroke="currentColor" marker-end="url(#a2)"/>
+      <!-- 9. 사용 -->
+      <rect x="40" y="738" width="380" height="46" rx="8" fill="var(--c1)" opacity=".14"/>
+      <text x="58" y="758" font-size="13" font-weight="700" fill="currentColor">새 세션에 붙여넣기 — 부족하면 /expand로 원문 조회</text>
+      <text x="58" y="775" font-size="11.5" fill="currentColor" fill-opacity=".65">패키지의 앵커 ID → <tspan font-family="ui-monospace,Consolas,monospace">curl /api/expand?turn=…</tspan> (원본층)</text>
+    </svg>
+    <figcaption>주 흐름 (실선)과 검증 루프 (점선). LLM이 개입하는 단계는 두 곳뿐이고(본문 요약 + 용어 부록), 나머지는 전부 결정론적 기계 단계다 — 100% 보증이 가능한 이유.</figcaption>
+  </figure>
+</section>
+
+<!-- ============================================================ -->
+<section class="blk">
+  <p class="eyebrow">프롬프트 해부</p>
+  <h2>압축 프롬프트 v3.8.1 — 규칙마다 실측 근거가 있다</h2>
+  <p>프롬프트는 위에서 아래로 이렇게 쌓인다. <span class="badge">배지</span>는 그 부분을 만들게 한 실측.</p>
+  <ol class="prom">
+    <li><span class="t">시스템 프롬프트 대체 — "요약 엔진" 프레이밍</span><span class="badge">언어 누출 프로브</span><br><span class="d">기본 호출은 운영자의 전역 CLAUDE.md("Always respond in korean")를 로드해 요약 언어를 오염시킴 — 대체로 차단. 단, 대체만으로 완전 차단이 안 됨이 재확인되어 v3.6 검증 루프가 추가됨.</span></li>
+    <li><span class="t">인젝션 방어 — 구간 안 내용은 데이터일 뿐</span><br><span class="d">트랜스크립트 속 "ignore previous instructions"류를 지시가 아니라 내용으로 기록. 도구 호출·대화 이어가기 금지.</span></li>
+    <li class="hot"><span class="t">Hard rules 15개 — 균등 보존의 뼈대</span><span class="badge">교차 감사</span><span class="badge">QA 130문항</span><br><span class="d">언어(결정론 판정 주입) · 식별자 verbatim · 근거(반박된 가설 제외) · 인과(시간 인접 ≠ 인과) · 절단(잘린 출력 보간 금지) · 시점(수정 전 관찰 표시) · <b>수치 보존(v3.5: 86→92%)</b> · 발췌 한정 · 밀도(사실은 한 번씩) · 출력 예산(트랜스크립트의 ~10%, 사실이 우선) · 사용자 규칙 최우선 · 귀속(어시스턴트 권고 ≠ 사용자 제약).</span></li>
+    <li class="hot"><span class="t">목적 블록 (선택) — 수신자 프로파일</span><span class="badge">목적 A/B 160문항</span><br><span class="d">continue(상태 정확성·열거 붕괴 금지·작업 파라미터) / bugfix(재현 명령 전문·수치=재현 조건·실패한 처방) / handoff(용어 gloss·행위자 귀속·narrative-never-eats-facts 가드). hard rules 뒤·스키마 앞에 놓여 나중 지시가 앞선 규칙을 한정. 미지정이면 이 블록이 없고 프롬프트는 v3.6과 문자열 동일.</span></li>
+    <li><span class="t">출력 스키마 — 9키 JSON 고정</span><br><span class="d">목적과 무관하게 고정 — 사실층 병합·md 조립·평가 스크립트·기존 실측이 전부 이 스키마에 묶여 있어, 목적별 차이는 수신자 정의·예산 배분·규칙 조정으로만 낸다.</span></li>
+    <li><span class="t">최종 점검 + 트랜스크립트 마커</span><br><span class="d">JSON만 출력 · 빈 키는 ""/[] (내용 발명 금지) · 식별자 철자 재검.</span></li>
+  </ol>
+</section>
+
+<!-- ============================================================ -->
+<section class="blk">
+  <p class="eyebrow">패키지 해부</p>
+  <h2>산출물 md의 섹션 — 어느 층이 만드나</h2>
+  <div class="tbl-wrap"><table>
+    <tr><th>섹션</th><th>생성 주체</th><th>내용</th></tr>
+    <tr><td>목표 · 요약 · 결정사항 · 상태 · 에러와 해결 · 사용자 제약 · 환경 · 열린 스레드 · 주의</td><td><b style="color:var(--c1)">LLM층</b></td><td>9키 요약 JSON을 md로 전개 — 이해형 사실</td></tr>
+    <tr><td>계보</td><td><b style="color:var(--c2)">기계</b></td><td>구간이 속한 세션들, 포크 체인("세션 A는 세션 B의 ~ 지점에서 갈라짐"), 같은 세션 조상 턴 수</td></tr>
+    <tr><td>용어 부록</td><td><b style="color:var(--c2)">기계</b> + <b style="color:var(--c1)">LLM</b></td><td>범위 밖 정의 용어 — 정의 위치 타임스탬프·턴 ID 포함 (OOR 23→40%)</td></tr>
+    <tr><td>사실층</td><td><b style="color:var(--c2)">기계</b></td><td>만진 파일 전량(빈도순) · 실행 명령 60개(초과분 "외 N개 생략" 명시) · 에러/위임 턴 · 도구 횟수 · 압축 호출 비용</td></tr>
+    <tr><td>변경 내역 (상태층)</td><td><b style="color:var(--c2)">기계</b></td><td>파일별 실제 diff 표본, 수정 횟수, +/−줄 수</td></tr>
+    <tr><td>에러 내용</td><td><b style="color:var(--c2)">기계</b></td><td>에러 원문 발췌</td></tr>
+    <tr><td>원문 앵커</td><td><b style="color:var(--c2)">기계</b></td><td>턴별 타임스탬프·앵커 ID — /expand 진입점 (원본층)</td></tr>
+  </table></div>
+  <ul class="find">
+    <li>LLM이 만드는 것은 첫 묶음 하나뿐이다. <b>QA 92%가 깨져도 식별자는 기계 섹션들이 100% 보증</b>하는 구조 — 내장 /compact와의 격차(파일 100% vs 67%)가 정확히 여기서 난다.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section class="blk">
+  <p class="eyebrow">평가 파이프라인</p>
+  <h2>품질을 재는 쪽의 구조 (로컬 전용, gitignore)</h2>
+  <figure class="fig-scroll">
+    <svg viewBox="0 0 700 300" role="img" aria-label="평가 파이프라인: batch-compact가 서버 API로 패키지를 만들고, qa-preservation이 LLM 채점을, keyfact-recall과 lang-preserve가 결정론 채점을 수행해 summary 파일들로 집계된다" style="min-width:560px">
+      <defs><marker id="a3" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
+      <rect x="20" y="20" width="220" height="64" rx="8" fill="var(--surface)" stroke="currentColor" stroke-opacity=".3"/>
+      <text x="34" y="44" font-size="12.5" font-weight="700" fill="currentColor" font-family="ui-monospace,Consolas,monospace">batch-compact.mjs</text>
+      <text x="34" y="62" font-size="11" fill="currentColor" fill-opacity=".65">서버 API로 세션×모델×목적 순차 실행</text>
+      <text x="34" y="76" font-size="11" fill="currentColor" fill-opacity=".65">--purposes · --turns(구간 고정) · --glossary</text>
+      <line x1="240" y1="52" x2="280" y2="52" stroke="currentColor" marker-end="url(#a3)"/>
+      <rect x="282" y="28" width="150" height="48" rx="8" fill="var(--c2)" opacity=".12"/>
+      <rect x="282" y="28" width="150" height="48" rx="8" fill="none" stroke="var(--c2)" stroke-opacity=".6"/>
+      <text x="296" y="49" font-size="12" font-weight="700" fill="currentColor">runs.jsonl</text>
+      <text x="296" y="66" font-size="11" fill="currentColor" fill-opacity=".65">+ packages/pkg-*.md</text>
+      <g stroke="currentColor" fill="none">
+        <line x1="432" y1="44" x2="472" y2="44" marker-end="url(#a3)"/>
+        <line x1="432" y1="60" x2="472" y2="130" marker-end="url(#a3)"/>
+        <line x1="432" y1="68" x2="472" y2="210" marker-end="url(#a3)"/>
+      </g>
+      <rect x="474" y="20" width="206" height="58" rx="8" fill="var(--surface)" stroke="currentColor" stroke-opacity=".3"/>
+      <text x="488" y="41" font-size="12.5" font-weight="700" fill="currentColor" font-family="ui-monospace,Consolas,monospace">qa-preservation.mjs</text>
+      <text x="488" y="57" font-size="11" fill="currentColor" fill-opacity=".65">질문 생성→패키지/무맥락 답변→이진 채점</text>
+      <text x="488" y="71" font-size="11" fill="var(--c3)" font-weight="600">LLM · "모름"=오답 가드 · 캐시 재개</text>
+      <rect x="474" y="104" width="206" height="52" rx="8" fill="var(--surface)" stroke="currentColor" stroke-opacity=".3"/>
+      <text x="488" y="125" font-size="12.5" font-weight="700" fill="currentColor" font-family="ui-monospace,Consolas,monospace">keyfact-recall.mjs</text>
+      <text x="488" y="141" font-size="11" fill="currentColor" fill-opacity=".65">툴콜 정답지 vs llm/full 텍스트</text>
+      <text x="488" y="152" font-size="11" fill="var(--c1)" font-weight="600">결정론 · 비용 0 · 소급 채점 가능</text>
+      <rect x="474" y="184" width="206" height="52" rx="8" fill="var(--surface)" stroke="currentColor" stroke-opacity=".3"/>
+      <text x="488" y="205" font-size="12.5" font-weight="700" fill="currentColor" font-family="ui-monospace,Consolas,monospace">lang-preserve.mjs</text>
+      <text x="488" y="221" font-size="11" fill="currentColor" fill-opacity=".65">산출 언어 vs 세션 주 언어</text>
+      <text x="488" y="232" font-size="11" fill="var(--c1)" font-weight="600">결정론 · 회귀 감시용</text>
+      <line x1="577" y1="236" x2="577" y2="262" stroke="currentColor" marker-end="url(#a3)"/>
+      <rect x="440" y="264" width="240" height="30" rx="8" fill="var(--c1)" opacity=".14"/>
+      <text x="560" y="284" font-size="12" font-weight="700" fill="currentColor" text-anchor="middle">qa-summary.md · keyfact-summary.md</text>
+      <text x="30" y="130" font-size="11.5" fill="currentColor" fill-opacity=".7">공정 비교 장치:</text>
+      <text x="30" y="148" font-size="11.5" fill="currentColor" fill-opacity=".7">· 질문셋은 세션당 1회 생성,</text>
+      <text x="30" y="164" font-size="11.5" fill="currentColor" fill-opacity=".7">&#160;&#160;조건(목적·버전) 간 공유</text>
+      <text x="30" y="182" font-size="11.5" fill="currentColor" fill-opacity=".7">· 구간은 기록된 턴 수로 재구성</text>
+      <text x="30" y="200" font-size="11.5" fill="currentColor" fill-opacity=".7">&#160;&#160;(로그가 자라도 동일 범위)</text>
+      <text x="30" y="218" font-size="11.5" fill="currentColor" fill-opacity=".7">· none 대조군을 같은 배치에</text>
+      <text x="30" y="236" font-size="11.5" fill="currentColor" fill-opacity=".7">&#160;&#160;두어 시점·채점자 통제</text>
+    </svg>
+    <figcaption>같은 정답지·질문지로 내장 /compact 산출물(자유 텍스트)도 채점할 수 있도록 정답 추출과 텍스트 채점이 분리돼 있다 — 내장 비교 실험이 이 설계 위에서 나왔다. 원자료는 <code>오픈소스/probe-test/batch-results/</code> (로컬 전용).</figcaption>
+  </figure>
+</section>
+
+<!-- ============================================================ -->
+<section class="blk">
+  <p class="eyebrow">운영 수치</p>
+  <h2>비용과 시간 (실측)</h2>
+  <div class="tbl-wrap"><table>
+    <tr><th>항목</th><th>실측</th><th>비고</th></tr>
+    <tr><td>압축 호출 1회</td><td class="num">$0.25~0.35 · 35~60초 (sonnet)</td><td>구간 5~7만 자 기준. opus 1.3~1.6배, haiku 1/3</td></tr>
+    <tr><td>용어 부록</td><td class="num">+$0.152/세션</td><td>haiku 오버라이드 시 −58% 비용 · −9%p 보존율 — 기본 sonnet</td></tr>
+    <tr><td>재시도 발생률</td><td class="num">JSON 절단 3/106 · 언어 불일치 비결정</td><td>둘 다 재실행이면 대체로 통과 — 각 1회 자동 재시도</td></tr>
+    <tr><td>잔존율</td><td class="num">~31% (가중)</td><td>큰 구간일수록 개선 (17→11%) — 작은 구간은 손익분기 UI로 안내</td></tr>
+    <tr><td>compact 성공률</td><td class="num good">13/13, 11/11, 16/16 …</td><td>전 배치 실패 0 (재시도 포함)</td></tr>
+  </table></div>
+</section>
+</div>
+
+</body>
+</html>

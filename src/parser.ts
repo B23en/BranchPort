@@ -60,6 +60,9 @@ export interface ParsedFile {
   timestamp: Map<string, string | null>;
   toolsByOwner: Map<string, ToolCall[]>;
   toolsByUseId: Map<string, ToolCall>;
+  // toolUseId -> 전체 tool 결과 텍스트(상한 있음). 압축 입력 전용 — 프런트엔드
+  // 계약(resultPreview 200자)은 그대로 두고, 요약 LLM에게만 근거를 제공한다.
+  toolResultFull: Map<string, string>;
   outputTokens: Map<string, number>;
   hasImage: Map<string, boolean>;
   interrupted: Map<string, boolean>;
@@ -95,6 +98,7 @@ export async function parseSessionFile(filePath: string, sessionId: string): Pro
     timestamp: new Map(),
     toolsByOwner: new Map(),
     toolsByUseId: new Map(),
+    toolResultFull: new Map(),
     outputTokens: new Map(),
     hasImage: new Map(),
     interrupted: new Map(),
@@ -199,7 +203,7 @@ export async function parseSessionFile(filePath: string, sessionId: string): Pro
         } else if (block.type === 'tool_use') {
           hasToolUse = true;
           const input = block.input ?? {};
-          const filePath = typeof input.file_path === 'string' ? input.file_path.split('/').pop() ?? null : null;
+          const filePath = typeof input.file_path === 'string' ? input.file_path.split(/[\\/]/).pop() ?? null : null;
           const detail = filePath || (typeof input.command === 'string' ? input.command.slice(0, 60)
             : input.pattern || input.url || input.description || '');
           const tc: ToolCall = {
@@ -226,6 +230,7 @@ export async function parseSessionFile(filePath: string, sessionId: string): Pro
               if (t) resultText = t.text ?? '';
             }
             owner.resultPreview = sanitize(truncate(resultText, 200));
+            if (useId && resultText) result.toolResultFull.set(useId, sanitize(resultText).slice(0, 1500));
           }
         }
       }

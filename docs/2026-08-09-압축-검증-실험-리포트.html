@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BranchPort 압축 검증 실험 리포트</title>
+<style>
+  :root {
+    --bg: #F6F7F9; --surface: #FFFFFF; --ink: #1E2630; --muted: #5C6774;
+    --line: #E3E7EC; --line-soft: #EDF0F3;
+    --accent: #0A8A62; --accent-soft: #E3F2EC;
+    --c1: #0A8A62; --c2: #4059C7; --c3: #C2701E; --c4: #B04477;
+    --base: #8A94A0; --base-soft: #C6CCD3;
+    --code-bg: #EFF1F4;
+  }
+  :root:not([data-theme="light"]) { }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14181E; --surface: #1C222B; --ink: #E8ECF1; --muted: #98A2AE;
+      --line: #2A323D; --line-soft: #232A34;
+      --accent: #28A88F; --accent-soft: #1E3A33;
+      --c1: #28A88F; --c2: #6E88E0; --c3: #CE7E33; --c4: #C9699F;
+      --base: #6B7684; --base-soft: #454F5B;
+      --code-bg: #232A34;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181E; --surface: #1C222B; --ink: #E8ECF1; --muted: #98A2AE;
+    --line: #2A323D; --line-soft: #232A34;
+    --accent: #28A88F; --accent-soft: #1E3A33;
+    --c1: #28A88F; --c2: #6E88E0; --c3: #CE7E33; --c4: #C9699F;
+    --base: #6B7684; --base-soft: #454F5B;
+    --code-bg: #232A34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink); margin: 0;
+    font-family: "Pretendard Variable", Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    font-size: 15px; line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.doc { border-bottom: 2px solid var(--ink); padding-bottom: 28px; margin-bottom: 40px; }
+  .kicker { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: .08em; margin: 0 0 10px; }
+  h1 { font-size: 34px; line-height: 1.25; font-weight: 800; margin: 0 0 14px; letter-spacing: -.02em; text-wrap: balance; }
+  .lede { color: var(--muted); max-width: 62ch; margin: 0; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 18px; font-size: 13px; color: var(--muted); }
+  .meta-row b { color: var(--ink); font-weight: 600; }
+  h2 { font-size: 22px; font-weight: 800; letter-spacing: -.01em; margin: 0 0 6px; text-wrap: balance; }
+  h3 { font-size: 16px; font-weight: 700; margin: 24px 0 8px; }
+  section.exp { margin: 52px 0 0; }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .1em; color: var(--accent); margin: 0 0 6px; }
+  .method { color: var(--muted); font-size: 13.5px; max-width: 72ch; margin: 4px 0 16px; padding-left: 12px; border-left: 3px solid var(--line); }
+  .method b { color: var(--ink); font-weight: 600; }
+  p { max-width: 72ch; }
+  code, .mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: .92em; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* 히어로 스탯 */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 28px 0 8px; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px 14px; }
+  .stat .v { font-size: 30px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--accent); line-height: 1.1; }
+  .stat .l { font-size: 13px; font-weight: 600; margin-top: 6px; }
+  .stat .d { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
+
+  /* 카드 */
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px 22px; margin: 16px 0; }
+  .card .ct { font-size: 13.5px; font-weight: 700; margin: 0 0 2px; }
+  .card .cs { font-size: 12px; color: var(--muted); margin: 0 0 14px; }
+
+  /* 가로 막대 차트 (HTML) */
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); margin: 0 0 12px; }
+  .legend .k { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .grp { margin: 0 0 14px; }
+  .grp:last-child { margin-bottom: 2px; }
+  .glabel { font-size: 12.5px; font-weight: 600; margin-bottom: 3px; }
+  .glabel .sub { color: var(--muted); font-weight: 400; }
+  .crow { display: grid; grid-template-columns: 74px 1fr; gap: 10px; align-items: center; margin-bottom: 2px; }
+  .crow .rl { font-size: 11.5px; color: var(--muted); text-align: right; line-height: 1.3; }
+  .track { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .bar { height: 15px; border-radius: 0 4px 4px 0; flex: none; }
+  .val { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .val .sub { color: var(--muted); font-weight: 400; }
+  .cap { font-size: 12px; color: var(--muted); margin-top: 12px; line-height: 1.6; max-width: 78ch; }
+
+  /* 발견 목록 */
+  ul.find { margin: 14px 0 0; padding-left: 18px; max-width: 76ch; }
+  ul.find li { margin-bottom: 8px; }
+  ul.find b { font-weight: 700; }
+
+  /* 표 */
+  .tbl-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; background: var(--surface); }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--line-soft); font-weight: 700; font-size: 12.5px; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .good { color: var(--accent); font-weight: 700; }
+
+  /* 칩 */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
+  .chip { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 12.5px; }
+  .chip b { font-variant-numeric: tabular-nums; }
+
+  figure { margin: 16px 0; }
+  figcaption { font-size: 12px; color: var(--muted); margin-top: 8px; max-width: 78ch; }
+  svg { max-width: 100%; height: auto; display: block; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  @media (max-width: 560px) { .crow { grid-template-columns: 60px 1fr; } h1 { font-size: 27px; } }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+<header class="doc">
+  <p class="kicker">BRANCHPORT · 압축(COMPACT) 검증 트랙</p>
+  <h1>압축 품질 검증 실험 리포트</h1>
+  <p class="lede">세션 구간을 요약해 다른 세션으로 이관하는 BranchPort compact의 품질을, 자체 구축한 측정 파이프라인으로 검증한 전 실험의 개요·방법·결과 요약. 정본 상세는 <code>docs/2026-08-07-압축-평가-지표.md</code>와 <code>docs/2026-08-08-압축범위-밖-용어사전-조사.md</code>.</p>
+  <div class="meta-row">
+    <span>기간 <b>2026-08-05 → 08-09</b></span>
+    <span>프롬프트 <b>v3.1 → v3.8.1</b></span>
+    <span>측정 <b>QA 570문항+ · 결정론 채점 1,000+건</b></span>
+    <span>원자료 <b class="mono">probe-test/batch-results/</b> (로컬)</span>
+  </div>
+</header>
+
+<div class="stats">
+  <div class="stat"><div class="v num">92%</div><div class="l">QA 보존율 (고정 벤치마크)</div><div class="d">한국어 13세션·130문항, 잔존율 31%로 압축한 패키지만 보고 답변 (v3.5·sonnet)</div></div>
+  <div class="stat"><div class="v num">100%</div><div class="l">수정 파일 보존 (사실층)</div><div class="d">397/397 — 전 트랙·전 모델. LLM층 단독은 32~78%: 구조가 지킨다</div></div>
+  <div class="stat"><div class="v num">+18%p</div><div class="l">내장 /compact 대비</div><div class="d">실제 프로덕션 산출물 11세션 맞대결, QA 90% vs 72%</div></div>
+  <div class="stat"><div class="v num">0건</div><div class="l">환각 (전 배치)</div><div class="d">오답은 전부 "모름" — 손실 모드가 왜곡이 아니라 정직한 누락</div></div>
+</div>
+
+<!-- ============================================================ -->
+<section class="exp">
+  <p class="eyebrow">개요</p>
+  <h2>무엇을, 왜 재는가</h2>
+  <p>압축 성능의 단일 표준 지표는 없다. 학계·업계 관행은 <b>압축률 + 품질 보존율의 2축 동시 보고</b>이고, BranchPort는 여기에 맞춰 "잔존율 ~31%로 압축해도 사실 질문의 92%에 답한다" 형태로 보고한다. 핵심 설계는 <b>3계층 무손실 구조</b> — LLM 요약이 놓친 것은 기계 병합(사실층)이 메우고, 그마저 부족하면 원문(<code>/expand</code>)이 있다. 실험은 각 계층의 보증을 따로 잰다.</p>
+  <p style="font-size:13px;color:var(--muted)">범위 주의: 이 리포트는 <b style="color:var(--ink)">내용 압축</b>(LLM 요약 품질, 주장 B)만 다룬다. <b style="color:var(--ink)">구조적 압축</b>(레코드→턴 ≈94%, 무손실 접기, 주장 A)은 화면 압축이지 컨텍스트 토큰 압축이 아니라서 두 수치를 섞으면 범주 오류 — 시스템 구조와 함께 <b>compact 파이프라인 문서</b>(같은 폴더)에 있다.</p>
+  <div class="card">
+    <p class="ct">측정 지표 2종 — 서로 다른 축</p>
+    <p class="cs">두 지표가 서로 다른 것을 재며(v3.4→v3.5에서 반대 방향으로 움직인 실측), 그래서 병기한다.</p>
+    <div class="tbl-wrap"><table>
+      <tr><th style="width:130px">지표</th><th>재는 것</th><th>방법</th><th>비용</th></tr>
+      <tr><td><b>QA 보존율</b></td><td><i>이해형</i> 보존 — 결정 근거·에러 경위·작업 상태 같은 서술형 사실</td><td>트랜스크립트에서 사실 질문 10개 생성 → 패키지만 보고 답변 → 이진 채점. 무맥락 대조로 찍기 보정 (QAGS류 절차)</td><td>세션당 ~$0.3</td></tr>
+      <tr><td><b>Key-fact recall</b></td><td><i>추출형</i> 보존 — 수정 파일명·실행 명령이 그대로 남았는가</td><td>툴콜 레코드에서 정답 기계 추출 → 문자열 채점. LLM 호출 없음, 결정론</td><td>0</td></tr>
+    </table></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="exp">
+  <p class="eyebrow">실험 01 · QA 보존율</p>
+  <h2>수치 보존 규칙(v3.5)의 효과 — 유형별 통제 비교</h2>
+  <p class="method"><b>방법</b> SWE-chat 한국어 13세션 × 10문항 = 130문항. v3.4 배치의 오답 18건이 <b>전원 본문 수치 탈락</b>(줄 수·글자 제한·포트·설정값, 전부 "모름")임을 확인 → 수치를 식별자와 동급으로 승격하는 numeric preservation 규칙 추가 → <b>동일 세션·동일 질문·동일 무맥락 답변 재사용</b>으로 통제 재측정.</p>
+  <div class="card">
+    <p class="ct">질문 유형별 보존율 — v3.4 → v3.5</p>
+    <p class="cs">130문항을 LoCoMo식 5유형으로 분류 (괄호는 문항 수)</p>
+    <div class="legend">
+      <span class="k"><span class="dot" style="background:var(--base-soft)"></span>v3.4</span>
+      <span class="k"><span class="dot" style="background:var(--c1)"></span>v3.5 (수치 규칙 추가)</span>
+    </div>
+    <div class="grp"><div class="glabel">numeric — 수치·측정값 <span class="sub">(44)</span></div>
+      <div class="crow"><span class="rl">v3.4</span><span class="track"><span class="bar" style="width:70%;background:var(--base-soft)" title="v3.4: 31/44"></span><span class="val num">70%</span></span></div>
+      <div class="crow"><span class="rl">v3.5</span><span class="track"><span class="bar" style="width:86%;background:var(--c1)" title="v3.5: 38/44"></span><span class="val num">86% <span class="sub">+16%p</span></span></span></div>
+    </div>
+    <div class="grp"><div class="glabel">decision — 결정·근거 <span class="sub">(24)</span></div>
+      <div class="crow"><span class="rl">v3.4</span><span class="track"><span class="bar" style="width:83%;background:var(--base-soft)" title="v3.4: 20/24"></span><span class="val num">83%</span></span></div>
+      <div class="crow"><span class="rl">v3.5</span><span class="track"><span class="bar" style="width:92%;background:var(--c1)" title="v3.5: 22/24"></span><span class="val num">92%</span></span></div>
+    </div>
+    <div class="grp"><div class="glabel">status — 작업 상태 <span class="sub">(9)</span></div>
+      <div class="crow"><span class="rl">v3.4</span><span class="track"><span class="bar" style="width:89%;background:var(--base-soft)" title="v3.4: 8/9"></span><span class="val num">89%</span></span></div>
+      <div class="crow"><span class="rl">v3.5</span><span class="track"><span class="bar" style="width:100%;background:var(--c1)" title="v3.5: 9/9"></span><span class="val num">100%</span></span></div>
+    </div>
+    <div class="grp"><div class="glabel">error_fix — 에러·해결 <span class="sub">(28)</span></div>
+      <div class="crow"><span class="rl">v3.4</span><span class="track"><span class="bar" style="width:100%;background:var(--base-soft)" title="v3.4: 28/28"></span><span class="val num">100%</span></span></div>
+      <div class="crow"><span class="rl">v3.5</span><span class="track"><span class="bar" style="width:96%;background:var(--c1)" title="v3.5: 27/28"></span><span class="val num">96%</span></span></div>
+    </div>
+    <div class="grp"><div class="glabel">file_cmd — 파일·명령 <span class="sub">(25)</span></div>
+      <div class="crow"><span class="rl">v3.4</span><span class="track"><span class="bar" style="width:100%;background:var(--base-soft)" title="v3.4: 25/25"></span><span class="val num">100%</span></span></div>
+      <div class="crow"><span class="rl">v3.5</span><span class="track"><span class="bar" style="width:96%;background:var(--c1)" title="v3.5: 24/25"></span><span class="val num">96%</span></span></div>
+    </div>
+    <p class="cap">전체: 86% → <b>92%</b> (112→120/130) · 잔존율 30→31%로 크기 회귀 없음. 개선이 목표 유형(numeric)에 +16%p로 집중되고 나머지는 96~100% 유지 — 규칙이 의도한 곳만 움직였다는 회귀 증거.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="exp">
+  <p class="eyebrow">실험 02 · KEY-FACT RECALL</p>
+  <h2>LLM이 못 지키는 것을 구조가 지킨다</h2>
+  <p class="method"><b>방법</b> 툴콜 레코드에서 수정 파일(basename)·실행 명령을 기계 추출해 정답지로 삼고, 패키지의 <b>LLM 산출층(llm)</b>과 <b>사실층 병합 최종본(full)</b>을 따로 채점. 결정론적·비용 0이라 기존 배치 7개 전체에 소급 적용.</p>
+  <div class="card">
+    <p class="ct">수정 파일 recall — LLM층 단독 vs 사실층 병합</p>
+    <p class="cs">마이크로 평균, cut 0.8, sonnet 기준 (모델별로 llm층은 더 낮아짐: haiku 32~43%)</p>
+    <div class="legend">
+      <span class="k"><span class="dot" style="background:var(--base-soft)"></span>llm층 단독 (요약만 있는 도구의 구조)</span>
+      <span class="k"><span class="dot" style="background:var(--c1)"></span>full (사실층 기계 병합)</span>
+    </div>
+    <div class="grp"><div class="glabel">SWE-chat 한국어 <span class="sub">(169개 파일)</span></div>
+      <div class="crow"><span class="rl">llm</span><span class="track"><span class="bar" style="width:69%;background:var(--base-soft)" title="117/169"></span><span class="val num">69%</span></span></div>
+      <div class="crow"><span class="rl">full</span><span class="track"><span class="bar" style="width:100%;background:var(--c1)" title="169/169"></span><span class="val num">100%</span></span></div>
+    </div>
+    <div class="grp"><div class="glabel">trace-commons 영어 <span class="sub">(228개 파일)</span></div>
+      <div class="crow"><span class="rl">llm</span><span class="track"><span class="bar" style="width:54%;background:var(--base-soft)" title="124/228"></span><span class="val num">54%</span></span></div>
+      <div class="crow"><span class="rl">full</span><span class="track"><span class="bar" style="width:100%;background:var(--c1)" title="228/228"></span><span class="val num">100%</span></span></div>
+    </div>
+    <p class="cap">full은 <b>전 트랙·전 모델 397/397 (100%)</b>. 요약이 "컴포넌트 14개 생성"처럼 열거를 개괄로 누르는 순간 파일명이 소실되는데(.jsx 14개 탈락 사례), 사실층 병합이 이를 구조적으로 메운다. 명령은 preview 전문 기준 llm층 0~3% — 캡 60 상향 후 full 97%.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="exp">
+  <p class="eyebrow">실험 03 · 내장 /COMPACT 맞대결</p>
+  <h2>Claude Code 내장 압축과의 최초 정량 비교</h2>
+  <p class="method"><b>방법</b> 내장 요약을 재현하지 않았다 — 실제 프로덕션 auto-compact가 세션 로그에 남긴 <b>진짜 산출물 원문</b>(<code>compact_boundary</code> + <code>isCompactSummary</code> 레코드, 11세션)을 그대로 쓰고, 같은 구간으로 BranchPort compact(v3.5·sonnet)를 돌려 동일 질문지·동일 정답지로 채점. <code>/compact</code>를 정량 평가한 공식 벤치마크가 없어 이 실측 자체가 최초.</p>
+  <div class="card">
+    <p class="ct">11세션 맞대결 (질문 110개 · 파일 240개 · 명령 267개)</p>
+    <div class="legend">
+      <span class="k"><span class="dot" style="background:var(--c1)"></span>BranchPort (full md)</span>
+      <span class="k"><span class="dot" style="background:var(--base-soft)"></span>내장 /compact</span>
+    </div>
+    <div class="grp"><div class="glabel">QA 보존율</div>
+      <div class="crow"><span class="rl">우리</span><span class="track"><span class="bar" style="width:90%;background:var(--c1)" title="99/110"></span><span class="val num">90%</span></span></div>
+      <div class="crow"><span class="rl">내장</span><span class="track"><span class="bar" style="width:72%;background:var(--base-soft)" title="79/110"></span><span class="val num">72%</span></span></div>
+    </div>
+    <div class="grp"><div class="glabel">수정 파일 recall</div>
+      <div class="crow"><span class="rl">우리</span><span class="track"><span class="bar" style="width:100%;background:var(--c1)" title="240/240"></span><span class="val num">100%</span></span></div>
+      <div class="crow"><span class="rl">내장</span><span class="track"><span class="bar" style="width:67%;background:var(--base-soft)" title="161/240"></span><span class="val num">67%</span></span></div>
+    </div>
+    <div class="grp"><div class="glabel">명령 head recall</div>
+      <div class="crow"><span class="rl">우리</span><span class="track"><span class="bar" style="width:77%;background:var(--c1)" title="206/267"></span><span class="val num">77%</span></span></div>
+      <div class="crow"><span class="rl">내장</span><span class="track"><span class="bar" style="width:21%;background:var(--base-soft)" title="55/267"></span><span class="val num">21%</span></span></div>
+    </div>
+  </div>
+  <ul class="find">
+    <li><b>차이를 만드는 것은 사실층이다.</b> 내장의 파일 recall 67%는 우리 llm층 단독(73%)과 비슷 — LLM 요약의 한계는 양쪽 공통이고, 격차는 기계 병합에서 난다. 수정 파일 78개짜리 대형 세션에서 내장은 17%로 붕괴, 우리는 100%.</li>
+    <li><b>손실 모드가 갈렸다.</b> 내장 오답 23건 중 비기권 오답 6건, 그중 <b>완료↔미완료를 뒤집은 상태 왜곡 2건</b>. 우리 오답 11건은 "모름" 8 + 경미한 부정확 3, 상태 왜곡 0 — time-stamping·open_threads 규칙이 지키는 지점.</li>
+    <li><b>공정성 한계 병기</b>: 내장 생성 모델·버전 미상(제품 수준 비교), 우리 패키지가 평균 1.6배 큼(단, 더 작으면서 크게 이긴 세션 2개 존재), 내장의 목적 함수는 같은 세션 재개로 우리와 다름.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section class="exp">
+  <p class="eyebrow">실험 04 · 모델 비교</p>
+  <h2>압축 모델만 바꾼 고정 벤치마크 — 비용·품질 곡선</h2>
+  <p class="method"><b>방법</b> 질문지·무맥락 답변·답변자·채점자(sonnet)·프롬프트(v3.5)·cut(0.8) 전부 고정, <b>압축 모델만 변수</b>. 두 트랙: SWE-chat 한국어 13세션(130문항) · trace-commons 영어 층화 12세션(120문항, CC-BY라 벤치마크 본체).</p>
+  <div class="card">
+    <p class="ct">QA 보존율 — 모델 × 트랙</p>
+    <div class="legend">
+      <span class="k"><span class="dot" style="background:var(--c1)"></span>sonnet</span>
+      <span class="k"><span class="dot" style="background:var(--c2)"></span>opus</span>
+      <span class="k"><span class="dot" style="background:var(--c3)"></span>haiku</span>
+    </div>
+    <div class="grp"><div class="glabel">SWE-chat 한국어 <span class="sub">(130문항)</span></div>
+      <div class="crow"><span class="rl">sonnet</span><span class="track"><span class="bar" style="width:92%;background:var(--c1)" title="120/130"></span><span class="val num">92%</span></span></div>
+      <div class="crow"><span class="rl">opus</span><span class="track"><span class="bar" style="width:92%;background:var(--c2)" title="119/130"></span><span class="val num">92%</span></span></div>
+      <div class="crow"><span class="rl">haiku</span><span class="track"><span class="bar" style="width:76%;background:var(--c3)" title="99/130"></span><span class="val num">76%</span></span></div>
+    </div>
+    <div class="grp"><div class="glabel">trace-commons 영어 <span class="sub">(120문항)</span></div>
+      <div class="crow"><span class="rl">sonnet</span><span class="track"><span class="bar" style="width:86%;background:var(--c1)" title="103/120"></span><span class="val num">86%</span></span></div>
+      <div class="crow"><span class="rl">opus</span><span class="track"><span class="bar" style="width:91%;background:var(--c2)" title="109/120"></span><span class="val num">91%</span></span></div>
+      <div class="crow"><span class="rl">haiku</span><span class="track"><span class="bar" style="width:81%;background:var(--c3)" title="97/120"></span><span class="val num">81%</span></span></div>
+    </div>
+    <p class="cap">압축 비용(트랙당 12~13세션): sonnet $3.2 · opus $4.3~5.2 · haiku $1.0.</p>
+  </div>
+  <figure>
+    <svg viewBox="0 0 640 300" role="img" aria-label="비용 대 QA 보존율 산점도: haiku는 저비용·저보존, sonnet과 opus는 고보존이며 opus가 1.3~1.6배 비싸다">
+      <!-- 축 -->
+      <line x1="70" y1="250" x2="610" y2="250" stroke="currentColor" stroke-opacity=".35"/>
+      <line x1="70" y1="30" x2="70" y2="250" stroke="currentColor" stroke-opacity=".35"/>
+      <!-- y 그리드/라벨: 70~95% -->
+      <g font-size="11" fill="currentColor" fill-opacity=".55" font-family="ui-monospace,Consolas,monospace">
+        <line x1="70" y1="206" x2="610" y2="206" stroke="currentColor" stroke-opacity=".12"/><text x="62" y="210" text-anchor="end">75%</text>
+        <line x1="70" y1="162" x2="610" y2="162" stroke="currentColor" stroke-opacity=".12"/><text x="62" y="166" text-anchor="end">80%</text>
+        <line x1="70" y1="118" x2="610" y2="118" stroke="currentColor" stroke-opacity=".12"/><text x="62" y="122" text-anchor="end">85%</text>
+        <line x1="70" y1="74" x2="610" y2="74" stroke="currentColor" stroke-opacity=".12"/><text x="62" y="78" text-anchor="end">90%</text>
+        <line x1="70" y1="30" x2="610" y2="30" stroke="currentColor" stroke-opacity=".12"/><text x="62" y="34" text-anchor="end">95%</text>
+        <text x="160" y="272" text-anchor="middle">$1</text>
+        <text x="340" y="272" text-anchor="middle">$3</text>
+        <text x="520" y="272" text-anchor="middle">$5</text>
+        <text x="610" y="292" text-anchor="end">압축 비용 (트랙당, USD)</text>
+        <text x="20" y="24">QA 보존율</text>
+      </g>
+      <!-- 점: x = 70 + (cost/6)*540, y = 250 - (pct-70)*8.8 -->
+      <!-- haiku ko (1.0, 76) x=160 y=197.2 / haiku en (1.0, 81) y=153.2 -->
+      <circle cx="160" cy="197" r="7" fill="var(--c3)"><title>haiku · 한국어 76% · $1.0</title></circle>
+      <circle cx="160" cy="153" r="7" fill="var(--c3)" stroke="var(--surface)" stroke-width="2"><title>haiku · 영어 81% · $1.0</title></circle>
+      <!-- sonnet ko (3.2, 92) x=358 y=56.4 / en (3.2, 86) y=109.2 -->
+      <circle cx="358" cy="56" r="7" fill="var(--c1)"><title>sonnet · 한국어 92% · $3.2</title></circle>
+      <circle cx="358" cy="109" r="7" fill="var(--c1)" stroke="var(--surface)" stroke-width="2"><title>sonnet · 영어 86% · $3.2</title></circle>
+      <!-- opus ko (5.2, 92) x=538 y=56.4 / en (4.3, 91) x=457 y=65.2 -->
+      <circle cx="538" cy="56" r="7" fill="var(--c2)"><title>opus · 한국어 92% · $5.2</title></circle>
+      <circle cx="457" cy="65" r="7" fill="var(--c2)" stroke="var(--surface)" stroke-width="2"><title>opus · 영어 91% · $4.3</title></circle>
+      <g font-size="11.5" fill="currentColor" font-weight="600">
+        <text x="160" y="230" text-anchor="middle">haiku</text>
+        <text x="358" y="40" text-anchor="middle">sonnet</text>
+        <text x="500" y="40" text-anchor="middle">opus</text>
+      </g>
+    </svg>
+    <figcaption>비용–품질 평면의 실측 6점 (채운 점 = 한국어 트랙, 테두리 점 = 영어 트랙). haiku는 비용 1/3이지만 보존율 10%p 이상을 지불한다. sonnet ≈ opus (영어 중대형에서만 opus +5%p) — 기본값 sonnet, 품질 우선 시 opus.</figcaption>
+  </figure>
+</section>
+
+<!-- ============================================================ -->
+<section class="exp">
+  <p class="eyebrow">실험 05 · 컷 곡선 + 명령 캡</p>
+  <h2>어디까지 압축해도 안전한가 — 임계는 구간 길이가 아니라 열거 크기</h2>
+  <p class="method"><b>방법</b> 같은 세션에서 구간 크기(컷 0.3/0.5/0.8/1.0)를 바꿔가며 대형 4세션 × 4컷 = 16점 실행, 잔존율과 LLM층 recall을 결정론 채점 (비용 $6.2).</p>
+  <figure>
+    <svg viewBox="0 0 640 210" role="img" aria-label="열거 크기에 따른 LLM층 파일 recall 모식도: 수정 파일 약 20개까지는 컷과 무관하게 100%, 30개를 넘으면 붕괴한다. 사실층 병합은 임계와 무관하게 100%">
+      <defs><marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
+      <!-- full 보증선 -->
+      <line x1="60" y1="52" x2="600" y2="52" stroke="var(--c1)" stroke-width="3"/>
+      <text x="66" y="42" font-size="12" font-weight="700" fill="var(--c1)">full (사실층 병합) — 임계 무관 100%</text>
+      <!-- llm층: 100 유지 후 붕괴 -->
+      <polyline points="60,72 330,72 470,150" fill="none" stroke="var(--base)" stroke-width="2.5" stroke-dasharray="1 0"/>
+      <line x1="470" y1="150" x2="590" y2="168" stroke="var(--base)" stroke-width="2.5" marker-end="url(#ar)" opacity=".85"/>
+      <text x="66" y="92" font-size="12" fill="currentColor" fill-opacity=".8">llm층 (요약만) — ~20개까지 100% 유지</text>
+      <text x="410" y="185" font-size="12" fill="currentColor" fill-opacity=".8">30개+ 에서 붕괴 (25~74%)</text>
+      <!-- 임계 지대 -->
+      <rect x="330" y="30" width="80" height="150" fill="currentColor" opacity=".06"/>
+      <text x="370" y="24" font-size="11" text-anchor="middle" fill="currentColor" fill-opacity=".6">임계 지대</text>
+      <!-- x축 -->
+      <line x1="60" y1="180" x2="600" y2="180" stroke="currentColor" stroke-opacity=".35"/>
+      <g font-size="11" fill="currentColor" fill-opacity=".55" font-family="ui-monospace,Consolas,monospace">
+        <text x="60" y="198">0</text><text x="240" y="198" text-anchor="middle">~20개</text><text x="370" y="198" text-anchor="middle">~30개</text><text x="600" y="198" text-anchor="end">53개</text>
+      </g>
+      <text x="600" y="210" font-size="11" text-anchor="end" fill="currentColor" fill-opacity=".55">구간의 수정 파일 열거 크기 →</text>
+    </svg>
+    <figcaption>모식도 (실측 16점 요약): 파일 ≤20개 세션 3개는 전 컷 100%, 22~53개 세션은 어느 컷에서도 25~45%. 출력 예산 안에서 열거가 개괄로 눌리는 임계가 존재하며, 이것이 "구조(사실층)가 왜 필요한가"의 곡선 버전 증거다.</figcaption>
+  </figure>
+  <ul class="find">
+    <li><b>잔존율은 구간이 클수록 개선</b> (17→11%, 32→26%) — 출력 예산 상한이 큰 구간에서 압축 압력으로 작동. 작은 구간은 골격 비용 탓에 잔존율이 높다 (손익분기 UI로 사용자에게 노출).</li>
+    <li><b>명령 캡 20→60 상향의 실증</b>: 16점 합계 full 명령 recall <b>97%</b> (604/625) — 캡 20 시절 65~81%에서 상승. 명령 ≤60인 13점은 전부 100%, 초과 3점만 87~96%로 "외 N개 생략" 명시.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section class="exp">
+  <p class="eyebrow">실험 06 · 언어 보존</p>
+  <h2>영어 세션에 한국어 요약이 나오는 이유 — 그리고 결정론 대응</h2>
+  <p class="method"><b>방법</b> 기존 패키지 75개의 산출 언어를 결정론 측정 (한글 비율, LLM 호출 없음). 정답은 세션 단위 — 사용자 프롬프트 한글 비율 ≥15%면 한국어 세션.</p>
+  <div class="tbl-wrap"><table>
+    <tr><th>실측 (v3.5 시점)</th><th>발견</th></tr>
+    <tr><td>영어 세션 한글 누출: <b>opus 5/12</b> (한글 24~30%)</td><td rowspan="2">누출된 영어 세션 5개의 원본에는 <b>한글이 0자</b> — 오염원은 세션이 아니라 외부. 재현 프로브에서 이번엔 sonnet이 위반: 특정 모델 문제가 아니라 <b>운영자 언어 설정("Always respond in korean")이 <code>--system-prompt</code> 대체에도 불구하고 비결정적으로 누출</b>된다.</td></tr>
+    <tr><td>한국어 세션 영어화: <b>haiku 5건</b> (한글 0~1%)</td></tr>
+    <tr><td><b>대응 (v3.6)</b></td><td>언어를 모델 판단에 맡기지 않는다: 서버가 한글 비율로 주 언어를 결정론 판정해 명시 지시로 주입 + 산출물 언어가 어긋나면 1회 재시도. 이전 위반 3건 재실행 → <b>3/3 전부 1차 시도에서 정상</b>. <code>lang-preserve.mjs</code>로 회귀 감시.</td></tr>
+  </table></div>
+</section>
+
+<!-- ============================================================ -->
+<section class="exp">
+  <p class="eyebrow">실험 07 · OOR 용어 부록</p>
+  <h2>압축 범위 밖에서 정의된 용어 — 부록으로 얼마나 회복되나</h2>
+  <p class="method"><b>방법</b> 구간 안에서 쓰이지만 정의는 구간 밖(조상 턴)에 있는 용어에 대한 질문으로 보존율 측정. 서버가 조상 세션에서 정의 근거를 기계 수집해 용어 부록을 자동 첨부.</p>
+  <div class="card">
+    <p class="ct">OOR 용어 질문 보존율 — 부록 버전별</p>
+    <div class="grp">
+      <div class="crow"><span class="rl">부록 없음</span><span class="track"><span class="bar" style="width:23%;background:var(--base-soft)" title="부록 없음: 23%"></span><span class="val num">23%</span></span></div>
+      <div class="crow"><span class="rl">부록 v1</span><span class="track"><span class="bar" style="width:33%;background:var(--c1);opacity:.55" title="부록 v1: 33%"></span><span class="val num">33%</span></span></div>
+      <div class="crow"><span class="rl">부록 v3</span><span class="track"><span class="bar" style="width:40%;background:var(--c1)" title="부록 v3: 40%"></span><span class="val num">40% <span class="sub">회귀 0</span></span></span></div>
+    </div>
+    <p class="cap">잔여 오답은 값·사건형 사실("그때 무슨 일이 있었나") — 용어 정의로 풀 수 없는 <code>/expand</code>의 영역. 부록 비용 $0.152/세션 (compact와 맞먹음). <code>glossaryModel:'haiku'</code> 옵션은 비용 −58%·보존율 −9%p — 기본 sonnet 유지. 순절감 보고 시 부록 비용 차감 포함.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="exp">
+  <p class="eyebrow">실험 08 · 목적 프로파일 A/B</p>
+  <h2>수신자 목적별 프롬프트(v3.8)의 효과 — 대조군 통제 A/B</h2>
+  <p class="method"><b>방법</b> 로컬 한국어 4세션 × 4조건(none/continue/bugfix/handoff) × 10문항. 같은 구간(턴 수 고정)·같은 질문지(조건 간 캐시 공유)·같은 채점자·none 대조군(목적 미지정, v3.6과 프롬프트 동일). v3.7(일반론 블록) → v3.8(실측 손실 모드에 1:1 대응하는 규칙으로 재작성) → v3.8.1(handoff 가드).</p>
+  <div class="card">
+    <p class="ct">QA 보존율 — 목적 조건별 (각 40문항)</p>
+    <div class="legend">
+      <span class="k"><span class="dot" style="background:var(--base-soft)"></span>none (대조군)</span>
+      <span class="k"><span class="dot" style="background:var(--c1)"></span>continue</span>
+      <span class="k"><span class="dot" style="background:var(--c2)"></span>bugfix</span>
+      <span class="k"><span class="dot" style="background:var(--c4)"></span>handoff</span>
+    </div>
+    <div class="grp">
+      <div class="crow"><span class="rl">none</span><span class="track"><span class="bar" style="width:80%;background:var(--base-soft)" title="32/40"></span><span class="val num">80%</span></span></div>
+      <div class="crow"><span class="rl">continue</span><span class="track"><span class="bar" style="width:85%;background:var(--c1)" title="34/40"></span><span class="val num">85% <span class="sub">+5%p · 4세션 중 3곳 상승, 악화 0</span></span></span></div>
+      <div class="crow"><span class="rl">bugfix</span><span class="track"><span class="bar" style="width:83%;background:var(--c2)" title="33/40"></span><span class="val num">83% <span class="sub">+3%p</span></span></span></div>
+      <div class="crow"><span class="rl">handoff v3.8</span><span class="track"><span class="bar" style="width:75%;background:var(--c4);opacity:.5" title="30/40"></span><span class="val num">75% <span class="sub">−5%p, 유일한 대조군 미달</span></span></span></div>
+      <div class="crow"><span class="rl">handoff v3.8.1</span><span class="track"><span class="bar" style="width:80%;background:var(--c4)" title="32/40"></span><span class="val num">80% <span class="sub">가드 추가 후 회복</span></span></span></div>
+    </div>
+    <p class="cap">참고 — 일반론으로 쓴 v3.7 블록은 같은 질문지에서 continue 78% · bugfix 80% · handoff 80%로 대조군과 사실상 무차이: 실측 기반 재작성(v3.8)이 continue를 78→85%로 끌어올렸다. v3.8 handoff의 고유 오답 3건은 전부 열거 탈락·에러 식별자 탈락·제약 희석 — 서사 확장이 고정 예산 안에서 식별자를 밀어내는 메커니즘. "Narrative never eats facts" 가드 1줄로 회복. key-fact recall은 목적 무관 불변: 수정 파일 full 76/76 (100%).</p>
+  </div>
+  <ul class="find">
+    <li><b>한계 명시</b>: 표본 4세션×10문항이라 1~3문항 차는 노이즈 경계. v3.8.1 가드는 같은 질문지 재측정이라 과적합 위험 — 가드 문안은 점수가 아니라 오답 메커니즘에서 도출했고, 새 질문셋 재검이 보강 후보.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section class="exp">
+  <p class="eyebrow">방법 신뢰성</p>
+  <h2>채점을 믿을 수 있는가 — 방어 체계</h2>
+  <p>질문 생성·답변·채점이 모두 LLM(sonnet)이라는 순환성 위험을 다층 방어로 완화했다. 각 방어는 실제로 문제를 잡아낸 이력이 있다.</p>
+  <div class="chips">
+    <span class="chip">무맥락 대조 <b class="good">0/400+</b> — 일반 지식 찍기 제거 (질문 필터 이후 전 배치 0)</span>
+    <span class="chip">이진 판정 — 세밀 점수 대신 (G-Eval 신뢰성 논쟁 대응)</span>
+    <span class="chip">"모름"=오답 결정론 가드 — 채점 스크립트 3종 이식</span>
+    <span class="chip">저장 판정 <b class="num">2,378건</b> 전수 감사 위반 <b class="good">0</b></span>
+    <span class="chip">사람 블라인드 검수 41건 — 일치 <b class="num">90%</b> · κ=0.61 · 불일치 2:2 대칭 (부풀림 없음)</span>
+  </div>
+  <p class="cap" style="margin-top:14px">채점자 붕괴 실측 1건: "모름"↔"모름" 8건을 전원 정답 처리한 붕괴가 무맥락 8/8이라는 불가능 수치로 발각 — 무맥락 대조의 부수 효용. 이 사건이 결정론 가드 이식의 계기.</p>
+</section>
+
+<!-- ============================================================ -->
+<section class="exp">
+  <p class="eyebrow">정리</p>
+  <h2>전체 결과 한 장</h2>
+  <div class="tbl-wrap"><table>
+    <tr><th>실험</th><th>표본</th><th class="n">핵심 수치</th><th>결론</th></tr>
+    <tr><td>QA 보존율 (v3.5 수치 규칙)</td><td>13세션 · 130문항 ×2회</td><td class="n">86% → <b>92%</b></td><td>수치 유형만 +16%p, 크기 회귀 없음</td></tr>
+    <tr><td>Key-fact recall</td><td>7배치 · 파일 397개</td><td class="n">full <b>100%</b> / llm 32~78%</td><td>사실층 병합의 구조적 보증</td></tr>
+    <tr><td>내장 /compact 비교</td><td>11세션 · 110문항</td><td class="n"><b>90% vs 72%</b></td><td>최초 정량 비교 · 상태 왜곡 2 vs 0</td></tr>
+    <tr><td>모델 비교</td><td>2트랙 · 250문항</td><td class="n">sonnet≈opus ≫ haiku</td><td>기본 sonnet, 품질 우선 opus</td></tr>
+    <tr><td>컷 곡선</td><td>4세션 × 4컷</td><td class="n">임계 = 열거 ~30개</td><td>구간 길이가 아니라 열거 크기가 임계</td></tr>
+    <tr><td>명령 캡 60</td><td>16점 · 명령 625개</td><td class="n">65~81% → <b>97%</b></td><td>즉효 개선 확인</td></tr>
+    <tr><td>언어 보존 (v3.6)</td><td>75패키지 + 재검 3</td><td class="n">누출 10건 → <b>0</b></td><td>결정론 판정 + 재시도로 경로 차단</td></tr>
+    <tr><td>OOR 용어 부록</td><td>용어 질문 배치</td><td class="n">23% → <b>40%</b></td><td>잔여는 /expand 영역 · 회귀 0</td></tr>
+    <tr><td>목적 A/B (v3.8.1)</td><td>4세션 × 4조건 · 160문항</td><td class="n">continue <b>85%</b> / 대조 80%</td><td>목적 가중이 사실 삭제로 안 번짐</td></tr>
+  </table></div>
+  <p class="cap" style="margin-top:14px">공통 한계: 절대치는 질문 구성에 의존하므로 고정 벤치마크 안의 비교만 유효 (타 연구 수치와 직접 비교 불가). QA 보존율은 사실 인출을 재는 것이지 태스크 성공률의 대체가 아니다. 로컬 세션 트랙은 재현 불가·비공개. v3.6부터 언어 지시 변경분이 포함되므로 v3.5 수치와 비교 시 명시.</p>
+</section>
+</div>
+
+</body>
+</html>
