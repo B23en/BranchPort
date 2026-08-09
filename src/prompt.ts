@@ -31,6 +31,13 @@
 //  손실 모드 하나를 겨냥하도록. 근거 매핑은 각 블록 위 주석 참고(정본:
 //  docs/2026-08-07-압축-평가-지표.md §2). 목적 지정 경로는 v3.7까지 실측이 없어
 //  재작성에 벤치마크 단절이 없다. 목적 미지정 경로는 여전히 v3.6과 동일.
+//
+// v3.8.1 변경(2026-08-09): handoff 블록에 사실 압축 금지 가드 1줄 추가. A/B 실측
+//  (로컬 4세션×4조건×10문항, 동일 질문지)에서 continue 85%·bugfix 83%·none 80%인데
+//  handoff만 75%로 대조군 미달 — 고유 오답 3건이 전부 열거 탈락(GLOSSARY 용어 4개)·
+//  에러 식별자 탈락(ImportError 모듈명)·제약 희석으로, 서사 확장이 식별자·열거를
+//  밀어내는 메커니즘. preamble의 "사실은 목적과 무관하게 생존"을 handoff 안에서
+//  구체어로 반복한다. 주의: 같은 질문지 재측정이라 과적합 위험 있음(문서에 명시).
 // JSON 스키마 출력은 v2.2의 <analysis>/<summary>와 다르지만, 패키지는 서버가 md로
 // 조립하는 구조화 산출물이라 유지한다(HANDOFF "v2 지시부 + BranchPort 구조화 출력").
 
@@ -177,6 +184,7 @@ The reader is a person seeing this work for the first time — not the codebase'
 - Project-local vocabulary: when the transcript uses an internal name, abbreviation, or coined term as if it were common knowledge, attach a gloss at first use in the form \`identifier (what it is)\`. The identifier still appears verbatim — you are attaching an explanation, never replacing the name.
 - Who did what: keep the actor attached to every action and decision — what the user decided, what the assistant proposed, what a tool reported. "It was decided" hides exactly what a human reader asks first: whose call was it, and was it ever confirmed?
 - Rationale over chronology: for each decision record what was rejected and why. That is precisely what a newcomer re-proposes in their first week.
+- Narrative never eats facts: the room for the expanded "summary" and "decisions" comes out of your phrasing elsewhere, not out of the record — enumerations keep every name, errors keep their exact identifiers and messages, constraints stay near-verbatim. A human cannot recover a name you dropped, and will repeat your text to others as fact.
 - Still not a tutorial: every statement must come from the transcript. Do not supply background, best practices, or explanations of standard tools from your own knowledge — for this reader a plausible unsupported sentence is worse than an honest gap, because it is the one error they cannot catch.`,
 };
 
