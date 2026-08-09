@@ -26,6 +26,11 @@
 // v3.7 변경(2026-08-09): 목적 셀렉트를 한국어 한 줄 힌트에서 영어 수신자 프로파일 블록으로
 //  승격. 근거와 설계는 아래 PURPOSE_BLOCKS 주석 참고. 벤치마크 주의: 목적 미지정(일반)
 //  경로의 프롬프트 문자열은 v3.6과 동일하므로 기존 실측치와 직접 비교 가능하다.
+//
+// v3.8 변경(2026-08-09): 목적 블록 3종을 실측 근거 기반으로 재작성 — 각 규칙이 측정된
+//  손실 모드 하나를 겨냥하도록. 근거 매핑은 각 블록 위 주석 참고(정본:
+//  docs/2026-08-07-압축-평가-지표.md §2). 목적 지정 경로는 v3.7까지 실측이 없어
+//  재작성에 벤치마크 단절이 없다. 목적 미지정 경로는 여전히 v3.6과 동일.
 // JSON 스키마 출력은 v2.2의 <analysis>/<summary>와 다르지만, 패키지는 서버가 md로
 // 조립하는 구조화 산출물이라 유지한다(HANDOFF "v2 지시부 + BranchPort 구조화 출력").
 
@@ -91,37 +96,88 @@ const PURPOSE_PREAMBLE =
 
 const PURPOSE_BLOCKS: Record<CompactPurpose, string> = {
   // 이어서 구현 — 받는 쪽은 코드를 읽을 수 있다. 필요한 건 설명이 아니라 중단 지점.
+  //
+  // 실측 근거 매핑 (평가 지표 문서 §2):
+  //  - 상태 정확성 규칙 ← 내장 /compact 맞대결의 손실 모드 갈림: 내장의 비기권 오답 6건 중
+  //    완료↔미완료를 뒤집은 상태 왜곡 2건(kr-2b3756eb 미완료 마이그레이션→"완료",
+  //    tc-4222016d 완료 마일스톤→"미완료"), 우리는 0건. 이어서 구현하는 수신자에게는
+  //    잘못 승격된 done이 남은 작업을 조용히 지우는 최악의 오류 — 일반 경로에서
+  //    time-stamping·open_threads가 지킨 지점을 이 목적에서 명시 강화.
+  //  - 열거 붕괴 금지 규칙 ← 컷 곡선 실측: LLM층 식별자 보존의 임계는 구간 길이가 아니라
+  //    열거 크기(파일 ~30개 초과 시 컷 무관 붕괴, kr-08993363 .jsx 14개가 "컴포넌트
+  //    14개 생성"으로 눌린 대표 사례). 일반 경로는 full 병합이 수정 파일을 100% 메우지만
+  //    todo·미완 항목은 툴콜에서 기계 추출할 수 없어 사실층 안전망이 없다 — LLM층이
+  //    유일한 보존 경로이므로 프롬프트 규칙으로만 막을 수 있다.
+  //  - 작업 파라미터 수치 규칙 ← QA 오답 실측: v3.4 오답 18건 전원이 본문 수치 탈락
+  //    (포트 :8001·글자 제한 200자·필드 값 등 — 다음 편집이 지켜야 할 값들). v3.5 일반
+  //    규칙이 86%까지 올렸고, 잔여 오답도 꼬리 수치 — 이 목적에서 미완 작업에 붙은
+  //    수치를 우선 확장한다.
   continue: `Recipient profile — CONTINUE THE IMPLEMENTATION
 
-The reader is an AI coding session that will resume this work in the same codebase, starting from the moment the transcript ends. It can read the code itself, so it does not need the code explained — it needs to know where the work stopped, what is already settled, and what would break if repeated.
+The reader is an AI coding session that resumes this work in the same codebase, starting exactly where the transcript ends. It can read the code itself, so it does not need the code re-explained — it needs the stopping point, what is already settled, and the exact values the next edit must respect.
 
-- Field weighting: "state" (above all "todo" and "current_focus"), "env", "constraints", and "gotchas" carry the most detail; "summary" stays at the short end of its range.
+- Field weighting: "state" (its "todo" and "current_focus" above all), "env", "constraints", and "gotchas" carry the most detail; "summary" stays at the short end of its range.
+- State accuracy outranks everything else in this profile: "done" holds only work verified inside the range. Planned, attempted, or partially applied edits go to "todo" or "open_threads" with their file paths. A wrongly-promoted "done" silently deletes remaining work; a wrongly-demoted one makes the reader redo — and possibly break — finished work. When the transcript does not show verification, record that it is unverified instead of guessing either way.
 - Resumption point: for "current_focus" and every "todo" entry, name the concrete next target — the file path, function, or command the reader must act on — whenever the transcript names it. "Finish the refactor" is unusable; "extract the retry loop out of handleCompact() in src/server.ts" is actionable.
-- Half-applied work: when an edit was planned, attempted, or partially applied but never verified inside the range, say so explicitly in "todo" or "open_threads" with its file path. Otherwise the reader assumes everything discussed reached disk, and writes it a second time.
-- Settled ground: decisions exist here so the reader does not reopen them. Keep each decision's "why" even when the choice reads as obvious in hindsight — the rejected alternative is what stops a re-litigation.`,
+- Never collapse an enumeration of remaining or in-progress items into a count: "5 tests still failing" without their names forces the reader to re-discover each one. List every name; only when space is truly exhausted, keep as many names as fit and append an explicit "… and N more (names not retained)".
+- Working parameters: numbers the next edit must respect — ports, caps, limits, thresholds, config values — go into "env" or "constraints" attached to their referent. When such a value came from the conversation rather than the code, the reader cannot re-derive it; losing it here loses it entirely.
+- Settled ground: keep each decision's "why" even when the choice reads as obvious in hindsight — the rejected alternative is what stops a re-litigation.`,
 
-  // 버그 수정 — 받는 쪽의 최대 위험은 이미 실패한 접근의 반복.
+  // 버그 수정 — 받는 쪽의 최대 위험은 이미 실패한 접근의 반복과 재현 실패.
+  //
+  // 실측 근거 매핑 (평가 지표 문서 §2):
+  //  - 재현 명령 전문 규칙 ← key-fact recall 실측: 명령 exact recall이 전 트랙·전 모델
+  //    0~3% — 요약은 명령 전문을 유지하지 않는다(head 2토큰만 잔존). 일반 목적에선 사실층
+  //    (명령 preview 90자·캡 60)과 /expand가 답이지만, 트리거 명령의 인자·입력까지 필요한
+  //    버그 수정 수신자에겐 LLM층에도 전문이 남아야 한다. 내장 /compact 맞대결의 최약점도
+  //    명령(head recall 21%)이고 QA 오답이 명령·수치 질문에 집중된 실측과 같은 방향.
+  //  - 수치=재현 조건 규칙 ← QA 오답 실측: 탈락 수치가 곧 재현 조건(포트 :8001, 글자 제한
+  //    200자, 설정값)이었다 — 이 목적에서 실패가 의존하는 수치를 에러 문자열과 동급으로.
+  //  - 실패한 처방 규칙 ← v3.1 교차 감사: errors 정의 결함(되돌린 접근이 "해결"처럼 남거나
+  //    통째로 사라짐, 감사 1·3) — evidence rule이 "정정된 최종 사실만"을 요구해 실패 시도가
+  //    삭제 대상으로 읽히는 충돌을 명시적으로 좁힌다.
+  //  - 미검증 진단 규칙 ← v3.1 교차 감사: 시간적 인접(수정 후 통과)을 인과로 단정한 압축
+  //    오류(감사 2, fixture 13 사례) — causality rule의 이 목적 버전.
+  //  - 재현 함정 규칙 ← v3.1 교차 감사: CRLF 개행 함정 누락(감사 2) — "재현 불가"와
+  //    진단 성공을 가르는 환경 사실.
   bugfix: `Recipient profile — DIAGNOSE AND FIX
 
-The reader is an AI coding session picking up an unresolved or recurring problem in this code. Its largest risk is spending its budget on an approach that was already tried here and did not work.
+The reader is an AI coding session picking up an unresolved or recurring problem in this code. Its two failure modes are repeating an approach that already failed here, and chasing a reproduction that does not match what actually happened.
 
 - Field weighting: "errors", "open_threads", "gotchas", and "env" carry the most detail; "decisions" and "summary" stay tight.
-- Error strings: quote failing output verbatim and as completely as space allows — message text, exception type, failing file:line, exit code. A paraphrased error cannot be grepped or searched, which is the first thing the reader will try.
-- Reproduction: for each error record what triggered it — the exact command, input, or state — and whether the transcript shows it reproducing every time or intermittently. An intermittent failure described as deterministic sends the reader down a false path.
-- Failed remedies (this narrows the evidence rule): the evidence rule tells you to record the corrected final fact rather than the abandoned version. That governs claims about the code. It does NOT govern remedies — an approach that was tried and failed is itself a durable result. Record it as an "errors" entry whose fix reads "tried X — no effect, error unchanged", or in "open_threads" when the range ends before the outcome is known.
-- Unproven diagnoses: a suspected cause the transcript never confirmed belongs in "open_threads", worded as a hypothesis — never in "errors" as though it were the established fix. The causality rule applies here at full strength: the reader acts on whatever you present as the cause.`,
+- Error strings verbatim: quote failing output as completely as space allows — message text, exception type, failing file:line, exit code. A paraphrased error cannot be grepped, and grep is the first thing the reader will do.
+- Reproduction is command plus values: record the exact command that triggered each error in full — the command itself, not a description of it — together with every number the failure depends on (port, size limit, config value, input length). Those numbers are part of the error, not surrounding prose. Note whether the transcript shows the failure on every run or intermittently; an intermittent failure described as deterministic sends the reader down a false path.
+- Failed remedies (this narrows the evidence rule): the evidence rule tells you to record the corrected final fact rather than the abandoned version. That governs claims about the code. It does NOT govern remedies — an approach that was tried and did not work is itself a durable result. Record it as an "errors" entry whose fix reads "tried X — no effect, error unchanged", or in "open_threads" when the range ends before the outcome is known.
+- Unproven diagnoses: a suspected cause the transcript never confirmed belongs in "open_threads", worded as a hypothesis — never in "errors" as though it were the established fix. The causality rule applies at full strength: the reader acts on whatever you present as the cause, and "fix applied, then tests passed" is not proof.
+- Reproduction traps confirmed in the range — line endings, shell differences, path formats, file locks, stale generated files — go to "gotchas" first: they are the difference between "cannot reproduce" and a diagnosis.`,
 
-  // 팀원 설명 — 사람 독자. 일반 지식으로 배경을 채우려는 압력이 가장 큰 목적이라
-  // 마지막 규칙(트랜스크립트 밖 지식 금지)이 이 블록의 핵심 방어다.
+  // 팀원 설명 — 사람 독자. 코드를 열어볼 수 없어 단 한 문장도 검증할 수 없다는 점이
+  // 다른 두 목적과의 근본 차이 — 일반 지식으로 배경을 채우려는 압력이 가장 큰 목적이라
+  // 트랜스크립트 밖 지식 금지가 이 블록의 핵심 방어다.
+  //
+  // 실측 근거 매핑:
+  //  - 환각 0 유지가 핵심 방어 ← QA 손실 모드 실측: 우리 오답은 전 배치에서 "정직한
+  //    누락"(모름)이고 틀린 사실 0건 — 반면 내장 /compact는 비기권 오답 6건. AI 수신자는
+  //    /expand·코드 대조로 틀린 문장을 잡을 수 있지만 사람 독자는 불가능 — 그럴듯한
+  //    비지지 문장이 이 목적의 최악 오류인 이유.
+  //  - 용어 gloss 규칙 ← OOR(압축범위 밖 용어) 실측: 정의 없이 쓰인 용어 질문에 패키지만으로
+  //    23%만 답변 가능(용어사전 조사 문서 §7). 구간 밖 정의분은 서버측 용어 부록이 40%까지
+  //    올리고, 구간 안에서 설명 가능한 몫이 이 규칙의 담당.
+  //  - 행위자 귀속 규칙 ← v3.1 교차 감사 최다 결함이 오귀속(어시스턴트 권고→사용자 제약
+  //    승격, 감사 1·3 공통) + 문헌: 대화 요약 출력의 33~42%가 화자 귀속 오류(평가 지표
+  //    문서 §2). "누가 결정했는가"는 사람 독자가 가장 먼저 묻는 것.
+  //  - decisions why 확장 ← QA 유형별 실측: decision(결정·근거) 유형이 v3.5에서 92%로
+  //    numeric 다음으로 낮다 — 이 목적의 예산을 그쪽으로 민다.
   handoff: `Recipient profile — BRIEF A HUMAN TEAMMATE
 
-The reader is a person who has never seen this work — not the codebase's conventions, not the project's internal names, not why the current approach won over the obvious one. They read top to bottom, once, and cannot query anything.
+The reader is a person seeing this work for the first time — not the codebase's conventions, not the project's internal names, not why the current approach won. They read top to bottom, once, cannot run or open anything, and — unlike an AI session with the code available — cannot verify a single claim. Every statement is taken on trust.
 
 - Field weighting: "goal", "summary", and "decisions" with their full "why" carry the most detail; "env" and "gotchas" stay tight.
 - Standalone narrative: "summary" runs at the long end of its range and must hold up alone — someone who reads only that field should come away knowing what the work was, what it produced, and how it ended.
-- Project-local vocabulary: when the transcript uses an internal name, abbreviation, or coined term as if it were common knowledge, expand it at first use in the form \`identifier (what it is)\`. The identifier still appears verbatim — you are attaching a gloss, never replacing the name.
+- Project-local vocabulary: when the transcript uses an internal name, abbreviation, or coined term as if it were common knowledge, attach a gloss at first use in the form \`identifier (what it is)\`. The identifier still appears verbatim — you are attaching an explanation, never replacing the name.
+- Who did what: keep the actor attached to every action and decision — what the user decided, what the assistant proposed, what a tool reported. "It was decided" hides exactly what a human reader asks first: whose call was it, and was it ever confirmed?
 - Rationale over chronology: for each decision record what was rejected and why. That is precisely what a newcomer re-proposes in their first week.
-- Still not a tutorial: every statement must come from the transcript. Do not supply background, best practices, or explanations of standard tools from your own knowledge — a plausible sentence the transcript does not support is the one error this reader has no way to catch.`,
+- Still not a tutorial: every statement must come from the transcript. Do not supply background, best practices, or explanations of standard tools from your own knowledge — for this reader a plausible unsupported sentence is worse than an honest gap, because it is the one error they cannot catch.`,
 };
 
 // UI·API가 보낸 값을 목적 키로 좁힌다. 알 수 없는 값은 null(일반 압축) — 서버가 패키지
