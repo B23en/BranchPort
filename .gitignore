@@ -9,6 +9,7 @@ dist/
 packages/
 labels/
 branches/
+index/
 
 # OS / 편집기 부산물
 .DS_Store
