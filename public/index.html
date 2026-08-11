@@ -47,9 +47,22 @@
     background:linear-gradient(135deg,var(--exec),var(--edit));
     animation:breathe 3.5s ease-in-out infinite;}
   @keyframes breathe{0%,100%{transform:scale(1);opacity:.85} 50%{transform:scale(1.25);opacity:1}}
-  select#project-select,select#session-select{background:var(--chip); color:var(--ink); border:1px solid var(--line);
-    border-radius:7px; padding:6px 10px; font-size:12.5px; max-width:340px;}
-  select#session-select{max-width:300px;}
+  /* 상단 컨트롤 통일 — 이전엔 모서리 반경이 셀렉트 7px · 검색 9px · 주제 버튼 99px로
+     제각각이고 높이도 달랐다. 지도의 조형 어휘(알약 캡슐 + 원형 역)에 맞춰 전부 알약으로
+     맞추고, 높이·글자·테두리를 한 규칙으로 묶는다. */
+  header select, header #search-box, header #topic-btn{
+    height:32px; box-sizing:border-box; font:inherit; font-size:12.5px;
+    background:var(--chip); color:var(--ink); border:1px solid var(--line);
+    border-radius:99px; padding:0 14px; transition:border-color .15s ease, background .15s ease, color .15s ease;}
+  header select:hover, header #search-box:hover, header #topic-btn:hover{border-color:var(--axis);}
+  header select:focus-visible, header #search-box:focus{outline:none; border-color:var(--exec);
+    box-shadow:0 0 0 3px var(--glow);}
+  /* 네이티브 화살표는 OS마다 모양·크기가 달라 통일이 깨진다 — 직접 그린다 */
+  header select{appearance:none; -webkit-appearance:none; padding-right:30px; cursor:pointer;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238d8a7f' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 12px center; background-size:9px 6px;}
+  select#project-select{max-width:300px;}
+  select#session-select{max-width:280px;}
   .meta{font-size:12px; color:var(--muted); margin-left:auto; font-variant-numeric:tabular-nums; white-space:nowrap;}
 
   .legend{display:flex; gap:14px; flex-wrap:wrap; padding:8px 22px; font-size:11.5px; color:var(--ink2);
@@ -169,6 +182,59 @@
   .d-list{margin:0; padding-left:17px; font-size:12.5px; color:var(--ink2); line-height:1.78;}
   .d-close{position:absolute; top:12px; right:12px; width:26px; height:26px; border-radius:50%;
     border:0; background:var(--chip); color:var(--ink2); font-size:13px; cursor:pointer;}
+  /* 턴 자산: 첨부 이미지 썸네일 · 코드 diff 블록 */
+  .d-imgs{display:flex; flex-wrap:wrap; gap:8px;}
+  .d-img{max-width:100%; max-height:220px; border-radius:10px; border:1px solid var(--chip); cursor:zoom-in;}
+  .d-img.zoom{max-height:none; cursor:zoom-out;}
+  .d-difffile{font-size:12px; font-weight:700; color:var(--ink2); margin:8px 0 4px; font-family:ui-monospace,monospace;}
+  .d-diff{margin:0 0 8px; padding:9px 11px; border-radius:10px; background:var(--chip);
+    font-family:ui-monospace,monospace; font-size:11.5px; line-height:1.6;
+    white-space:pre-wrap; word-break:break-all; max-height:240px; overflow-y:auto;}
+  .d-diff .dl-add{color:#1a7f37; background:rgba(46,160,67,.12);}
+  .d-diff .dl-del{color:#cf222e; background:rgba(248,81,73,.12);}
+  .d-diff .dl-hunk{color:var(--muted);}
+  /* ── 주제 렌즈 버튼 · 주제 스트립 · 검색창 ── */
+  #topic-btn{display:inline-flex; align-items:center; gap:7px; color:var(--ink2);
+    font-weight:600; cursor:pointer; white-space:nowrap;}
+  /* 스와치도 행 밴드와 같은 톤온톤 3색으로 — 예전 무지개 그라데이션은 팔레트와 어긋났다 */
+  #topic-btn::before{content:""; width:14px; height:8px; border-radius:2px; flex:none;
+    background:linear-gradient(90deg, hsl(203 38% 44%), hsl(172 38% 44%), hsl(152 38% 44%));}
+  #topic-btn:hover{color:var(--ink);}
+  #topic-btn.on{background:var(--exec); color:#fff; border-color:var(--exec);}
+  #topic-btn.on::before{background:rgba(255,255,255,.85);}
+  #topic-btn:disabled{opacity:.55; cursor:wait;}
+  .capsule.topic{border-style:solid; border-width:2.5px;
+    box-shadow:0 2px 10px rgba(0,0,0,.06); }
+  .capsule.topic .cap-t{font-weight:750;}
+  .topic-band{position:absolute; border-radius:20px; z-index:0; pointer-events:none;}
+  .topic-rowhdr{position:absolute; transform:translateY(-50%); display:flex; align-items:center; gap:7px;
+    font-size:12.5px; font-weight:750; color:var(--ink); cursor:pointer; z-index:2;
+    max-width:132px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .topic-rowhdr i{width:9px; height:9px; border-radius:3px; flex:none;}
+  .topic-rowhdr .th-n{font-size:10.5px; font-weight:600; color:var(--muted);}
+  .topic-rowhdr:hover{text-decoration:underline;}
+  #topicstrip{display:flex; gap:1px; height:15px; margin-bottom:3px;}
+  #topicstrip:empty{display:none;}
+  #topicstrip .tseg{border-radius:4px; cursor:pointer; overflow:hidden; white-space:nowrap;
+    font-size:9.5px; line-height:15px; padding:0 5px; color:var(--ink); opacity:.85;}
+  #topicstrip .tseg:hover{opacity:1; outline:1.5px solid var(--pc);}
+  #search-wrap{position:relative;}
+  #search-box{width:170px; transition:width .2s cubic-bezier(.22,.8,.28,1), border-color .15s ease, box-shadow .15s ease;}
+  #search-box:focus{width:240px;}
+  #search-box::placeholder{color:var(--muted);}
+  #search-results{position:absolute; top:110%; left:0; min-width:340px; max-width:460px; z-index:60;
+    background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.18);
+    max-height:320px; overflow-y:auto;}
+  #search-results:empty{display:none;}
+  #search-results .sr{padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--line); font-size:12.5px;}
+  #search-results .sr:last-child{border-bottom:0;}
+  #search-results .sr:hover{background:var(--chip);}
+  #search-results .sr .sr-t{font-weight:650; color:var(--ink);}
+  #search-results .sr .sr-g{color:var(--ink2); font-size:11.5px; margin-top:1px;}
+  #search-results .sr .sr-m{color:var(--muted); font-size:10.5px; margin-top:1px;}
+  #search-results .sr-none{padding:10px 12px; color:var(--muted); font-size:12px;}
+  #map.searching .node{opacity:.22;}
+  #map.searching .node.hit{opacity:1; box-shadow:0 0 0 3px var(--pc);}
 
   /* ── 세션 뷰: 캡슐(접힌 구간 노드) · 포탈(워프) · 브레드크럼 · 챕터 바 ── */
   .capsule{position:absolute; transform:translate(-50%,-50%); background:var(--surface);
@@ -408,6 +474,11 @@
     <h1><span class="dot"></span>BranchPort</h1>
     <select id="project-select"><option>프로젝트 불러오는 중…</option></select>
     <select id="session-select"></select>
+    <button id="topic-btn" title="이 세션을 주제별 행으로 재배치 (재방문은 병합, 다시 누르면 원래대로)">주제</button>
+    <span id="search-wrap">
+      <input id="search-box" placeholder="과거 턴 검색 (Enter)" autocomplete="off">
+      <div id="search-results"></div>
+    </span>
     <span class="meta" id="meta"></span>
   </header>
   <div class="legend" id="legend"></div>
@@ -432,6 +503,7 @@
         <option value="handoff">팀원 설명</option>
       </select>
       <button class="btn primary" id="sb-go">압축 패키지 생성</button>
+      <button class="btn ghost" id="sb-skill" title="이 구간의 해결 과정을 재사용 가능한 SKILL.md 초안으로 증류 (사람 검수 후 배포)">스킬로 내보내기</button>
       <button class="btn ghost" id="sb-clear">해제</button>
     </div>
   </div>
@@ -455,7 +527,7 @@
   </div>
 
   <div class="hint">마우스를 올리면 전체 제목이 보이고, 클릭하면 그 자리에서 확대되며 내용이 열립니다 · shift+클릭으로 경로 구간을 선택해 압축</div>
-  <div id="chapterbar"><div id="chapcells"></div></div>
+  <div id="chapterbar"><div id="topicstrip"></div><div id="chapcells"></div></div>
   <div id="branchbar">
     <span id="bb-title">⑂</span>
     <input id="bb-q" placeholder="이 시점의 AI에게 이어서 질문… (Enter)">
@@ -669,12 +741,15 @@ function applyLabels() {
   });
   let capTitleChanged = false;
   document.querySelectorAll(".cap-t").forEach(el => {
+    if (el.dataset.topic) return;             // 주제 캡슐 제목은 확정값 — 라벨 갱신이 덮지 않는다
+    const capT = CAP_LABELS[el.dataset.cap];  // 구간 전체 대표 제목이 우선
     const t = byId[el.dataset.id];
-    if (!t) return;
-    const next = titleOf(t);
+    if (!capT && !t) return;
+    const next = capT ?? titleOf(t);
     if (el.textContent !== next) capTitleChanged = true;
-    el.textContent = next; el.classList.toggle("prov", isProv(t));
+    el.textContent = next; el.classList.toggle("prov", !capT && t ? isProv(t) : false);
   });
+  requestCapsuleLabels();
   const sessions = sessionsOf();
   [...document.getElementById("session-select").options].forEach(o => {
     const s = sessions.find(x => x.id === o.value);
@@ -693,10 +768,43 @@ async function fetchLabels(project) {
   const j = await fetch(`/api/labels?project=${encodeURIComponent(project)}`).then(r => r.json());
   return j.labels || {};
 }
+
+// ── 캡슐 전체 대표 제목: 화면의 미라벨 캡슐을 모아 배치 요청, 도착분 즉시 반영 ──
+let CAP_LABELS = {}, CAP_HASHES = {}, capReqBusy = false;
+async function requestCapsuleLabels() {
+  if (capReqBusy) return;
+  const missing = [...document.querySelectorAll(".cap-t")]
+    .map(el => el.dataset.cap)
+    .filter(k => k && !CAP_LABELS[k] && CAP_HASHES[k])
+    .map(k => ({ key: k, hashes: CAP_HASHES[k] }));
+  if (!missing.length) return;
+  capReqBusy = true;
+  try {
+    const j = await api("/api/capsule-label", { project: CURRENT_PROJECT, capsules: missing.slice(0, 20) });
+    if (j && j.labels) {
+      const before = Object.keys(CAP_LABELS).length;
+      Object.assign(CAP_LABELS, j.labels);
+      // 새 제목이 실제로 도착했을 때만 재적용 — busy/무변화 응답에서의 재귀 루프 방지
+      if (Object.keys(CAP_LABELS).length > before) applyLabels();
+    }
+  } catch { /* 부가층 — 실패해도 첫 턴 제목으로 동작 */ }
+  finally { capReqBusy = false; }
+}
+let CAP_PROJ = null; // 마지막으로 캡슐 캐시를 받은 프로젝트 — 전환 시에만 등록분 초기화
+async function fetchCapsuleLabels(project) {
+  try {
+    const j = await fetch(`/api/capsule-labels?project=${encodeURIComponent(project)}`).then(r => r.json());
+    if (project === CURRENT_PROJECT) {
+      CAP_LABELS = j.labels || {};
+      if (CAP_PROJ !== project) { CAP_HASHES = {}; CAP_PROJ = project; } // 이전 프로젝트 등록분 누수 방지
+    }
+  } catch { /* 부가층 */ }
+}
 async function refreshLabels(project) {
   const loading = document.getElementById("loading");
   let failed = false;
   try {
+    await fetchCapsuleLabels(project); // 캡슐 대표 제목 캐시 선로드 — applyLabels가 곧바로 쓴다
     LABELS = await fetchLabels(project);
     if (project !== CURRENT_PROJECT) return;
     applyLabels();
@@ -733,6 +841,13 @@ const fmtTok = n => n >= 1000 ? (Math.round(n/100)/10) + "k" : n;
 
 // 뷰 디스패처: 갈래 워프 > 세션 뷰 > 전체 트리
 function render() {
+  clearSearch(); // 재렌더 시 검색 흐림 상태가 고아로 남지 않게 — 노드는 새로 그려지므로 항상 초기화
+  // 세션 전환으로 주제 배치가 무효가 되면 버튼 상태도 함께 내린다 (배치 자체는 세션 검사로 이미 안전)
+  if (TOPIC_ON && SESSION_SCOPE !== TOPIC_SESSION) {
+    TOPIC_ON = false;
+    document.getElementById("topic-btn").classList.remove("on");
+    document.getElementById("topicstrip").innerHTML = "";
+  }
   const inBranch = !!BRANCH_SCOPE;
   const inSession = !inBranch && !!SESSION_SCOPE;
   document.getElementById("chapterbar").classList.toggle("on", inSession && TURNS.length > 0);
@@ -748,7 +863,8 @@ function render() {
 function renderTree() {
   const map = document.getElementById("map");
   map.classList.toggle("noanim", NOANIM);
-  map.querySelectorAll(".node,.seam,.node-label,.capsule,.cap-collapse,.skip,.portal,.cap-region").forEach(e => e.remove());
+  map.querySelectorAll(".node,.seam,.node-label,.capsule,.cap-collapse,.skip,.portal,.cap-region,.topic-band,.topic-rowhdr").forEach(e => e.remove());
+  map.classList.remove("searching"); // 노드가 새로 그려지므로 검색 흐림도 함께 해제
   const svg = document.getElementById("links");
   svg.innerHTML = "";
   NODE_EL = {};
@@ -1061,10 +1177,49 @@ function buildFilteredElements(sess) {
   return els;
 }
 
+// 주제 렌즈 배치: 세션 전체를 주제 구간 캡슐로 재편성 — 캡슐 제목 = 주제명.
+// 기존 캡슐 문법(클릭=펼침, shift=범위, 점띠)을 그대로 물려받으므로 별도 학습 비용이 없다.
+let TOPIC_ROWS = []; // 병합된 행 메타 [{name, turnN, fragN}] — 행 머리글용
+function buildTopicElements(sess) {
+  const pos = new Map(sess.map((t, i) => [t.id, i]));
+  // 재방문 병합: 같은 group(서버가 이름·식별자 유사도로 판정)의 조각들이 한 행에 시간순으로.
+  // 행 사이는 주제, 행 안은 시간 — 조각 경계는 ⟲ 갭 표시로 시간 점프를 정직하게 드러낸다.
+  const rowsMap = new Map();
+  TOPIC_SEGS.forEach((seg, si) => {
+    const g = seg.group ?? si;
+    if (!rowsMap.has(g)) rowsMap.set(g, []);
+    rowsMap.get(g).push({ seg, si });
+  });
+  const els = [];
+  TOPIC_ROWS = [];
+  [...rowsMap.values()].forEach((frags, row) => {
+    let turnN = 0;
+    frags.forEach(({ seg, si }, fi) => {
+      const turns = seg.ids.map(id => sess[pos.get(id)]).filter(Boolean);
+      if (!turns.length) return;
+      turnN += turns.length;
+      const tag = { row, topicIdx: si, frag: fi };
+      if (turns.length === 1) { els.push({ type: "turn", t: turns[0], ...tag }); return; }
+      const capId = "topic:" + turns[0].id;
+      for (const t of turns) CAP_OF[t.id] = capId;
+      if (EXPANDED_CAPS.has(capId)) {
+        els.push({ type: "collapse", capId, t0: turns[0], ...tag });
+        for (const t of turns) els.push({ type: "turn", t, expandedCap: capId, ...tag });
+      } else els.push({ type: "cap", capId, turns, topicName: seg.name, ...tag });
+    });
+    TOPIC_ROWS.push({ name: frags[0].seg.name, turnN, fragN: frags.length });
+  });
+  return els;
+}
+
 function buildSessionElements(sess, portals) {
   const isSolo = t => t.hasError || t.isForkRoot || portals.has(t.id) || branchesFor(t.id).length > 0;
   const els = [];
   CAP_OF = {}; SKIP_OF = {};
+  if (TOPIC_ON && TOPIC_SEGS && sess.length && sess[0].sessionId === TOPIC_SESSION) {
+    const te = buildTopicElements(sess);
+    if (te.length) return te; // 주제 배치가 국면 필터·일반 캡슐보다 우선
+  }
   if (PHASE_FILTER.size) return buildFilteredElements(sess);
   if (sess.length < CAP_MIN_SESSION) {
     for (const t of sess) els.push({ type: "turn", t });
@@ -1100,8 +1255,8 @@ function estTextW(s) {
   return w;
 }
 // 알약이 실제로 담아야 하는 폭 — 제목과 점띠 중 넓은 쪽 + 좌우 패딩
-function capPillW(turns) {
-  const titleW = estTextW(titleOf(turns[0]) + ` · ${turns.length}턴`);
+function capPillW(turns, name) {
+  const titleW = estTextW((name ?? titleOf(turns[0])) + ` · ${turns.length}턴`);
   const dotsW = Math.min(turns.length, 40) * 6; // 점 4px + gap 2px
   return Math.round(clamp(Math.max(titleW, dotsW) + 34, 110, 300));
 }
@@ -1123,7 +1278,8 @@ function renderSession() {
   const map = document.getElementById("map");
   const svg = document.getElementById("links");
   map.classList.toggle("noanim", NOANIM);
-  map.querySelectorAll(".node,.seam,.node-label,.capsule,.cap-collapse,.skip,.portal,.cap-region").forEach(e => e.remove());
+  map.querySelectorAll(".node,.seam,.node-label,.capsule,.cap-collapse,.skip,.portal,.cap-region,.topic-band,.topic-rowhdr").forEach(e => e.remove());
+  map.classList.remove("searching"); // 노드가 새로 그려지므로 검색 흐림도 함께 해제
   svg.innerHTML = "";
   NODE_EL = {}; LAST_XY = {};
 
@@ -1152,38 +1308,63 @@ function renderSession() {
   // 예전엔 요소마다 고정 폭 칸(턴 108, 캡슐 pillW+40)을 배정했는데, 실제로 그려지는
   // 크기는 제각각(노드 16~30px, 캡슐 110~300px)이라 눈에 보이는 간격이 29~92px로
   // 들쭉날쭉했다. 이제 각자의 실제 폭을 재고 사이 간격만 GAP으로 고정한다.
+  // 주제 배치: 주제마다 자기 행(row) — 위→아래로 주제, 행 안에서는 시간순 유지
+  const TOPIC_MODE = els.length > 0 && els[0].row !== undefined;
+  // 행 높이 150 → 116: 8행이면 1,200px라 전체 보기 배율이 과하게 줄어 노드가 안 읽혔다
+  const ROWH = 116, ROW_HEAD_W = 150;
   const Y0 = PADY + 30;
-  let x = PADX + (rootParent ? 90 : 0);
+  // 역방향 포탈 자리는 실제 배치 규칙(간격 한 칸 + 포탈 22px)과 맞춰 비운다.
+  // 주제 모드에서도 같은 자리를 비워야 한다 — 안 그러면 포탈이 왼쪽 머리글 위에 겹친다.
+  const backW = rootParent ? SESS_GAP + 30 : 0;
+  let x = (TOPIC_MODE ? PADX + ROW_HEAD_W : PADX) + backW;
+  let maxX = x, curRow = TOPIC_MODE ? els[0].row : 0;
   for (const el of els) {
     // 턴 수만으로 캡슐 폭을 잡으면 긴 제목이 알약 밖으로 삐져나온다 — 제목 길이 반영
     if (el.type === "turn") el.halfW = tileSide(el.t) / 2;
-    else if (el.type === "cap") { el.pillW = capPillW(el.turns); el.halfW = el.pillW / 2; }
+    else if (el.type === "cap") { el.pillW = capPillW(el.turns, el.topicName); el.halfW = el.pillW / 2; }
     else if (el.type === "skip") el.halfW = skipChipW(el) / 2;
     else el.halfW = CHIP_W / 2;
+    // 모든 행이 같은 x에서 시작해야 밴드가 세로로 정렬된다 — 포탈 자리도 동일하게 반영
+    if (TOPIC_MODE && el.row !== curRow) { maxX = Math.max(maxX, x); curRow = el.row; x = PADX + ROW_HEAD_W + backW; }
+    el.cy = TOPIC_MODE ? Y0 + el.row * ROWH : Y0;
     el.cx = x + el.halfW;
     x += el.halfW * 2 + SESS_GAP;
   }
+  maxX = Math.max(maxX, x);
   const hasPortal = portals.size > 0 || rootParent;
-  CONTENT_W = (els.length ? x - SESS_GAP : x) + PADX;
-  CONTENT_H = Y0 + (hasPortal ? Math.round(LANEH * 0.85) + 60 : 70) + PADY;
+  const rowN = TOPIC_MODE ? Math.max(...els.map(e => e.row)) + 1 : 1;
+  CONTENT_W = (els.length ? maxX - SESS_GAP : maxX) + PADX;
+  CONTENT_H = Y0 + (rowN - 1) * ROWH + (hasPortal ? Math.round(LANEH * 0.85) + 60 : 70) + PADY;
   map.style.width = CONTENT_W + "px";
   map.style.height = CONTENT_H + "px";
   svg.setAttribute("width", CONTENT_W); svg.setAttribute("height", CONTENT_H);
   svg.setAttribute("viewBox", `0 0 ${CONTENT_W} ${CONTENT_H}`);
 
   const elId = el => (el.type === "turn" ? el.t.id : el.capId ?? el.skipId);
+  const elEndTs = el => el.type === "turn" ? (el.t.endTimestamp ?? el.t.timestamp)
+    : el.turns ? (el.turns[el.turns.length - 1].endTimestamp ?? el.turns[el.turns.length - 1].timestamp)
+    : (el.t0?.timestamp ?? null);
+  const elStartTs = el => el.type === "turn" ? el.t.timestamp : (el.turns?.[0].timestamp ?? el.t0?.timestamp ?? null);
   for (let i = 1; i < els.length; i++) {
+    if (els[i].row !== els[i - 1].row) continue; // 주제 행 경계 — 이음선 없음
+    // 재방문 조각 경계: 같은 주제의 떨어진 시간대가 이어지는 자리 — 점선 + ⟲ 갭 표시
+    const fragJump = els[i].frag !== undefined && els[i].frag !== els[i - 1].frag;
     const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    p.setAttribute("d", `M ${els[i - 1].cx} ${Y0} L ${els[i].cx} ${Y0}`);
+    p.setAttribute("d", `M ${els[i - 1].cx} ${els[i].cy} L ${els[i].cx} ${els[i].cy}`);
     // 생략 구간에 닿는 이음선은 점선 — 여기는 실제로 건너뛴 자리라는 표시
-    const skipSide = els[i - 1].type === "skip" || els[i].type === "skip";
+    const skipSide = els[i - 1].type === "skip" || els[i].type === "skip" || fragJump;
     p.setAttribute("class", "link" + (skipSide ? " skipline" : ""));
     p.dataset.from = elId(els[i - 1]); p.dataset.to = elId(els[i]);
     svg.appendChild(p);
     const t0 = els[i].type === "turn" ? els[i].t : (els[i].turns?.[0] ?? els[i].t0);
     const marks = [];
+    if (fragJump) { // 재방문 경계: 실제 벌어진 시간을 계산해 표시
+      const a = elEndTs(els[i - 1]), b = elStartTs(els[i]);
+      const g = a && b ? Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / 60000)) : 0;
+      marks.push("⟲" + (g >= 1 ? " " + fmtGap(g) : ""));
+    }
     if (t0?.compactBefore) marks.push("⑊");
-    if ((t0?.gapMin || 0) >= 30) marks.push("⋯" + fmtGap(t0.gapMin));
+    if (!fragJump && (t0?.gapMin || 0) >= 30) marks.push("⋯" + fmtGap(t0.gapMin));
     if (marks.length) {
       const s = document.createElement("div");
       s.className = "seam"; s.textContent = marks.join(" ");
@@ -1192,7 +1373,7 @@ function renderSession() {
       const gapL = els[i - 1].cx + els[i - 1].halfW;
       const gapR = els[i].cx - els[i].halfW;
       s.style.left = ((gapL + gapR) / 2) + "px";
-      s.style.top = (Y0 - 12) + "px";
+      s.style.top = (els[i].cy - 12) + "px";
       map.appendChild(s);
     }
   }
@@ -1202,7 +1383,7 @@ function renderSession() {
   for (const el of els) {
     const rid = el.type === "collapse" ? el.capId : el.expandedCap;
     if (!rid) continue;
-    const r = regions.get(rid) ?? { min: el.cx, max: el.cx };
+    const r = regions.get(rid) ?? { min: el.cx, max: el.cx, cy: el.cy };
     r.min = Math.min(r.min, el.cx); r.max = Math.max(r.max, el.cx);
     regions.set(rid, r);
   }
@@ -1212,27 +1393,59 @@ function renderSession() {
     d.className = "cap-region";
     d.style.left = (r.min - 48) + "px";
     d.style.width = (r.max - r.min + 96) + "px";
-    d.style.top = (Y0 - 36) + "px";
+    d.style.top = (r.cy - 36) + "px";
     d.style.height = "96px";
     mapEl.appendChild(d);
   }
 
   let ni = 0;
   for (const el of els) {
-    if (el.type === "turn") makeSessionTurnNode(el.t, el.cx, Y0, ni++, el.muted);
-    else if (el.type === "cap") makeCapsule(el, Y0, ni++);
-    else if (el.type === "skip") makeSkipChip(el, Y0, ni++);
-    else makeCollapseChip(el, Y0, ni++);
+    if (el.type === "turn") makeSessionTurnNode(el.t, el.cx, el.cy, ni++, el.muted);
+    else if (el.type === "cap") makeCapsule(el, el.cy, ni++);
+    else if (el.type === "skip") makeSkipChip(el, el.cy, ni++);
+    else makeCollapseChip(el, el.cy, ni++);
+  }
+
+  // 주제 행 배치: 행마다 색 밴드 + 왼쪽 머리글 (주제명 · 재방문 횟수)
+  if (TOPIC_MODE) {
+    TOPIC_ROWS.forEach((rowMeta, ri) => {
+      const rowEls = els.filter(e => e.row === ri);
+      if (!rowEls.length) return;
+      const cy = rowEls[0].cy;
+      const hue = TOPIC_HUES[ri % TOPIC_HUES.length];
+      const band = document.createElement("div");
+      band.className = "topic-band";
+      band.style.top = (cy - Math.round(ROWH / 2) + 8) + "px";
+      band.style.height = (ROWH - 24) + "px";
+      // 밴드는 그 행이 실제로 차지하는 구간만 덮는다 — 전체 폭을 덮으면 2턴짜리
+      // 주제도 화면 끝까지 색이 깔려 행 길이가 안 읽히고 색만 번잡해진다
+      const right = Math.max(...rowEls.map(e => e.cx + e.halfW)) + 20;
+      const bandL = PADX + ROW_HEAD_W + backW - 26;
+      band.style.left = bandL + "px";
+      band.style.width = Math.max(0, right - bandL) + "px";
+      band.style.background = TOPIC_TINT(hue, ri % 2 ? 0.075 : 0.045);
+      map.appendChild(band);
+      const hd = document.createElement("div");
+      hd.className = "topic-rowhdr";
+      hd.innerHTML = `<i style="background:${TOPIC_MARK(hue)}"></i>${esc(rowMeta.name)}${rowMeta.fragN > 1 ? ` <span class="th-n">⟲${rowMeta.fragN}</span>` : ""}`;
+      hd.style.left = (PADX - 4) + "px";
+      hd.style.top = cy + "px";
+      hd.title = `${rowMeta.name} · ${rowMeta.turnN}턴${rowMeta.fragN > 1 ? ` · 재방문 ${rowMeta.fragN}회 병합` : ""} — 클릭하면 이동`;
+      const firstEl = rowEls[0];
+      hd.onclick = () => focusOn(firstEl.type === "turn" ? firstEl.t.id : firstEl.capId);
+      map.appendChild(hd);
+    });
   }
 
   // 포탈 노드 (기존 차선 변경 곡선 문법 재사용)
   for (const [anchorId, targets] of portals) {
     const a = LAST_XY[anchorId]; if (!a) continue;
     targets.forEach((tg, j) => {
-      const px = a.x + 46 + j * 64, py = Y0 + Math.round(LANEH * 0.85);
+      const ay = a.y ?? Y0; // 주제 행 배치에서는 앵커가 자기 행 높이에 있다
+      const px = a.x + 46 + j * 64, py = ay + Math.round(LANEH * 0.85);
       const mx = a.x + (px - a.x) * 0.5;
       const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      p.setAttribute("d", `M ${a.x} ${Y0} L ${mx - 14} ${Y0} Q ${mx} ${Y0} ${mx} ${Y0 + 14} L ${mx} ${py - 14} Q ${mx} ${py} ${mx + 14} ${py} L ${px} ${py}`);
+      p.setAttribute("d", `M ${a.x} ${ay} L ${mx - 14} ${ay} Q ${mx} ${ay} ${mx} ${ay + 14} L ${mx} ${py - 14} Q ${mx} ${py} ${mx + 14} ${py} L ${px} ${py}`);
       p.setAttribute("class", "link");
       svg.appendChild(p);
       const d = document.createElement("div");
@@ -1252,7 +1465,9 @@ function renderSession() {
 
   // 역방향 포탈: 이 세션이 다른 세션에서 갈라져 나온 경우
   if (rootParent && els.length) {
-    const px = els[0].cx - 74, py = Y0;
+    // 중심에서 74px 왼쪽에 두면 첫 요소가 넓은 캡슐(최대 300px)일 때 알약 안쪽에 박힌다
+    // — 시간표 겹침과 같은 종류의 실수. 가장자리 기준으로 한 칸 띄운다.
+    const px = els[0].cx - els[0].halfW - SESS_GAP, py = els[0].cy ?? Y0;
     const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
     p.setAttribute("d", `M ${px} ${py} L ${els[0].cx} ${py}`);
     p.setAttribute("class", "link");
@@ -1331,7 +1546,13 @@ function makeCapsule(el, y, i) {
   c.style.animationDelay = Math.min(i * 10, 450) + "ms";
   c.dataset.first = first.id; c.dataset.last = last.id;
   const dots = el.turns.slice(0, 40).map(t => `<i style="background:var(--${t.phase})"></i>`).join("");
-  c.innerHTML = `<div class="cap-title"><span class="cap-t${isProv(first) ? " prov" : ""}" data-id="${esc(first.id)}">${esc(titleOf(first))}</span> <span class="cap-n">· ${el.turns.length}턴</span></div><div class="cap-dots">${dots}</div>`;
+  // 캡슐 제목: ① 주제 배치면 주제명(확정) ② 구간 대표 LLM 제목 ③ 첫 턴 제목(임시) 순
+  const isTopic = !!el.topicName;
+  const capKey = isTopic ? "" : el.turns[0].hash + "-" + el.turns[el.turns.length - 1].hash + "-" + el.turns.length;
+  if (!isTopic) CAP_HASHES[capKey] = el.turns.map(t => t.hash); // 주제 캡슐은 라벨 생성 요청 대상이 아님
+  const capTitle = el.topicName ?? CAP_LABELS[capKey];
+  c.innerHTML = `<div class="cap-title"><span class="cap-t${!capTitle && isProv(first) ? " prov" : ""}"${isTopic ? ' data-topic="1"' : ""} data-id="${esc(first.id)}" data-cap="${esc(capKey)}">${esc(capTitle ?? titleOf(first))}</span> <span class="cap-n">· ${el.turns.length}턴</span></div><div class="cap-dots">${dots}</div>`;
+  if (isTopic) c.classList.add("topic");
   c.addEventListener("mouseenter", () => showTooltip(c, capTip(el)));
   c.addEventListener("mouseleave", hideTooltip);
   c.addEventListener("click", (ev) => {
@@ -1407,7 +1628,138 @@ function buildChapterBar(sess) {
     cell.dataset.i = i;
     bar.appendChild(cell);
   });
+  paintTopicStrip(sess); // 주제 렌즈가 켜져 있고 같은 세션이면 스트립 재도색
 }
+
+// ── 주제 렌즈: 세션을 주제 구간으로 나눠 챕터 바 위에 색 스트립으로 표시 ──
+// 경계는 LLM 추측층이므로 기본 꺼짐(토글) — 끄면 흔적 없이 사라진다.
+let TOPIC_SEGS = null, TOPIC_SESSION = null, TOPIC_ON = false;
+// 구간을 받아온 시점의 턴 목록 지문 — 껐다 켤 때 이게 그대로면 서버를 다시 부르지 않는다.
+// (턴이 늘었으면 지문이 달라지므로 그때만 재분석한다)
+let TOPIC_SIG = "";
+const sessSig = () => TURNS.filter(t => t.sessionId === SESSION_SCOPE)
+  .sort((a, b) => (a.timestamp ?? "").localeCompare(b.timestamp ?? "")).map(t => t.id).join(",");
+// 톤온톤 원칙 — 색상환을 한 바퀴 도는 무지개(210·30·150·275·90·340·55·190)는 이 UI의
+// 절제된 팔레트(--edit 203° · --exec 165° · --explore 97°)와 충돌해 번잡해 보였다.
+// 청록~파랑의 좁은 유사색 대역만 쓰고, 구분은 채도가 아니라 명도 차로 준다.
+const TOPIC_HUES = [203, 172, 152, 188];
+const TOPIC_TINT = (h, a) => `hsl(${h} 30% 46% / ${a})`;   // 행 밴드 — 거의 무채색에 가깝게
+const TOPIC_MARK = h => `hsl(${h} 38% 44%)`;               // 머리글 점 — 식별용으로만 조금 진하게
+function paintTopicStrip(sess) {
+  const strip = document.getElementById("topicstrip");
+  if (!TOPIC_ON || !TOPIC_SEGS || !sess.length || sess[0].sessionId !== TOPIC_SESSION) {
+    strip.innerHTML = ""; return;
+  }
+  const pos = new Map(sess.map((t, i) => [t.id, i]));
+  strip.innerHTML = "";
+  TOPIC_SEGS.forEach((seg, si) => {
+    const idxs = seg.ids.map(id => pos.get(id)).filter(x => x !== undefined);
+    if (!idxs.length) return;
+    const count = idxs.length;
+    const d = document.createElement("div");
+    d.className = "tseg";
+    d.style.flex = `${count} 1 0`;
+    // 색은 병합 그룹 기준 — 스트립(시간순 미니맵)에서 같은 주제의 재방문 조각이 같은 색으로 보인다
+    // 채도는 행 밴드와 같은 계열로 — 스트립만 60%로 튀면 상단이 다시 알록달록해진다
+    d.style.background = `hsl(${TOPIC_HUES[(seg.group ?? si) % TOPIC_HUES.length]} 34% 46% / .32)`;
+    d.textContent = seg.name;
+    d.title = `${seg.name} · ${count}턴 — 클릭하면 구간 시작으로 이동`;
+    d.onclick = () => jumpToTurn(Math.min(...idxs));
+    strip.appendChild(d);
+  });
+}
+const topicBtn = document.getElementById("topic-btn");
+topicBtn.addEventListener("click", async () => {
+  if (TOPIC_ON) { // 끄기 — 원래 배치로 복귀
+    TOPIC_ON = false; topicBtn.classList.remove("on");
+    document.getElementById("topicstrip").innerHTML = "";
+    expandedId = null; clearSel();
+    renderSession();
+    requestAnimationFrame(() => requestAnimationFrame(fitAll));
+    return;
+  }
+  if (!SESSION_SCOPE || BRANCH_SCOPE) { alert("세션 뷰에서만 쓸 수 있어요 — 셀렉터에서 세션을 고른 뒤 눌러주세요."); return; }
+  // 껐다 다시 켜는 경우: 턴 목록이 그대로면 이미 받아둔 구간을 즉시 되살린다.
+  // 예전엔 무조건 서버를 다시 불러서 "20초 안팎" 카드가 다시 뜨고(캐시가 있어도),
+  // 경계는 실행마다 조금씩 달라져 껐다 켤 때마다 배치가 바뀌어 보였다.
+  if (TOPIC_SEGS && TOPIC_SESSION === SESSION_SCOPE && TOPIC_SIG === sessSig()) {
+    TOPIC_ON = true; topicBtn.classList.add("on");
+    expandedId = null; clearSel();
+    renderSession();
+    requestAnimationFrame(() => requestAnimationFrame(fitAll));
+    return;
+  }
+  topicBtn.disabled = true;
+  showBusy("주제 구간 분석 중…", "턴 제목 시퀀스에서 의미 경계를 찾는 중 — 20초 안팎 (한 번 만들면 캐시)");
+  try {
+    const j = await api("/api/topics", { project: CURRENT_PROJECT, session: SESSION_SCOPE });
+    if (j.error) throw new Error(j.error);
+    if (j.busy) throw new Error("이미 분석 중입니다 — 잠시 후 다시 눌러주세요");
+    if (!j.segments || !j.segments.length) throw new Error(j.note || "구간을 만들지 못했습니다");
+    TOPIC_SEGS = j.segments; TOPIC_SESSION = SESSION_SCOPE; TOPIC_SIG = sessSig(); TOPIC_ON = true;
+    topicBtn.classList.add("on");
+    expandedId = null; clearSel();
+    renderSession(); // 맵 자체가 주제 캡슐 배치로 재편성된다
+    requestAnimationFrame(() => requestAnimationFrame(fitAll));
+  } catch (e) { alert("주제 분석 실패: " + e.message); }
+  finally { topicBtn.disabled = false; hideBusy(); }
+});
+
+// ── 검색: /api/search 결과를 드롭다운으로, 클릭하면 해당 턴으로 워프 ──
+const searchBox = document.getElementById("search-box");
+const searchRes = document.getElementById("search-results");
+function clearSearch() {
+  searchRes.innerHTML = "";
+  document.getElementById("map").classList.remove("searching");
+  document.querySelectorAll(".node.hit").forEach(n => n.classList.remove("hit"));
+}
+async function runSearch(q) {
+  clearSearch();
+  try {
+    const j = await fetch(`/api/search?project=${encodeURIComponent(CURRENT_PROJECT)}&q=${encodeURIComponent(q)}&n=8`).then(r => r.json());
+    const hits = j.hits || [];
+    if (!hits.length) { searchRes.innerHTML = `<div class="sr-none">결과 없음 — 다른 단어(파일명·함수명)로 시도해보세요</div>`; return; }
+    // 현재 화면에 있는 히트는 하이라이트
+    const map = document.getElementById("map");
+    let anyVisible = false;
+    for (const h of hits) if (NODE_EL[h.id]) { NODE_EL[h.id].classList.add("hit"); anyVisible = true; }
+    if (anyVisible) map.classList.add("searching");
+    searchRes.innerHTML = hits.map((h, i) =>
+      `<div class="sr" data-i="${i}">
+        <div class="sr-t">${esc(h.title || "(제목 생성 전)")}${h.via === "graph" ? ' <span style="opacity:.6">· 연결로 발견</span>' : ""}</div>
+        <div class="sr-g">${esc((h.gist || "").slice(0, 80))}</div>
+        <div class="sr-m">${h.ts ? new Date(h.ts).toLocaleString("ko-KR") : ""} · 점수 ${h.score}</div>
+      </div>`).join("");
+    searchRes.querySelectorAll(".sr").forEach(el => el.onclick = () => {
+      const h = hits[+el.dataset.i]; if (!h) return;
+      clearSearch(); // 같은 세션 내 이동은 재렌더가 없을 수 있어 흐림까지 여기서 해제
+      const iHere = VIEW_SESS.findIndex(t => t.id === h.id);
+      if (iHere >= 0) { jumpToTurn(iHere); return; }
+      // 다른 세션의 턴 — 세션 셀렉터를 통해 전환 후 착지 (포탈과 같은 문법)
+      const sel = document.getElementById("session-select");
+      if ([...sel.options].some(o => o.value === h.sessionId)) {
+        sel.value = h.sessionId;
+        sel.dispatchEvent(new Event("change"));
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          const i2 = VIEW_SESS.findIndex(t => t.id === h.id);
+          if (i2 >= 0) jumpToTurn(i2);
+        }));
+      } else if (byId[h.id]) { // 셀렉터에 없는 기록이면 전체 트리에서 착지
+        sel.value = ""; sel.dispatchEvent(new Event("change"));
+        requestAnimationFrame(() => requestAnimationFrame(() => focusOn(h.id)));
+      }
+    });
+  } catch (e) { searchRes.innerHTML = `<div class="sr-none">검색 실패: ${esc(String(e.message || e))}</div>`; }
+}
+searchBox.addEventListener("keydown", (e) => {
+  if (e.isComposing) return;              // 한글 조합 중 Enter 오발송 방지 (기존 입력 규칙과 동일)
+  if (e.key === "Enter" && searchBox.value.trim()) runSearch(searchBox.value.trim());
+  if (e.key === "Escape") { searchBox.value = ""; clearSearch(); searchBox.blur(); }
+});
+searchBox.addEventListener("input", () => { if (!searchBox.value.trim()) clearSearch(); }); // 지우면 즉시 원상복구
+document.addEventListener("click", (e) => {  // 바깥 클릭 = 검색 취소 (흐림·하이라이트까지 전부 원상복구)
+  if (!document.getElementById("search-wrap").contains(e.target)) clearSearch();
+});
 function jumpToTurn(i) {
   const t = VIEW_SESS[i]; if (!t) return;
   if (revealHidden(t.id)) renderSession(); // 접힌 캡슐·필터로 가려진 턴이면 먼저 드러낸다
@@ -1575,6 +1927,7 @@ function expandNode(id) {
   el.style.transform = `translate(-50%,-50%) scale(${1 / camScale})`;
   el.innerHTML = `<button class="d-close" onclick="event.stopPropagation(); closeExpanded()">×</button><div class="detail">${detailHtml(t)}</div><span class="icon">${GLYPH[t.phase]}</span>`;
   requestAnimationFrame(() => el.classList.add("expanded"));
+  loadAssets(id);
 }
 function collapseNode(id) {
   const t = byId[id]; const el = NODE_EL[id]; if (!t || !el) return;
@@ -1605,7 +1958,36 @@ function detailHtml(t) {
     <ul class="d-list">${t.tools.map(x => `<li>${esc(x.name)}${x.inputPreview ? " · " + esc(x.inputPreview) : ""}${x.isError ? " ⚠" : ""}</li>`).join("") || "<li>없음</li>"}</ul>
     <div class="d-h">만진 파일</div>
     <ul class="d-list">${t.files.map(x => `<li>${esc(x)}</li>`).join("") || "<li>없음</li>"}</ul>
+    ${t._pseudo ? "" : `<div id="d-assets"></div>`}
     ${t._pseudo ? "" : `<div class="d-h">갈래 대화</div><div id="br-area">${brListHtml(t)}</div>`}`;
+}
+
+// ── 턴 자산(첨부 이미지·코드 diff) 지연 로드: 카드가 열린 뒤 원문에서 가져와 붙인다 ──
+// 부가층 원칙 — 실패·지연은 조용히 무시되고 카드 본문은 항상 동작한다.
+async function loadAssets(id) {
+  try {
+    const t = byId[id]; if (!t || t._pseudo) return;
+    // 이미지도 편집 도구도 없는 턴은 서버 왕복 자체를 생략
+    if (!t.hasImage && !t.tools.some(x => x.category === "edit")) return;
+    const j = await fetch(`/api/expand?project=${encodeURIComponent(CURRENT_PROJECT)}&turn=${encodeURIComponent(id)}`).then(r => r.json());
+    if (expandedId !== id) return; // 기다리는 사이 카드가 닫히거나 바뀜 — 버린다
+    const host = document.getElementById("d-assets"); if (!host) return;
+    let h = "";
+    if (Array.isArray(j.images) && j.images.length) {
+      h += `<div class="d-h">첨부 이미지 (${j.images.length})</div><div class="d-imgs">` +
+        j.images.map(im => `<img class="d-img" loading="lazy" alt="첨부 이미지" onclick="event.stopPropagation(); this.classList.toggle('zoom')" src="data:${esc(String(im.mediaType))};base64,${String(im.data).replace(/[^A-Za-z0-9+/=]/g, "")}">`).join("") + `</div>`;
+    }
+    if (Array.isArray(j.diffs) && j.diffs.length) {
+      h += `<div class="d-h">코드 수정 내역</div>` + j.diffs.map(d =>
+        `<div class="d-difffile">${esc(String(d.file))}</div><pre class="d-diff">` +
+        (Array.isArray(d.lines) ? d.lines : []).map(l => {
+          l = String(l);
+          const c = l.startsWith("+") ? "dl-add" : l.startsWith("-") ? "dl-del" : l.startsWith("@@") ? "dl-hunk" : "";
+          return `<span class="${c}">${esc(l)}</span>`;
+        }).join("\n") + `</pre>`).join("");
+    }
+    host.innerHTML = h;
+  } catch { /* 자산은 부가층 — 실패해도 카드는 그대로 */ }
 }
 
 // ── 갈래(브랜치) 대화: 이 턴 시점의 맥락만 아는 AI와 나누는 곁가지 대화 ──
@@ -1669,7 +2051,8 @@ function renderBranchView() {
   const map = document.getElementById("map");
   const svg = document.getElementById("links");
   map.classList.toggle("noanim", NOANIM);
-  map.querySelectorAll(".node,.seam,.node-label,.capsule,.cap-collapse,.skip,.portal,.cap-region").forEach(e => e.remove());
+  map.querySelectorAll(".node,.seam,.node-label,.capsule,.cap-collapse,.skip,.portal,.cap-region,.topic-band,.topic-rowhdr").forEach(e => e.remove());
+  map.classList.remove("searching"); // 노드가 새로 그려지므로 검색 흐림도 함께 해제
   svg.innerHTML = "";
   NODE_EL = {}; LAST_XY = {}; BR_LAST_ID = null;
 
@@ -2006,11 +2389,32 @@ document.getElementById("sb-go").addEventListener("click", async (ev) => {
     const j = await api("/api/compact", { project: CURRENT_PROJECT, turnIds: ids, purpose: document.getElementById("sb-purpose").value || undefined });
     if (j.error) throw new Error(j.error);
     PKG = j;
+    document.getElementById("m-branch").style.display = ""; // 압축 모드 — 갈래 버튼 복원
     document.getElementById("m-meta").textContent = `${ids.length}턴 · 파일 저장됨: ${j.savedTo}`;
     showTab("md");
     document.getElementById("modal").classList.add("open");
   } catch (e) { hideBusy(); alert("압축 실패: " + e.message); }
   finally { hideBusy(); btn.disabled = false; btn.textContent = "압축 패키지 생성"; }
+});
+document.getElementById("sb-skill").addEventListener("click", async (ev) => {
+  ev.stopPropagation();
+  const btn = document.getElementById("sb-skill");
+  const ids = rangeIds();
+  if (ids.length < 2) return; // shift만 눌러 바가 뜬 상태의 헛클릭
+  btn.disabled = true; // 더블클릭 = 7분짜리 claude 프로세스 2개 — 서버 in-flight와 이중 방어
+  showBusy("해법 스킬 추출 중…", `${ids.length}턴에서 재사용 절차를 증류 — 근거 앵커 검증 포함, 수 분`);
+  try {
+    const j = await api("/api/skill-export", { project: CURRENT_PROJECT, turnIds: ids });
+    if (j.error) throw new Error(j.error);
+    if (j.busy) throw new Error("이미 추출이 진행 중입니다 — 잠시 후 다시 시도해주세요");
+    PKG = { md: j.md, json: { name: j.name, savedTo: j.savedTo, audit: j.audit }, pkgFile: null };
+    document.getElementById("m-branch").style.display = "none"; // 스킬 모드 — 갈래 버튼 비적용
+    document.getElementById("m-meta").textContent =
+      `스킬 초안 (사람 검수 후 배포) · 근거 감사: 단계 ${j.audit.steps}개${j.audit.badEvidence ? ` / 앵커 무효 ${j.audit.badEvidence}` : " 전부 앵커 유효"} · 저장됨: ${j.savedTo}`;
+    showTab("md");
+    document.getElementById("modal").classList.add("open");
+  } catch (e) { alert("스킬 추출 실패: " + e.message); }
+  finally { hideBusy(); btn.disabled = false; }
 });
 function showTab(k) {
   document.getElementById("tab-md").classList.toggle("on", k === "md");
@@ -2044,7 +2448,8 @@ function download(kind) {
   const content = kind === "md" ? PKG.md : JSON.stringify(PKG.json, null, 2);
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([content], { type: "text/plain" }));
-  a.download = `branchport-package.${kind}`;
+  // 스킬 초안(pkgFile 없음)은 스킬 이름으로 — SKILL.md로 바로 배포·검수가 자연스럽게
+  a.download = PKG?.pkgFile ? `branchport-package.${kind}` : `${PKG?.json?.name ?? "branchport-skill"}.${kind}`;
   a.click(); URL.revokeObjectURL(a.href);
 }
 
