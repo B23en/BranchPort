@@ -55,9 +55,11 @@
     background:color-mix(in srgb, var(--surface) 82%, transparent); backdrop-filter:blur(16px) saturate(1.5);
     -webkit-backdrop-filter:blur(16px) saturate(1.5); z-index:10;}
   header h1{font-size:15px; margin:0; font-weight:700; display:flex; align-items:center; gap:8px; letter-spacing:-.01em;}
-  header h1 .dot{width:10px;height:10px;border-radius:50%;
-    background:linear-gradient(135deg,var(--exec),var(--edit));
-    animation:breathe 3.5s ease-in-out infinite;}
+  /* 로고: 첫 화면 스플래시의 노선도를 헤더 크기로 줄인 것.
+     같은 조형(간선 + 분기 + 역)이라 스플래시가 자리를 잡아 앉은 것처럼 이어진다.
+     헤더에서는 그리는 애니메이션 없이 정지 상태로 둔다 — 로고가 계속 움직이면 산만하다. */
+  header h1 .mark{width:26px; height:20px; flex:none; display:block;}
+  header h1 .mark svg{width:100%; height:100%; display:block; overflow:visible;}
   @keyframes breathe{0%,100%{transform:scale(1);opacity:.85} 50%{transform:scale(1.25);opacity:1}}
   /* 상단 컨트롤 통일 — 이전엔 모서리 반경이 셀렉트 7px · 검색 9px · 주제 버튼 99px로
      제각각이고 높이도 달랐다. 지도의 조형 어휘(알약 캡슐 + 원형 역)에 맞춰 전부 알약으로
@@ -545,7 +547,7 @@
     <div class="splash-sub" style="animation-delay:2.05s;">세션 트리를 불러오는 중…</div>
   </div>
   <header>
-    <h1><span class="dot"></span>BranchPort</h1>
+    <h1><span class="mark" aria-hidden="true"><svg viewBox="0 0 30 24"><g fill="none" stroke-width="2" stroke-linecap="round"><path stroke="var(--edit)" d="M9 12 L12 12 Q15 12 15 9 L15 7 Q15 4 18 4 L23 4"/><path stroke="var(--exec)" d="M2 12 L23 12"/><path stroke="var(--explore)" d="M9 12 L12 12 Q15 12 15 15 L15 17 Q15 20 18 20 L23 20"/></g><g fill="var(--surface)" stroke-width="1.9"><circle cx="9" cy="12" r="2.1" stroke="var(--exec)"/><circle cx="23" cy="4" r="2.1" stroke="var(--edit)"/><circle cx="23" cy="12" r="2.1" stroke="var(--exec)"/><circle cx="23" cy="20" r="2.1" stroke="var(--explore)"/></g></svg></span>BranchPort</h1>
     <select id="project-select"><option>프로젝트 불러오는 중…</option></select>
     <select id="session-select"></select>
     <button id="topic-btn" title="이 세션을 주제별 행으로 재배치 (재방문은 병합, 다시 누르면 원래대로)">주제</button>
