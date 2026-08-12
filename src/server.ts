@@ -736,6 +736,24 @@ function saveBranches(project: string, B: { branches: Branch[] }) {
   fs.writeFileSync(branchesFile(project), JSON.stringify(B, null, 1));
 }
 
+// 갈래 삭제 — branches/<프로젝트>.json에서 항목 하나를 제거한다.
+// 갈래는 BranchPort가 자체 보관하는 대화이므로(실제 세션 파일이 아님) 삭제해도
+// 원본 로그에는 영향이 없다. 되돌리기는 없으므로 확인은 UI에서 받는다.
+function handleBranchDelete(req: http.IncomingMessage, res: http.ServerResponse) {
+  readBody(req, res, 10_000, async ({ project, id }) => {
+    try {
+      if (!project || !id) return sendJson(res, 400, { error: 'project와 id가 필요합니다' });
+      const B = loadBranches(project);
+      const i = B.branches.findIndex(x => x.id === id);
+      if (i < 0) return sendJson(res, 404, { error: 'unknown branch: ' + id });
+      const [removed] = B.branches.splice(i, 1);
+      saveBranches(project, B);
+      console.log(`[갈래 삭제] ${removed.id} · "${removed.title}" · 메시지 ${removed.messages.length}건`);
+      sendJson(res, 200, { deleted: removed.id, branches: B.branches });
+    } catch (e: any) { sendJson(res, 500, { error: e?.message ?? String(e) }); }
+  });
+}
+
 function handleBranchCreate(req: http.IncomingMessage, res: http.ServerResponse) {
   readBody(req, res, 10_000, async ({ project, kind, turnId, pkgFile, title }) => {
     try {
@@ -1286,6 +1304,7 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && req.url === '/api/skill-export') return handleSkillExport(req, res);
   if (req.method === 'POST' && req.url === '/api/branch-create') return handleBranchCreate(req, res);
   if (req.method === 'POST' && req.url === '/api/branch-chat') return handleBranchChat(req, res);
+  if (req.method === 'POST' && req.url === '/api/branch-delete') return handleBranchDelete(req, res);
 
   const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
 

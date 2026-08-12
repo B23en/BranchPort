@@ -18,8 +18,11 @@
     --glow:rgba(42,120,214,.35);
     color-scheme:light;
   }
+  /* 테마는 세 상태다: 저장된 선택이 없으면 OS를 따르고(=아래 media 블록),
+     사용자가 고르면 html[data-theme]이 OS보다 우선한다. media 블록에 :not(...)을
+     걸어두지 않으면 "OS 다크 + 사용자가 라이트 선택"에서 다크가 이겨버린다. */
   @media (prefers-color-scheme:dark){
-    :root{
+    :root:not([data-theme="light"]){
       --bg:#131210; --surface:#1c1b18; --ink:#f3f1ea; --ink2:#c2beb0; --muted:#8d8a7f;
       --line:#2d2b26; --axis:#4a473f;
       --edit:#d95926; --exec:#3987e5; --explore:#199e70; --chat:#7b776b;
@@ -28,6 +31,15 @@
       --glow:rgba(57,135,229,.4);
       color-scheme:dark;
     }
+  }
+  :root[data-theme="dark"]{
+    --bg:#131210; --surface:#1c1b18; --ink:#f3f1ea; --ink2:#c2beb0; --muted:#8d8a7f;
+    --line:#2d2b26; --axis:#4a473f;
+    --edit:#d95926; --exec:#3987e5; --explore:#199e70; --chat:#7b776b;
+    --err:#e07362; --sel:rgba(57,135,229,.16); --chip:rgba(255,255,255,.06);
+    --shadow:0 1px 3px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.35);
+    --glow:rgba(57,135,229,.4);
+    color-scheme:dark;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
@@ -43,20 +55,29 @@
     background:color-mix(in srgb, var(--surface) 82%, transparent); backdrop-filter:blur(16px) saturate(1.5);
     -webkit-backdrop-filter:blur(16px) saturate(1.5); z-index:10;}
   header h1{font-size:15px; margin:0; font-weight:700; display:flex; align-items:center; gap:8px; letter-spacing:-.01em;}
-  header h1 .dot{width:10px;height:10px;border-radius:50%;
-    background:linear-gradient(135deg,var(--exec),var(--edit));
-    animation:breathe 3.5s ease-in-out infinite;}
+  /* 로고: 첫 화면 스플래시의 노선도를 헤더 크기로 줄인 것.
+     같은 조형(간선 + 분기 + 역)이라 스플래시가 자리를 잡아 앉은 것처럼 이어진다.
+     헤더에서는 그리는 애니메이션 없이 정지 상태로 둔다 — 로고가 계속 움직이면 산만하다. */
+  header h1 .mark{width:26px; height:20px; flex:none; display:block;}
+  header h1 .mark svg{width:100%; height:100%; display:block; overflow:visible;}
   @keyframes breathe{0%,100%{transform:scale(1);opacity:.85} 50%{transform:scale(1.25);opacity:1}}
   /* 상단 컨트롤 통일 — 이전엔 모서리 반경이 셀렉트 7px · 검색 9px · 주제 버튼 99px로
      제각각이고 높이도 달랐다. 지도의 조형 어휘(알약 캡슐 + 원형 역)에 맞춰 전부 알약으로
      맞추고, 높이·글자·테두리를 한 규칙으로 묶는다. */
-  header select, header #search-box, header #topic-btn{
+  header select, header #search-box, header #topic-btn, header #theme-btn{
     height:32px; box-sizing:border-box; font:inherit; font-size:12.5px;
     background:var(--chip); color:var(--ink); border:1px solid var(--line);
     border-radius:99px; padding:0 14px; transition:border-color .15s ease, background .15s ease, color .15s ease;}
-  header select:hover, header #search-box:hover, header #topic-btn:hover{border-color:var(--axis);}
-  header select:focus-visible, header #search-box:focus{outline:none; border-color:var(--exec);
+  header select:hover, header #search-box:hover, header #topic-btn:hover,
+  header #theme-btn:hover{border-color:var(--axis);}
+  header select:focus-visible, header #search-box:focus,
+  header #theme-btn:focus-visible{outline:none; border-color:var(--exec);
     box-shadow:0 0 0 3px var(--glow);}
+  /* 아이콘 전용이라 원형 — 지도의 역 표식과 같은 조형 */
+  header #theme-btn{width:32px; padding:0; display:inline-flex; align-items:center;
+    justify-content:center; cursor:pointer; color:var(--ink2); flex:none;}
+  header #theme-btn:hover{color:var(--ink);}
+  header #theme-btn svg{width:16px; height:16px; display:block;}
   /* 네이티브 화살표는 OS마다 모양·크기가 달라 통일이 깨진다 — 직접 그린다 */
   header select{appearance:none; -webkit-appearance:none; padding-right:30px; cursor:pointer;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238d8a7f' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -331,6 +352,15 @@
     background:var(--chip); border:1px dashed #9b7fd4; color:var(--ink2); border-radius:99px;
     padding:4px 11px; cursor:pointer;}
   .brchip:hover{border-style:solid; color:var(--ink);}
+  /* 열기 + 삭제를 한 알약처럼 붙인다 — 각자 버튼이라 마크업은 중첩되지 않는다 */
+  .brwrap{display:inline-flex; align-items:stretch;}
+  .brwrap .brchip{border-radius:99px 0 0 99px; border-right:0;}
+  .brdel{display:inline-flex; align-items:center; justify-content:center; width:24px;
+    background:var(--chip); border:1px dashed #9b7fd4; border-left:0; border-radius:0 99px 99px 0;
+    color:var(--muted); font-size:14px; line-height:1; cursor:pointer; padding:0;}
+  .brwrap:hover .brchip, .brwrap:hover .brdel{border-style:solid;}
+  .brdel:hover{background:var(--err); border-color:var(--err); color:#fff;}
+  .brdel:focus-visible{outline:2px solid var(--err); outline-offset:1px;}
   .br-msgs{display:flex; flex-direction:column; gap:6px; margin:8px 0;}
   .br-msg{font-size:12.8px; line-height:1.55; padding:8px 11px; border-radius:10px;
     white-space:pre-wrap; word-break:break-word;}
@@ -373,6 +403,44 @@
     box-shadow:var(--shadow); opacity:0; pointer-events:none; transition:opacity .25s ease, transform .2s ease;}
   #home-btn.show{opacity:1; pointer-events:auto;}
   #home-btn:hover{transform:scale(1.07);}
+
+  /* 도움말: 시점 버튼 위에 같은 조형으로 쌓는다. 전체 보기 버튼과 달리 항상 떠 있다 */
+  #help-btn{position:fixed; right:20px; bottom:70px; z-index:20; width:42px; height:42px;
+    border-radius:50%; border:1px solid var(--line); background:var(--surface); color:var(--ink2);
+    font-size:17px; font-weight:700; box-shadow:var(--shadow); cursor:pointer;
+    transition:transform .2s ease, color .2s ease, border-color .2s ease;}
+  #help-btn:hover{transform:scale(1.07); color:var(--ink); border-color:var(--axis);}
+  #help-btn:focus-visible{outline:none; border-color:var(--exec); box-shadow:0 0 0 3px var(--glow);}
+
+  #help{position:fixed; inset:0; background:rgba(20,18,12,.45); z-index:70; display:none;
+    align-items:center; justify-content:center; padding:26px; backdrop-filter:blur(2px);}
+  #help.open{display:flex; animation:fadeIn .18s ease;}
+  #help-box{position:relative; background:var(--surface); border:1px solid var(--line);
+    border-radius:15px; width:min(660px,100%); max-height:86vh; overflow-y:auto; padding:24px 26px 26px;
+    box-shadow:0 24px 70px rgba(0,0,0,.35); animation:modalIn .2s cubic-bezier(.2,.8,.3,1);}
+  #help-box h2{font-size:17px; margin:0 30px 4px 0;}
+  /* 구분선은 섹션 제목이 이고 온다 — 앞 섹션과 사이를 벌리고, 선 아래에 제목을 둔다.
+     첫 섹션은 제목 바로 위가 h2라 선이 중복돼 보이므로 뺀다. */
+  #help-box h3{font-size:12px; letter-spacing:.09em; text-transform:uppercase; color:var(--muted);
+    margin:24px 0 12px; padding-top:20px; border-top:1px solid var(--line); font-weight:750;}
+  #help-box h3:first-of-type{margin-top:18px; padding-top:0; border-top:0;}
+  /* 표식은 섹션마다 다른 색 — 셋이 같은 색이면 아무것도 구분하지 않는 장식이 된다.
+     범례와 같은 국면색을 써서 화면의 다른 색들과 어휘를 맞춘다. */
+  #help-box h3::before{content:""; display:inline-block; width:7px; height:7px; border-radius:50%;
+    background:var(--exec); margin-right:8px; vertical-align:1px;}
+  #help-box h3:nth-of-type(2)::before{background:var(--edit);}
+  #help-box h3:nth-of-type(3)::before{background:var(--explore);}
+  dl.keys{margin:0; display:grid; gap:8px;}
+  dl.keys > div{display:grid; grid-template-columns:132px 1fr; gap:14px; align-items:baseline;}
+  dl.keys dt{margin:0; font-size:12.5px; font-weight:700; color:var(--ink); white-space:nowrap;}
+  dl.keys dd{margin:0; font-size:12.5px; color:var(--ink2); line-height:1.65;}
+  @media (max-width:520px){ dl.keys > div{grid-template-columns:1fr; gap:2px;} }
+  kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; font-weight:700;
+    background:var(--chip); border:1px solid var(--line); border-bottom-width:2px;
+    border-radius:5px; padding:1.5px 6px; color:var(--ink);}
+  .hnote{font-size:11.5px; color:var(--muted); margin:10px 0 0; line-height:1.6;}
+  #help-box code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px;
+    background:var(--chip); border-radius:4px; padding:1px 5px;}
 
   #modal{position:fixed; inset:0; background:rgba(20,18,12,.45); z-index:40; display:none;
     align-items:center; justify-content:center; padding:26px; backdrop-filter:blur(2px);}
@@ -451,6 +519,14 @@
     opacity:0; animation:splashFadeUp .6s cubic-bezier(.3,.7,.3,1.2) forwards;}
   @keyframes splashFadeUp{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:translateY(0)}}
 </style>
+<script>
+  // 첫 페인트 전에 실행돼야 한다 — 본문 스크립트에서 적용하면 저장된 테마가 걸리기 전
+  // 한 프레임 동안 반대 테마가 보인다(흰 화면 깜빡임).
+  try {
+    var t = localStorage.getItem("bp-theme");
+    if (t === "dark" || t === "light") document.documentElement.dataset.theme = t;
+  } catch (e) { /* localStorage 차단 환경 — OS 설정을 그대로 따른다 */ }
+</script>
 </head>
 <body>
   <div id="splash">
@@ -471,7 +547,7 @@
     <div class="splash-sub" style="animation-delay:2.05s;">세션 트리를 불러오는 중…</div>
   </div>
   <header>
-    <h1><span class="dot"></span>BranchPort</h1>
+    <h1><span class="mark" aria-hidden="true"><svg viewBox="0 0 30 24"><g fill="none" stroke-width="2" stroke-linecap="round"><path stroke="var(--edit)" d="M9 12 L12 12 Q15 12 15 9 L15 7 Q15 4 18 4 L23 4"/><path stroke="var(--exec)" d="M2 12 L23 12"/><path stroke="var(--explore)" d="M9 12 L12 12 Q15 12 15 15 L15 17 Q15 20 18 20 L23 20"/></g><g fill="var(--surface)" stroke-width="1.9"><circle cx="9" cy="12" r="2.1" stroke="var(--exec)"/><circle cx="23" cy="4" r="2.1" stroke="var(--edit)"/><circle cx="23" cy="12" r="2.1" stroke="var(--exec)"/><circle cx="23" cy="20" r="2.1" stroke="var(--explore)"/></g></svg></span>BranchPort</h1>
     <select id="project-select"><option>프로젝트 불러오는 중…</option></select>
     <select id="session-select"></select>
     <button id="topic-btn" title="이 세션을 주제별 행으로 재배치 (재방문은 병합, 다시 누르면 원래대로)">주제</button>
@@ -480,6 +556,7 @@
       <div id="search-results"></div>
     </span>
     <span class="meta" id="meta"></span>
+    <button id="theme-btn" title="테마 전환" aria-label="테마 전환"></button>
   </header>
   <div class="legend" id="legend"></div>
   <div id="crumbs"></div>
@@ -489,7 +566,49 @@
   </div>
   <div id="empty">이 프로젝트의 세션 기록을 찾지 못했습니다.</div>
   <div id="loading"></div>
-  <button id="home-btn" title="전체 보기">⤢</button>
+  <button id="home-btn" title="전체 보기 (스페이스바)">⤢</button>
+  <button id="help-btn" title="도움말 — 단축키와 화면 읽는 법">?</button>
+
+  <div id="help" role="dialog" aria-modal="true" aria-label="도움말">
+    <div id="help-box">
+      <button class="x" id="help-x" aria-label="닫기">×</button>
+      <h2>도움말</h2>
+
+      <h3>단축키</h3>
+      <dl class="keys">
+        <div><dt><kbd>스페이스</kbd></dt><dd>전체 보기 — 열린 카드를 닫고 트리 전체를 화면에 맞춥니다</dd></div>
+        <div><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>이전 / 다음 턴으로 이동. 접힌 구간 안이면 먼저 펼칩니다</dd></div>
+        <div><dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>같은 부모를 공유하는 형제 분기 사이를 오갑니다</dd></div>
+        <div><dt><kbd>shift</kbd> + 클릭</dt><dd>두 턴 사이 경로를 압축 범위로 선택합니다</dd></div>
+        <div><dt><kbd>Esc</kbd></dt><dd>겹친 순서대로 닫기 — 모달 → 열린 카드 → 펼쳐둔 구간</dd></div>
+        <div><dt>드래그 / 휠</dt><dd>화면 이동 / 확대·축소</dd></div>
+        <div><dt><kbd>?</kbd></dt><dd>이 도움말 열기</dd></div>
+      </dl>
+      <p class="hnote">검색창이나 갈래 입력창에 커서가 있을 때는 단축키가 잠시 쉽니다.</p>
+
+      <h3>화면 읽는 법</h3>
+      <dl class="keys">
+        <div><dt>원</dt><dd>턴 하나 — 질문 1개와 그에 딸린 작업들. 크기는 작업량(출력 토큰)</dd></div>
+        <div><dt>색</dt><dd>국면 — 편집 / 실행 / 탐색 / 대화. 사용한 도구 기록으로 정해집니다</dd></div>
+        <div><dt>알약</dt><dd>접힌 구간(캡슐). 클릭하면 그 자리에서 펼쳐집니다</dd></div>
+        <div><dt><b style="color:var(--err)">⚠</b> · 이중 테두리</dt><dd>에러가 난 턴 · 서브에이전트에 위임한 턴</dd></div>
+        <div><dt><b style="color:#9b7fd4">◇</b> · 보라 라벨</dt><dd>다른 세션으로 건너가는 포탈 · 포크 지점</dd></div>
+        <div><dt>⑊ · ⋯30m</dt><dd>compact 경계 · 30분 이상 대화가 비었던 자리</dd></div>
+        <div><dt>점선 + +N</dt><dd>필터로 걸러져 접힌 구간과 그 안의 턴 수</dd></div>
+      </dl>
+
+      <h3>기능</h3>
+      <dl class="keys">
+        <div><dt>범례 클릭</dt><dd>그 국면의 턴만 남기고 나머지를 접습니다. 여러 개를 동시에 켤 수 있습니다</dd></div>
+        <div><dt>주제</dt><dd>한 세션을 주제별 행으로 재배치합니다. 행을 shift+클릭하면 그 주제 전체가 압축 범위로 잡힙니다</dd></div>
+        <div><dt>검색</dt><dd>과거 턴을 제목·요약·파일·식별자로 찾습니다. 키워드가 없어도 같은 파일을 만진 턴이 "연결로 발견"으로 나옵니다</dd></div>
+        <div><dt>압축 패키지</dt><dd>선택 범위를 다른 세션·다른 AI가 이어받을 수 있는 문서로 만듭니다. 사실층·상태층은 코드가, 요약층은 LLM이 만듭니다</dd></div>
+        <div><dt>갈래</dt><dd>그 시점의 맥락만 아는 AI와 이어서 대화합니다. 분기 이후의 일은 모르는 상태입니다</dd></div>
+        <div><dt>챕터 바</dt><dd>세션 전체 미니맵. 클릭하면 그 턴으로 이동하고, 드래그하면 그 구간이 압축 범위로 잡힙니다</dd></div>
+      </dl>
+      <p class="hnote">이 도구는 <code>127.0.0.1</code>에만 붙는 완전 로컬 도구입니다. 압축·요약·갈래 응답은 이 컴퓨터에 설치된 <code>claude</code> CLI를 호출합니다.</p>
+    </div>
+  </div>
 
   <div id="selbar">
     <span id="sb-hint">다른 턴을 <b>shift</b>+클릭하면 경로가 선택됩니다</span>
@@ -526,12 +645,13 @@
     </div>
   </div>
 
-  <div class="hint">마우스를 올리면 전체 제목이 보이고, 클릭하면 그 자리에서 확대되며 내용이 열립니다 · shift+클릭으로 경로 구간을 선택해 압축</div>
+  <div class="hint">마우스를 올리면 전체 제목이 보이고, 클릭하면 그 자리에서 확대되며 내용이 열립니다 · shift+클릭으로 경로 구간을 선택해 압축 · 스페이스바로 전체 보기</div>
   <div id="chapterbar"><div id="topicstrip"></div><div id="chapcells"></div></div>
   <div id="branchbar">
     <span id="bb-title">⑂</span>
     <input id="bb-q" placeholder="이 시점의 AI에게 이어서 질문… (Enter)">
     <button class="btn primary" id="bb-send">보내기</button>
+    <button class="btn ghost" id="bb-del" title="이 갈래를 삭제합니다">갈래 삭제</button>
   </div>
 
   <!-- 작업 대기 오버레이: 스플래시와 같은 노선도 애니메이션 문법 (흐르는 선 + 숨쉬는 역) -->
@@ -1668,6 +1788,37 @@ function paintTopicStrip(sess) {
     strip.appendChild(d);
   });
 }
+// ── 테마 전환: 저장된 선택이 없으면 OS를 따르고, 고르면 그 선택이 우선한다 ──
+const themeBtn = document.getElementById("theme-btn");
+const SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.4v2.2M12 19.4v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.4 12h2.2M19.4 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/></svg>';
+const MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 13.4A8.2 8.2 0 0 1 10.6 4a8.4 8.4 0 1 0 9.4 9.4z"/></svg>';
+const osDark = () => window.matchMedia("(prefers-color-scheme: dark)").matches;
+const isDark = () => (document.documentElement.dataset.theme || (osDark() ? "dark" : "light")) === "dark";
+function paintThemeBtn() {
+  // 버튼은 "지금 상태"가 아니라 "누르면 갈 곳"을 보여준다 — 다크면 해, 라이트면 달
+  themeBtn.innerHTML = isDark() ? SUN : MOON;
+  themeBtn.title = isDark() ? "라이트 모드로 전환" : "다크 모드로 전환";
+}
+themeBtn.addEventListener("click", () => {
+  const next = isDark() ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem("bp-theme", next); } catch (e) { /* 저장 불가 — 이번 세션만 적용 */ }
+  paintThemeBtn();
+});
+// 사용자가 아직 고르지 않았다면 OS 설정 변화를 그대로 따라간다
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  if (!document.documentElement.dataset.theme) paintThemeBtn();
+});
+paintThemeBtn();
+
+// ── 도움말 ──
+const helpEl = document.getElementById("help");
+const openHelp = () => { hideTooltip(); helpEl.classList.add("open"); };
+const closeHelp = () => helpEl.classList.remove("open");
+document.getElementById("help-btn").addEventListener("click", openHelp);
+document.getElementById("help-x").addEventListener("click", closeHelp);
+helpEl.addEventListener("click", (e) => { if (e.target === helpEl) closeHelp(); }); // 바깥 클릭
+
 const topicBtn = document.getElementById("topic-btn");
 topicBtn.addEventListener("click", async () => {
   if (TOPIC_ON) { // 끄기 — 원래 배치로 복귀
@@ -2008,10 +2159,28 @@ function refreshNodeBadge(turnId) {
   if (el && t && !el.classList.contains("expanded")) el.innerHTML = nodeBaseHtml(t);
 }
 function brListHtml(t) {
+  // 칩 안에 버튼을 중첩하면 잘못된 마크업이 되므로, 열기와 삭제를 나란한 두 버튼으로 두고
+  // 감싸개에 테두리를 줘서 하나로 보이게 한다
   const chips = branchesFor(t.id).map(b =>
-    `<button class="brchip" onclick="event.stopPropagation(); enterBranchView('${esc(b.id)}')">⑂ ${esc(b.title)} · ${Math.floor(b.messages.length / 2)}</button>`).join("");
+    `<span class="brwrap"><button class="brchip" onclick="event.stopPropagation(); enterBranchView('${esc(b.id)}')">⑂ ${esc(b.title)} · ${Math.floor(b.messages.length / 2)}</button><button class="brdel" title="이 갈래 삭제" onclick="event.stopPropagation(); deleteBranch('${esc(b.id)}')">×</button></span>`).join("");
   return `<div style="display:flex;gap:6px;flex-wrap:wrap">${chips}
-    <button class="brchip" onclick="event.stopPropagation(); createBranch('${esc(t.id)}')">＋ 새 갈래</button></div>`;
+    <button class="brchip solo" onclick="event.stopPropagation(); createBranch('${esc(t.id)}')">＋ 새 갈래</button></div>`;
+}
+async function deleteBranch(id) {
+  const br = BRANCHES.find(b => b.id === id);
+  if (!br) return;
+  const qn = Math.floor(br.messages.length / 2);
+  const warn = qn ? `\n주고받은 질문 ${qn}개가 함께 사라지며 되돌릴 수 없습니다.` : "";
+  if (!confirm(`갈래 "${br.title}"를 삭제할까요?${warn}`)) return;
+  try {
+    const j = await api("/api/branch-delete", { project: CURRENT_PROJECT, id });
+    if (j.error) throw new Error(j.error);
+    BRANCHES = j.branches || [];
+    if (BRANCH_SCOPE === id) { exitBranchView(); return; } // 보고 있던 갈래면 원래 자리로
+    closeExpanded();          // 카드에 남은 옛 칩 목록을 그대로 두지 않는다
+    rebuildSessionSelect();   // 셀렉터의 "⑂ 갈래" 그룹에서도 제거
+    render();
+  } catch (e) { alert("갈래 삭제 실패: " + e.message); }
 }
 async function createBranch(turnId) {
   try {
@@ -2196,6 +2365,9 @@ async function sendBranchWarp() {
   }
 }
 document.getElementById("bb-send").addEventListener("click", sendBranchWarp);
+document.getElementById("bb-del").addEventListener("click", () => {
+  if (BRANCH_SCOPE) deleteBranch(BRANCH_SCOPE);
+});
 document.getElementById("bb-q").addEventListener("keydown", (e) => {
   // isComposing 체크: 한글 IME 조합 확정 Enter에 미완성 문장이 전송되는 것 방지
   if (e.key === "Enter" && !e.isComposing) sendBranchWarp();
@@ -2337,17 +2509,37 @@ function navigateArrow(dir) {
   }
   if (target) revealAndSelect(target);
 }
+// 입력 중에는 전역 단축키를 전부 쉬게 한다 — 검색창에서 대문자·된소리를 치려고 누른
+// shift가 선택 배너를 띄우거나, 띄어쓰기가 전체 보기로 튀면 안 된다.
+// 검색창·갈래 입력창은 자기 Esc 처리를 따로 갖고 있으므로 Esc도 넘기지 않는다
+// (넘기면 한 번의 Esc가 검색 초기화와 카드 닫기를 동시에 한다).
+const typingInField = () =>
+  ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName)
+  || !!document.activeElement?.isContentEditable;
+
 window.addEventListener("keydown", (e) => {
-  if (e.key === "Shift" && !shiftHeld) { shiftHeld = true; updateSel(); }
-  if (e.key === "Escape") {
-    // 바깥 겹침부터 차례로 벗긴다: 모달 → 열린 카드 → 펼쳐둔 캡슐
-    if (modal.classList.contains("open")) modal.classList.remove("open");
+  const typing = typingInField();
+  if (e.key === "Shift" && !shiftHeld && !typing) { shiftHeld = true; updateSel(); }
+  if (e.key === "Escape" && !typing) {
+    // 바깥 겹침부터 차례로 벗긴다: 도움말 → 모달 → 열린 카드 → 펼쳐둔 캡슐
+    if (helpEl.classList.contains("open")) closeHelp();
+    else if (modal.classList.contains("open")) modal.classList.remove("open");
     else if (expandedId) closeExpanded();
     else collapseAllCaps();
     return;
   }
+  if (e.key === "?" && !typing) { e.preventDefault(); openHelp(); return; }
+  // 스페이스바 = 우측 하단 "전체 보기" 버튼과 동일(열린 카드를 닫고 전체를 화면에 맞춤).
+  // BUTTON을 따로 빼는 이유: 포커스가 남아 있는 버튼은 스페이스로도 눌리므로,
+  // 방금 클릭한 버튼(주제·테마 등)이 한 번 더 실행되는 것을 막는다.
+  if (e.code === "Space" && !e.isComposing && !typing
+      && document.activeElement?.tagName !== "BUTTON") {
+    e.preventDefault();
+    homeView();
+    return;
+  }
   const dir = ARROW_DIR[e.key];
-  if (dir && !["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName)) {
+  if (dir && !typing) {
     e.preventDefault();
     navigateArrow(dir);
   }
