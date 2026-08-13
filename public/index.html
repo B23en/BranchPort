@@ -16,6 +16,8 @@
     --err:#d03b3b; --sel:rgba(42,120,214,.10); --chip:rgba(27,26,23,.06);
     --shadow:0 1px 3px rgba(20,18,12,.07), 0 10px 28px rgba(20,18,12,.06);
     --glow:rgba(42,120,214,.35);
+    /* diff 뷰어 전용 — 코드 활동 카드 안 +/- 라인 색 (두 테마 모두 GitHub류 대비 기준) */
+    --diff-add:#1a7f37; --diff-del:#cf222e; --diff-add-bg:rgba(26,127,55,.13); --diff-del-bg:rgba(207,34,46,.12);
     color-scheme:light;
   }
   /* 테마는 세 상태다: 저장된 선택이 없으면 OS를 따르고(=아래 media 블록),
@@ -29,6 +31,7 @@
       --err:#e07362; --sel:rgba(57,135,229,.16); --chip:rgba(255,255,255,.06);
       --shadow:0 1px 3px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.35);
       --glow:rgba(57,135,229,.4);
+      --diff-add:#3fb950; --diff-del:#f85149; --diff-add-bg:rgba(63,185,80,.16); --diff-del-bg:rgba(248,81,73,.16);
       color-scheme:dark;
     }
   }
@@ -39,6 +42,7 @@
     --err:#e07362; --sel:rgba(57,135,229,.16); --chip:rgba(255,255,255,.06);
     --shadow:0 1px 3px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.35);
     --glow:rgba(57,135,229,.4);
+    --diff-add:#3fb950; --diff-del:#f85149; --diff-add-bg:rgba(63,185,80,.16); --diff-del-bg:rgba(248,81,73,.16);
     color-scheme:dark;
   }
   *{box-sizing:border-box}
@@ -138,9 +142,11 @@
   .cap-region{position:absolute; border:1.5px dashed var(--axis); border-radius:22px;
     background:color-mix(in srgb, var(--chip) 55%, transparent); z-index:1; pointer-events:none;}
   .node-label.hide-self{opacity:0 !important;}
-  #loading{position:fixed; top:96px; left:22px; font-size:13px; color:var(--muted); z-index:11;}
+  /* 안내 문구는 지도 위에 겹쳐 뜬다 — 클릭·드래그를 먹으면 그 자리의 노드가 눌리지 않는다 */
+  #loading{position:fixed; top:96px; left:22px; font-size:13px; color:var(--muted); z-index:11;
+    pointer-events:none;}
   #empty{position:fixed; inset:0; display:none; align-items:center; justify-content:center;
-    color:var(--muted); font-size:13.5px; text-align:center; line-height:1.8;}
+    color:var(--muted); font-size:13.5px; text-align:center; line-height:1.8; pointer-events:none;}
 
   /* ── node: a small circle at rest, morphs into a rounded detail card when clicked ── */
   .node{position:absolute; left:0; top:0; transform:translate(-50%,-50%);
@@ -196,24 +202,110 @@
   .d-chips{display:flex; gap:7px; flex-wrap:wrap; margin-bottom:14px;}
   .chip{font-size:11.5px; background:var(--chip); border-radius:99px; padding:3px 10px; color:var(--ink2);}
   .chip.err{color:var(--err); font-weight:700;}
-  .d-msg{font-size:13.5px; line-height:1.62; padding:11px 14px; border-radius:12px; margin-bottom:8px; white-space:pre-wrap; word-break:break-word;}
-  .d-msg.user{background:var(--pc); color:#fff;}
-  .d-msg.ai{background:var(--chip); color:var(--ink);}
-  .d-h{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:14px 0 6px;}
-  .d-list{margin:0; padding-left:17px; font-size:12.5px; color:var(--ink2); line-height:1.78;}
+  /* ── 대화 말풍선: 사용자 요청(왼쪽) · 에이전트 답변(오른쪽) — 웹 클로드 문법 ── */
+  .d-chat{display:flex; flex-direction:column; gap:14px; margin-bottom:6px;}
+  .d-turn{display:flex; flex-direction:column; max-width:92%; min-width:0;}
+  .d-turn.user{align-self:flex-start; align-items:flex-start;}
+  .d-turn.ai{align-self:flex-end; align-items:flex-end;}
+  .d-turn-label{display:flex; align-items:center; gap:6px; font-size:10.5px; font-weight:700;
+    letter-spacing:.07em; text-transform:uppercase; color:var(--muted); margin:0 3px 5px;}
+  .d-turn-label::before{content:""; width:6px; height:6px; border-radius:50%; flex:none;}
+  .d-turn.user .d-turn-label::before{background:var(--pc);}
+  .d-turn.ai .d-turn-label::before{background:var(--axis);}
+  .d-msg{font-size:13.75px; line-height:1.68; padding:11px 15px; border-radius:16px; word-break:break-word;
+    box-shadow:0 1px 2px rgba(0,0,0,.07);}
+  .d-msg.user{background:var(--pc); color:#fff; border-bottom-left-radius:4px;}
+  .d-msg.ai{background:var(--chip); color:var(--ink); border-bottom-right-radius:4px;}
+  .d-msg > *:first-child{margin-top:0;}
+  .d-msg > *:last-child{margin-bottom:0;}
+  /* 표·코드가 말풍선 폭을 밀어내지 않게 — 넓은 내용은 말풍선 안에서만 가로 스크롤 */
+  .d-msg{max-width:100%; overflow-x:hidden;}
+  .d-msg table{display:block; max-width:100%; overflow-x:auto;}
+  .d-msg pre{max-width:100%; overflow-x:auto;}
+  /* 말풍선 안 최소 마크다운 표현 — 원문 기호를 그대로 덤프하지 않고 문단·헤더·목록·
+     인용·표·코드만 골라 옮긴다(mdLite). 색은 항상 currentColor/투명도 기반이라
+     사용자(색배경)·에이전트(칩배경) 두 버블 모두, 두 테마 모두에서 자연스럽다. */
+  .d-md-p{margin:0 0 9px; white-space:pre-wrap;}
+  .d-md-h1,.d-md-h2,.d-md-h3,.d-md-h4{margin:12px 0 6px; line-height:1.4;}
+  .d-md-h1{font-size:15px; font-weight:800;} .d-md-h2{font-size:14.5px; font-weight:750;}
+  .d-md-h3{font-size:13.75px; font-weight:700;} .d-md-h4{font-size:13.75px; font-weight:700; opacity:.88;}
+  .d-md-list{margin:0 0 9px; padding-left:20px;}
+  .d-md-list li{margin-bottom:4px;}
+  .d-md-quote{margin:0 0 9px; padding:3px 0 3px 12px; border-left:2.5px solid currentColor; opacity:.82; font-style:italic;}
+  .d-md-inline-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.9em;
+    background:rgba(127,127,127,.22); border-radius:5px; padding:1.5px 6px;}
+  .d-md-code{margin:0 0 9px; padding:10px 12px; border-radius:11px; background:rgba(127,127,127,.16);
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px; line-height:1.6;
+    white-space:pre-wrap; word-break:break-all; max-height:260px; overflow-y:auto;}
+  .d-md-tablewrap{margin:0 0 9px; overflow-x:auto; border-radius:11px; border:1px solid rgba(127,127,127,.3);}
+  .d-md-table{border-collapse:collapse; width:100%; font-size:12px;}
+  .d-md-table th,.d-md-table td{padding:6px 10px; text-align:left; border-bottom:1px solid rgba(127,127,127,.2); white-space:nowrap;}
+  .d-md-table th{font-weight:700; background:rgba(127,127,127,.12);}
+  .d-md-table tr:nth-child(even) td{background:rgba(127,127,127,.05);}
+  .d-md-table tr:last-child td{border-bottom:0;}
+
+  .d-h{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:18px 0 8px; font-weight:700;}
+  .d-empty{font-size:12.5px; color:var(--muted);}
   .d-close{position:absolute; top:12px; right:12px; width:26px; height:26px; border-radius:50%;
     border:0; background:var(--chip); color:var(--ink2); font-size:13px; cursor:pointer;}
-  /* 턴 자산: 첨부 이미지 썸네일 · 코드 diff 블록 */
-  .d-imgs{display:flex; flex-wrap:wrap; gap:8px;}
-  .d-img{max-width:100%; max-height:220px; border-radius:10px; border:1px solid var(--chip); cursor:zoom-in;}
-  .d-img.zoom{max-height:none; cursor:zoom-out;}
-  .d-difffile{font-size:12px; font-weight:700; color:var(--ink2); margin:8px 0 4px; font-family:ui-monospace,monospace;}
-  .d-diff{margin:0 0 8px; padding:9px 11px; border-radius:10px; background:var(--chip);
-    font-family:ui-monospace,monospace; font-size:11.5px; line-height:1.6;
-    white-space:pre-wrap; word-break:break-all; max-height:240px; overflow-y:auto;}
-  .d-diff .dl-add{color:#1a7f37; background:rgba(46,160,67,.12);}
-  .d-diff .dl-del{color:#cf222e; background:rgba(248,81,73,.12);}
-  .d-diff .dl-hunk{color:var(--muted);}
+
+  /* ── 도구 내역: 국면색 점 + 도구명 + 미리보기를 한 줄로 정렬 — 기호(⚠) 대신 텍스트 배지 */
+  .d-toollist{display:flex; flex-direction:column; gap:1px;}
+  .d-toolrow{display:flex; align-items:baseline; gap:8px; padding:6px 7px; border-radius:8px;
+    font-size:12.5px; color:var(--ink2); transition:background .12s ease;}
+  .d-toolrow:hover{background:var(--chip);}
+  .d-tooldot{flex:none; width:6px; height:6px; border-radius:50%; margin-top:5px;}
+  .d-toolname{flex:none; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px;
+    font-weight:700; color:var(--ink);}
+  .d-toolprev{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted);}
+  .d-toolerr{flex:none; font-size:10.5px; font-weight:700; color:#fff; background:var(--err);
+    border-radius:99px; padding:1.5px 7px;}
+
+  /* ── 코드 활동: 만진 파일을 칩으로 — 클릭하면 그 파일의 diff가 아래 카드에 펼쳐진다.
+     ± 배지(주황) = 실제로 고친 파일, · 배지(회색) = 읽기만 한 파일. 화살표는 열림 상태를 따라 회전한다. */
+  .d-files{display:flex; flex-wrap:wrap; gap:7px;}
+  .d-filechip{display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:12px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; background:var(--chip); color:var(--ink2);
+    border:1px solid transparent; border-radius:9px; padding:5px 10px 5px 8px; cursor:pointer;
+    transition:border-color .15s ease, color .15s ease, background .15s ease, box-shadow .15s ease;}
+  .d-filechip:hover{color:var(--ink); border-color:var(--line);}
+  .d-filechip.active{color:var(--ink); background:var(--sel); border-color:var(--pc);}
+  .d-fc-badge{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:10.5px; font-weight:700;
+    width:15px; height:15px; border-radius:5px; flex:none; display:flex; align-items:center;
+    justify-content:center; line-height:1;}
+  .d-filechip.edit .d-fc-badge{background:rgba(235,104,52,.18); color:var(--edit);}
+  .d-filechip.read .d-fc-badge{background:rgba(127,127,127,.18); color:var(--muted);}
+  .d-fc-chev{flex:none; font-size:9px; opacity:.55; transition:transform .2s cubic-bezier(.2,.8,.2,1);}
+  .d-filechip.active .d-fc-chev{transform:rotate(180deg); opacity:.9;}
+  /* max-height 트랜지션 트릭 — 실제 내용 높이를 몰라도 여유 상한(420px)까지
+     부드럽게 펼쳐진다. 내부 diff 본문은 자체 스크롤(260px)이라 잘리지 않는다. */
+  .d-diffacc{max-height:0; overflow:hidden; opacity:0; margin-top:0;
+    transition:max-height .32s cubic-bezier(.2,.8,.2,1), opacity .22s ease, margin-top .32s ease;}
+  .d-diffacc.open{max-height:420px; opacity:1; margin-top:10px;}
+  .d-diffcard{border:1px solid var(--line); border-radius:12px; overflow:hidden; background:var(--surface);}
+  .d-diffhead{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 12px;
+    background:var(--chip); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px; font-weight:700;}
+  .d-diff-file{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink2);}
+  .d-diff-stat{flex:none;}
+  .d-diff-stat .dl-add{color:var(--diff-add);}
+  .d-diff-stat .dl-del{color:var(--diff-del); margin-left:5px;}
+  .d-diff-body{max-height:260px; overflow-y:auto; padding:6px 0;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px; line-height:1.65;}
+  .dl-line{padding:0 12px; white-space:pre-wrap; word-break:break-all;}
+  .dl-line.dl-add{background:var(--diff-add-bg); color:var(--diff-add);}
+  .dl-line.dl-del{background:var(--diff-del-bg); color:var(--diff-del);}
+  .dl-line.dl-hunk{color:var(--muted); opacity:.85; padding-top:5px; padding-bottom:5px;}
+  .d-diffempty{font-size:12px; color:var(--muted); padding:12px 14px; text-align:center;}
+
+  /* ── 첨부(이미지): 대표 썸네일 하나 + 여러 장이면 가로 스트립, 클릭 시 라이트박스.
+     aspect-ratio로 카드 모양을 고정해 세로·가로 사진이 섞여도 레이아웃이 들쭉날쭉하지 않는다. */
+  .d-attach-main{display:block; width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:14px;
+    border:1px solid var(--line); cursor:zoom-in; transition:box-shadow .18s ease;}
+  .d-attach-main:hover{box-shadow:0 0 0 3px var(--glow);}
+  .d-attach-strip{display:flex; gap:7px; margin-top:7px; overflow-x:auto; padding:2px 1px 4px;}
+  .d-attach-thumb{flex:none; width:60px; height:60px; object-fit:cover; border-radius:10px;
+    border:1px solid var(--line); cursor:zoom-in; transition:box-shadow .15s ease, transform .15s ease;}
+  .d-attach-thumb:hover{box-shadow:0 0 0 2px var(--glow); transform:translateY(-1px);}
   /* ── 주제 렌즈 버튼 · 주제 스트립 · 검색창 ── */
   #topic-btn{display:inline-flex; align-items:center; gap:7px; color:var(--ink2);
     font-weight:600; cursor:pointer; white-space:nowrap;}
@@ -254,7 +346,7 @@
   #search-results .sr .sr-g{color:var(--ink2); font-size:11.5px; margin-top:1px;}
   #search-results .sr .sr-m{color:var(--muted); font-size:10.5px; margin-top:1px;}
   #search-results .sr-none{padding:10px 12px; color:var(--muted); font-size:12px;}
-  #map.searching .node{opacity:.22;}
+  #map.searching .node{opacity:.22 !important;}
   #map.searching .node.hit{opacity:1; box-shadow:0 0 0 3px var(--pc);}
 
   /* ── 세션 뷰: 캡슐(접힌 구간 노드) · 포탈(워프) · 브레드크럼 · 챕터 바 ── */
@@ -296,11 +388,16 @@
   .skip.static:hover{transform:translate(-50%,-50%); background:var(--bg); color:var(--ink);}
   /* .link의 그려지는 애니메이션(dasharray 900)을 끄고 실제 점선으로 */
   .link.skipline{stroke-dasharray:5 6; stroke-dashoffset:0; animation:none; opacity:.6;}
-  .node.muted{opacity:.32;}
-  .node-label.muted{opacity:.32;}
+  .node.muted{opacity:.32 !important;}
+  .node-label.muted{opacity:.32 !important;}
   .cell.offphase{opacity:.18;}
-  .node.offphase{opacity:.22;}
-  .node-label.offphase{opacity:.22;}
+  .node.offphase{opacity:.22 !important;}
+  .node-label.offphase{opacity:.22 !important;}
+  /* 흐리기(검색 비히트 .22 · 생략구간 .32 · 필터 밖 .22)는 "작은 원"일 때의 표현이다 —
+     그 노드를 클릭해 카드로 커진 뒤에도 걸리면 본문이 반투명해져 읽히지 않는다.
+     !important인 이유는 .hide-self와 같다 — popIn이 fill-mode:forwards라 to{opacity:1}이
+     일반 선언을 이기므로, 이 층의 opacity는 !important 없이는 승부가 뒤집힌다. */
+  #map .node.expanded{opacity:1 !important;}
 
   .portal{position:absolute; width:22px; height:22px; transform:translate(-50%,-50%) rotate(45deg);
     background:var(--surface); border:2.5px solid #9b7fd4; border-radius:5px; cursor:pointer; z-index:2;
@@ -464,7 +561,19 @@
   .x{position:absolute; top:14px; right:14px; border:0; background:var(--chip); color:var(--ink2);
     width:27px; height:27px; border-radius:50%; font-size:13px;}
 
-  .hint{position:fixed; bottom:16px; left:22px; font-size:11.5px; color:var(--muted); z-index:11;}
+  /* ── 첨부 이미지 라이트박스: 카드보다 위 레이어에서 원본 크기로.
+     display:none 대신 opacity+visibility로 열고 닫아 — 여닫이 둘 다 자연스럽게 페이드된다. */
+  #lightbox{position:fixed; inset:0; background:rgba(10,9,7,.82); z-index:80;
+    display:flex; align-items:center; justify-content:center; padding:36px; cursor:zoom-out;
+    opacity:0; visibility:hidden; transition:opacity .2s ease, visibility 0s linear .2s;}
+  #lightbox.open{opacity:1; visibility:visible; transition:opacity .2s ease;}
+  #lightbox img{max-width:100%; max-height:100%; border-radius:12px; box-shadow:0 24px 70px rgba(0,0,0,.5);
+    cursor:default; animation:lbImgIn .24s cubic-bezier(.2,.8,.2,1);}
+  @keyframes lbImgIn{from{opacity:0; transform:scale(.94)} to{opacity:1; transform:scale(1)}}
+  #lightbox .x{position:fixed; top:18px; right:20px;}
+
+  .hint{position:fixed; bottom:16px; left:22px; font-size:11.5px; color:var(--muted); z-index:11;
+    pointer-events:none;}
   body.hasbar .hint{display:none;}
 
   #tooltip{position:fixed; z-index:50; pointer-events:none; max-width:280px;
@@ -631,6 +740,10 @@
     <div id="mbox">
       <button class="x" onclick="modal.classList.remove('open')">×</button>
       <div class="hd"><h2>압축 패키지</h2><div class="m" id="m-meta"></div></div>
+      <div id="m-skill-suggest" class="hnote" style="display:none">
+        <span id="m-skill-suggest-text"></span>
+        <button class="btn ghost" id="m-skill-suggest-btn">스킬로 내보내기</button>
+      </div>
       <div class="tabs">
         <button class="tab on" id="tab-md">패키지 (md)</button>
         <button class="tab" id="tab-json">JSON</button>
@@ -643,6 +756,11 @@
         <button class="btn ghost" id="m-branch">⑂ 이 패키지로 갈래 대화</button>
       </div>
     </div>
+  </div>
+
+  <div id="lightbox" onclick="closeLightbox()">
+    <button class="x" onclick="event.stopPropagation(); closeLightbox()" aria-label="닫기">×</button>
+    <img id="lightbox-img" src="" alt="첨부 이미지 원본" onclick="event.stopPropagation()">
   </div>
 
   <div class="hint">마우스를 올리면 전체 제목이 보이고, 클릭하면 그 자리에서 확대되며 내용이 열립니다 · shift+클릭으로 경로 구간을 선택해 압축 · 스페이스바로 전체 보기</div>
@@ -709,6 +827,80 @@ document.getElementById("legend").addEventListener("click", (e) => {
 });
 
 const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+
+// ── 말풍선 안 최소 마크다운 렌더러 ──
+// 목적은 "특수기호 떡칠" 원문을 그대로 덤프하지 않는 것 — 완전한 마크다운 파서가
+// 아니라 실측 원문(##/**/`/>/표/목록/펜스 코드)에 흔한 몇 가지만 골라 옮긴다.
+// 입력은 전부 통제 불가한 대화 원문이므로 esc()를 항상 먼저 거친다 — 그 뒤에
+// 하는 정규식 치환은 이미 escape된 텍스트 위에서만 태그를 씌우므로 안전하다.
+function mdInline(s) {
+  let out = esc(s);
+  out = out.replace(/`([^`\n]+)`/g, (_, c) => `<code class="d-md-inline-code">${c}</code>`);
+  out = out.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+  return out;
+}
+function mdLite(raw) {
+  const lines = String(raw ?? "").replace(/\r\n/g, "\n").split("\n");
+  let html = "", i = 0, list = null, quote = null, table = null;
+  const flushList = () => {
+    if (!list) return;
+    html += `<${list.tag} class="d-md-list">${list.items.map(x => `<li>${mdInline(x)}</li>`).join("")}</${list.tag}>`;
+    list = null;
+  };
+  const flushQuote = () => {
+    if (!quote) return;
+    html += `<div class="d-md-quote">${quote.map(mdInline).join("<br>")}</div>`;
+    quote = null;
+  };
+  const flushTable = () => {
+    // 표는 헤더행 + 구분행(---|---)이 있어야 진짜 표다 — 아니면 그냥 텍스트로 흘려보낸다
+    if (!table || table.length < 2 || !/^[\s|:-]+$/.test(table[1].raw)) { table = null; return; }
+    const [head, , ...body] = table;
+    html += `<div class="d-md-tablewrap"><table class="d-md-table"><thead><tr>` +
+      head.cells.map(c => `<th>${mdInline(c)}</th>`).join("") + `</tr></thead><tbody>` +
+      body.map(r => `<tr>${r.cells.map(c => `<td>${mdInline(c)}</td>`).join("")}</tr>`).join("") +
+      `</tbody></table></div>`;
+    table = null;
+  };
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^\s*```/.test(line)) {
+      flushList(); flushQuote(); flushTable();
+      const buf = []; i++;
+      while (i < lines.length && !/^\s*```\s*$/.test(lines[i])) { buf.push(lines[i]); i++; }
+      i++; // closing fence (or EOF — unterminated fence still renders what it has)
+      html += `<pre class="d-md-code">${esc(buf.join("\n"))}</pre>`;
+      continue;
+    }
+    if (/^\s*\|.*\|\s*$/.test(line)) {
+      flushList(); flushQuote();
+      const cells = line.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+      if (!table) table = [];
+      table.push({ raw: line, cells });
+      i++;
+      if (i >= lines.length || !/^\s*\|.*\|\s*$/.test(lines[i])) flushTable();
+      continue;
+    } else if (table) flushTable();
+    const bq = line.match(/^\s*>\s?(.*)$/);
+    if (bq) { flushList(); if (!quote) quote = []; quote.push(bq[1]); i++; continue; }
+    else if (quote) flushQuote();
+    const h = line.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { flushList(); html += `<div class="d-md-h${h[1].length}">${mdInline(h[2])}</div>`; i++; continue; }
+    const ulm = line.match(/^\s*[-*]\s+(.*)$/);
+    const olm = line.match(/^\s*\d+\.\s+(.*)$/);
+    if (ulm || olm) {
+      const tag = ulm ? "ul" : "ol";
+      if (!list || list.tag !== tag) { flushList(); list = { tag, items: [] }; }
+      list.items.push((ulm || olm)[1]);
+      i++; continue;
+    } else if (list) flushList();
+    if (/^\s*$/.test(line)) { i++; continue; }
+    html += `<p class="d-md-p">${mdInline(line)}</p>`;
+    i++;
+  }
+  flushList(); flushQuote(); flushTable();
+  return html || `<p class="d-md-p"></p>`;
+}
 
 // custom hover tooltip (replaces the native title attribute, which is slow to
 // appear and can't be styled) — shows the turn's full, untruncated headline
@@ -962,6 +1154,9 @@ const fmtTok = n => n >= 1000 ? (Math.round(n/100)/10) + "k" : n;
 // 뷰 디스패처: 갈래 워프 > 세션 뷰 > 전체 트리
 function render() {
   clearSearch(); // 재렌더 시 검색 흐림 상태가 고아로 남지 않게 — 노드는 새로 그려지므로 항상 초기화
+  // 라이트박스는 카드 위에 뜬 층이다 — 지도를 다시 그리면 그 카드가 사라지므로 함께 닫는다
+  // (세션 전환·범례·주제 토글처럼 expandedId만 직접 비우는 경로까지 한자리에서 막는다)
+  closeLightbox();
   // 세션 전환으로 주제 배치가 무효가 되면 버튼 상태도 함께 내린다 (배치 자체는 세션 검사로 이미 안전)
   if (TOPIC_ON && SESSION_SCOPE !== TOPIC_SESSION) {
     TOPIC_ON = false;
@@ -1310,6 +1505,7 @@ function buildTopicElements(sess) {
     if (!rowsMap.has(g)) rowsMap.set(g, []);
     rowsMap.get(g).push({ seg, si });
   });
+  const covered = new Set(TOPIC_SEGS.flatMap(seg => seg.ids));
   const els = [];
   TOPIC_ROWS = [];
   [...rowsMap.values()].forEach((frags, row) => {
@@ -1329,6 +1525,16 @@ function buildTopicElements(sess) {
     });
     TOPIC_ROWS.push({ name: frags[0].seg.name, turnN, fragN: frags.length });
   });
+  // 캐시된 TOPIC_SEGS가 세션의 최신 턴을 못 덮는 경우(폴링으로 턴이 늘었는데 렌즈가
+  // 켜진 채 유지될 때) — 서버 정책상 새 턴은 뒤에 붙으므로 마지막 행으로 그대로 얹는다.
+  // 여기서 빼먹으면 노드가 지도에서 조용히 사라지고, 검색·챕터 바 점프도 대상 노드가
+  // DOM에 없어 같이 실패한다.
+  const extra = sess.filter(t => !covered.has(t.id));
+  if (extra.length) {
+    const row = TOPIC_ROWS.length;
+    extra.forEach(t => els.push({ type: "turn", t, row, topicIdx: -1, frag: 0 }));
+    TOPIC_ROWS.push({ name: "새 턴", turnN: extra.length, fragN: 1 });
+  }
   return els;
 }
 
@@ -1552,7 +1758,13 @@ function renderSession() {
       hd.style.top = cy + "px";
       hd.title = `${rowMeta.name} · ${rowMeta.turnN}턴${rowMeta.fragN > 1 ? ` · 재방문 ${rowMeta.fragN}회 병합` : ""} — 클릭하면 이동`;
       const firstEl = rowEls[0];
-      hd.onclick = () => focusOn(firstEl.type === "turn" ? firstEl.t.id : firstEl.capId);
+      // 머리글도 지도 안(#map)에 있다 — stopPropagation이 없으면 클릭이 stage까지 올라가
+      // 펼쳐둔 캡슐이 전부 접히거나(collapseAllCaps) 열린 카드가 함께 닫힌다
+      hd.onclick = (ev) => {
+        ev.stopPropagation();
+        closeExpanded();
+        focusOn(firstEl.type === "turn" ? firstEl.t.id : firstEl.capId);
+      };
       map.appendChild(hd);
     });
   }
@@ -1684,6 +1896,9 @@ function makeCapsule(el, y, i) {
       updateSel(); applySelectionClasses();
       return;
     }
+    // 재렌더는 열린 카드의 DOM만 지운다 — expandedId를 남겨두면 카드는 사라졌는데
+    // 패닝·휠줌·자동갱신이 계속 막힌 "유령 열림" 상태가 된다
+    closeExpanded();
     KEEP_CAMERA = true;
     EXPANDED_CAPS.add(el.capId);
     renderSession();
@@ -1707,6 +1922,7 @@ function makeSkipChip(el, y, i) {
   c.addEventListener("mouseleave", hideTooltip);
   c.addEventListener("click", (ev) => {
     ev.stopPropagation(); hideTooltip();
+    closeExpanded(); // 재렌더로 카드 DOM이 지워지므로 상태도 함께 내린다
     KEEP_CAMERA = true;
     if (el.open) EXPANDED_SKIPS.delete(el.skipId); else EXPANDED_SKIPS.add(el.skipId);
     renderSession();
@@ -1724,6 +1940,7 @@ function makeCollapseChip(el, y, i) {
   c.textContent = "⟨ 접기";
   c.addEventListener("click", (ev) => {
     ev.stopPropagation(); hideTooltip();
+    closeExpanded(); // 재렌더로 카드 DOM이 지워지므로 상태도 함께 내린다
     KEEP_CAMERA = true;
     EXPANDED_CAPS.delete(el.capId);
     renderSession();
@@ -1825,7 +2042,10 @@ topicBtn.addEventListener("click", async () => {
     TOPIC_ON = false; topicBtn.classList.remove("on");
     document.getElementById("topicstrip").innerHTML = "";
     expandedId = null; clearSel();
-    renderSession();
+    // 끄기는 아래 세션 뷰 가드보다 앞이라 갈래 워프 뷰에서도 눌린다(렌즈가 켜진 세션에서
+    // 갈래로 들어가면 버튼은 켜진 채로 남는다) — renderSession을 직접 부르면 갈래 바 아래에
+    // 세션 지도가 깔린다. 뷰 디스패처를 거쳐 지금 보고 있는 뷰를 다시 그린다.
+    render();
     requestAnimationFrame(() => requestAnimationFrame(fitAll));
     return;
   }
@@ -1840,14 +2060,18 @@ topicBtn.addEventListener("click", async () => {
     requestAnimationFrame(() => requestAnimationFrame(fitAll));
     return;
   }
+  // 요청 당시의 대상을 붙잡아 둔다 — 20초 사이에 세션·프로젝트를 바꾸면 A의 구간이
+  // B의 세션에 붙어 노드가 통째로 "새 턴" 행으로 밀려나는 배치가 나온다
+  const reqProject = CURRENT_PROJECT, reqSession = SESSION_SCOPE;
   topicBtn.disabled = true;
   showBusy("주제 구간 분석 중…", "턴 제목 시퀀스에서 의미 경계를 찾는 중 — 20초 안팎 (한 번 만들면 캐시)");
   try {
-    const j = await api("/api/topics", { project: CURRENT_PROJECT, session: SESSION_SCOPE });
+    const j = await api("/api/topics", { project: reqProject, session: reqSession });
+    if (CURRENT_PROJECT !== reqProject || SESSION_SCOPE !== reqSession) return; // 화면을 옮겼다 — 결과 폐기
     if (j.error) throw new Error(j.error);
     if (j.busy) throw new Error("이미 분석 중입니다 — 잠시 후 다시 눌러주세요");
     if (!j.segments || !j.segments.length) throw new Error(j.note || "구간을 만들지 못했습니다");
-    TOPIC_SEGS = j.segments; TOPIC_SESSION = SESSION_SCOPE; TOPIC_SIG = sessSig(); TOPIC_ON = true;
+    TOPIC_SEGS = j.segments; TOPIC_SESSION = reqSession; TOPIC_SIG = sessSig(); TOPIC_ON = true;
     topicBtn.classList.add("on");
     expandedId = null; clearSel();
     renderSession(); // 맵 자체가 주제 캡슐 배치로 재편성된다
@@ -1905,7 +2129,9 @@ async function runSearch(q) {
 searchBox.addEventListener("keydown", (e) => {
   if (e.isComposing) return;              // 한글 조합 중 Enter 오발송 방지 (기존 입력 규칙과 동일)
   if (e.key === "Enter" && searchBox.value.trim()) runSearch(searchBox.value.trim());
-  if (e.key === "Escape") { searchBox.value = ""; clearSearch(); searchBox.blur(); }
+  // stopPropagation이 없으면 blur() 뒤 window 핸들러가 typingInField()를 다시 재서
+  // "입력 중 아님"으로 판정한다 — Esc 한 번에 검색 초기화 + 카드 닫기가 동시에 일어난다
+  if (e.key === "Escape") { e.stopPropagation(); searchBox.value = ""; clearSearch(); searchBox.blur(); }
 });
 searchBox.addEventListener("input", () => { if (!searchBox.value.trim()) clearSearch(); }); // 지우면 즉시 원상복구
 document.addEventListener("click", (e) => {  // 바깥 클릭 = 검색 취소 (흐림·하이라이트까지 전부 원상복구)
@@ -1913,7 +2139,13 @@ document.addEventListener("click", (e) => {  // 바깥 클릭 = 검색 취소 (�
 });
 function jumpToTurn(i) {
   const t = VIEW_SESS[i]; if (!t) return;
-  if (revealHidden(t.id)) renderSession(); // 접힌 캡슐·필터로 가려진 턴이면 먼저 드러낸다
+  // 카메라만 옮기면 열려 있던 카드는 화면 밖에 그대로 남는다 — 상태(expandedId)까지 남아
+  // 자동 갱신·패닝이 계속 막히므로 이동 전에 닫는다
+  closeExpanded();
+  // 접힌 캡슐·필터로 가려진 턴이면 먼저 드러낸다. 세션 뷰일 때만 — 전체 트리·갈래 뷰에서
+  // 검색 결과로 들어오면 VIEW_SESS·CAP_OF가 직전 세션의 것이라, 그대로 renderSession을
+  // 부르면 SESSION_SCOPE에 맞는 턴이 없어 지도가 통째로 비워진다(revealAndSelect와 같은 가드)
+  if (SESSION_SCOPE && !BRANCH_SCOPE && revealHidden(t.id)) renderSession();
   requestAnimationFrame(() => requestAnimationFrame(() => focusOn(t.id)));
 }
 // 화면에 없는 턴을 감싸고 있는 접힘(캡슐/생략 구간)을 펼친다 — 펼친 게 있으면 true
@@ -2008,6 +2240,7 @@ stage.addEventListener("click", () => {
   collapseAllCaps(); // 작은 "⟨ 접기" 칩을 정확히 누르지 않아도 배경 클릭으로 접힌다
 });
 function closeExpanded() {
+  closeLightbox(); // 카드가 접히는데 라이트박스가 위에 떠 있는 채로 남는 경우 방지
   if (expandedId) collapseNode(expandedId);
 }
 // 펼쳐둔 캡슐을 한 번에 되접는다 — 접힌 게 있었으면 true
@@ -2028,7 +2261,9 @@ function homeView() {
 // the "전체 보기" scale is still fully reachable
 let panState = null, justDragged = false;
 stage.addEventListener("pointerdown", (e) => {
-  if (expandedId || e.target.closest(".node,.capsule,.portal,.cap-collapse")) return;
+  // 클릭 대상 위에서는 패닝을 시작하지 않는다 — 시작하면 드래그 후 놓을 때 그 요소의
+  // 클릭까지 함께 발동해(justDragged를 안 보므로) 구간이 펼쳐지거나 카메라가 튄다
+  if (expandedId || e.target.closest(".node,.capsule,.portal,.cap-collapse,.skip,.topic-rowhdr")) return;
   panState = { x: e.clientX, y: e.clientY, tx: camTx, ty: camTy, moved: false };
   stage.classList.add("panning");
 });
@@ -2060,6 +2295,9 @@ stage.addEventListener("wheel", (e) => {
 
 // ── selection / expansion ──
 function selectNode(id) {
+  // 이미 열려 있는 카드를 다시 여는 경로(카드 테두리 클릭 등)에서는 아무것도 하지 않는다 —
+  // expandNode가 innerHTML을 다시 만들어 스크롤 위치와 펼쳐둔 diff 아코디언이 날아간다
+  if (expandedId === id) return;
   selA = id; selB = null; selShift = false; updateSel();
   if (expandedId && expandedId !== id) collapseNode(expandedId);
   // focus first so camScale already holds its final value — expandNode reads
@@ -2076,15 +2314,20 @@ function expandNode(id) {
   // on-screen size (its width/height are set in viewport units in CSS) —
   // instead of ballooning when the camera happens to be zoomed in
   el.style.transform = `translate(-50%,-50%) scale(${1 / camScale})`;
-  el.innerHTML = `<button class="d-close" onclick="event.stopPropagation(); closeExpanded()">×</button><div class="detail">${detailHtml(t)}</div><span class="icon">${GLYPH[t.phase]}</span>`;
+  // detail 영역의 클릭은 노드 클릭 핸들러로 올라가면 안 된다 — 올라가면 focusOn()이
+  // 다시 실행돼 카메라가 튄다 (도구 행 등 "그냥 읽는 영역" 클릭에서 화면이 점프하던 버그)
+  el.innerHTML = `<button class="d-close" onclick="event.stopPropagation(); closeExpanded()">×</button><div class="detail" onclick="event.stopPropagation()">${detailHtml(t)}</div><span class="icon">${GLYPH[t.phase]}</span>`;
   requestAnimationFrame(() => el.classList.add("expanded"));
   loadAssets(id);
 }
 function collapseNode(id) {
+  // 상태부터 내린다 — 노드가 이미 재렌더로 사라진 뒤에도 expandedId가 남으면
+  // 카드는 없는데 패닝·휠줌·자동갱신만 계속 막힌다
+  if (expandedId === id) expandedId = null;
+  closeLightbox(); // 카드가 닫히는데 그 위 라이트박스만 떠 있는 상태 방지(방향키 이동 포함)
   const t = byId[id]; const el = NODE_EL[id]; if (!t || !el) return;
   el.classList.remove("expanded");
   el.style.transform = "";
-  expandedId = null;
   setTimeout(() => { if (!el.classList.contains("expanded")) el.innerHTML = nodeBaseHtml(t); }, 380);
 }
 function detailHtml(t) {
@@ -2095,26 +2338,47 @@ function detailHtml(t) {
   if (t.interrupted) chips.push("중단됨");
   if (t.hasImage) chips.push("이미지");
   const lb = labelOf(t);
+  // 국면색 점: 도구 자체 카테고리 기준(에이전트 위임은 포크·갈래와 같은 보라)
+  const TOOL_DOT = { edit: "var(--edit)", exec: "var(--exec)", explore: "var(--explore)", deleg: "#9b7fd4", other: "var(--muted)" };
+  const toolsHtml = t.tools.length
+    ? `<div class="d-toollist">${t.tools.map(x => `<div class="d-toolrow">`
+        + `<span class="d-tooldot" style="background:${TOOL_DOT[x.category] || TOOL_DOT.other}"></span>`
+        + `<span class="d-toolname">${esc(x.name)}</span>`
+        + (x.inputPreview ? `<span class="d-toolprev">${esc(x.inputPreview)}</span>` : "")
+        + (x.isError ? `<span class="d-toolerr">에러</span>` : "") + `</div>`).join("")}</div>`
+    : `<div class="d-empty">없음</div>`;
+  // 칩 배지: ± = 실제로 고친 파일(Edit/Write/NotebookEdit이 이 파일을 건드림), · = 읽기만 함
+  const filesHtml = t.files.length
+    ? `<div class="d-files">${t.files.map(f => {
+        const edited = t.tools.some(x => x.category === "edit" && x.filePath === f);
+        return `<button class="d-filechip ${edited ? "edit" : "read"}" data-file="${esc(f)}" `
+          + `onclick="event.stopPropagation(); toggleFileDiff(event)">`
+          + `<span class="d-fc-badge">${edited ? "±" : "·"}</span>${esc(f)}<span class="d-fc-chev">⌄</span></button>`;
+      }).join("")}</div><div id="d-diffacc" class="d-diffacc"></div>`
+    : `<div class="d-empty">없음</div>`;
   return `
     ${t.isForkRoot ? `<div class="d-fork">포크 · ${esc(t.forkName ?? "")}</div>` : ""}
     <div class="d-title">${esc(lb?.t ?? (LABELING && !t._pseudo ? "제목 생성 중…" : t.headline))}</div>
     <div class="d-gist">${lb?.g ? esc(lb.g) : (LABELING && !t._pseudo ? "핵심 요약을 생성하고 있습니다 — 잠시 후 자동 표시됩니다." : "")}</div>
     <div class="d-meta">${t.timestamp ? new Date(t.timestamp).toLocaleString("ko-KR") : ""}</div>
     <div class="d-chips">${chips.map(c => `<span class="chip">${esc(c)}</span>`).join("")}${t.hasError ? `<span class="chip err">⚠ 에러 포함</span>` : ""}</div>
-    <div class="d-h">사용자</div>
-    <div class="d-msg user">${esc(t.prompt)}</div>
-    <div class="d-h">에이전트</div>
-    <div class="d-msg ai">${esc(t.answer || "(도구 작업만 수행 — 아래 도구 내역이 실제 행동)")}</div>
-    <div class="d-h">도구 내역</div>
-    <ul class="d-list">${t.tools.map(x => `<li>${esc(x.name)}${x.inputPreview ? " · " + esc(x.inputPreview) : ""}${x.isError ? " ⚠" : ""}</li>`).join("") || "<li>없음</li>"}</ul>
-    <div class="d-h">만진 파일</div>
-    <ul class="d-list">${t.files.map(x => `<li>${esc(x)}</li>`).join("") || "<li>없음</li>"}</ul>
+    <div class="d-chat">
+      <div class="d-turn user"><div class="d-turn-label">나</div><div class="d-msg user">${mdLite(t.prompt)}</div></div>
+      <div class="d-turn ai"><div class="d-turn-label">에이전트</div><div class="d-msg ai">${t.answer ? mdLite(t.answer) : `<p class="d-md-p">(도구 작업만 수행 — 아래 코드 활동이 실제 행동입니다)</p>`}</div></div>
+    </div>
     ${t._pseudo ? "" : `<div id="d-assets"></div>`}
+    <div class="d-h">도구 내역</div>
+    ${toolsHtml}
+    <div class="d-h">만진 파일</div>
+    ${filesHtml}
     ${t._pseudo ? "" : `<div class="d-h">갈래 대화</div><div id="br-area">${brListHtml(t)}</div>`}`;
 }
 
 // ── 턴 자산(첨부 이미지·코드 diff) 지연 로드: 카드가 열린 뒤 원문에서 가져와 붙인다 ──
 // 부가층 원칙 — 실패·지연은 조용히 무시되고 카드 본문은 항상 동작한다.
+// 이미지는 도착하는 대로 바로 그리지만, diff는 캐시에만 담아두고 "만진 파일" 칩을
+// 눌러야 아코디언으로 펼친다 — 파일이 많은 턴에서도 카드가 diff 텍스트로 뒤덮이지 않는다.
+let ASSET_CACHE = {};
 async function loadAssets(id) {
   try {
     const t = byId[id]; if (!t || t._pseudo) return;
@@ -2122,23 +2386,80 @@ async function loadAssets(id) {
     if (!t.hasImage && !t.tools.some(x => x.category === "edit")) return;
     const j = await fetch(`/api/expand?project=${encodeURIComponent(CURRENT_PROJECT)}&turn=${encodeURIComponent(id)}`).then(r => r.json());
     if (expandedId !== id) return; // 기다리는 사이 카드가 닫히거나 바뀜 — 버린다
-    const host = document.getElementById("d-assets"); if (!host) return;
-    let h = "";
-    if (Array.isArray(j.images) && j.images.length) {
-      h += `<div class="d-h">첨부 이미지 (${j.images.length})</div><div class="d-imgs">` +
-        j.images.map(im => `<img class="d-img" loading="lazy" alt="첨부 이미지" onclick="event.stopPropagation(); this.classList.toggle('zoom')" src="data:${esc(String(im.mediaType))};base64,${String(im.data).replace(/[^A-Za-z0-9+/=]/g, "")}">`).join("") + `</div>`;
-    }
-    if (Array.isArray(j.diffs) && j.diffs.length) {
-      h += `<div class="d-h">코드 수정 내역</div>` + j.diffs.map(d =>
-        `<div class="d-difffile">${esc(String(d.file))}</div><pre class="d-diff">` +
-        (Array.isArray(d.lines) ? d.lines : []).map(l => {
-          l = String(l);
-          const c = l.startsWith("+") ? "dl-add" : l.startsWith("-") ? "dl-del" : l.startsWith("@@") ? "dl-hunk" : "";
-          return `<span class="${c}">${esc(l)}</span>`;
-        }).join("\n") + `</pre>`).join("");
-    }
-    host.innerHTML = h;
+    ASSET_CACHE[id] = { images: Array.isArray(j.images) ? j.images : [], diffs: Array.isArray(j.diffs) ? j.diffs : [] };
+    renderAttachHost(id);
+    // 자산이 도착하기 전에 파일 칩을 눌러둔 경우 — 열려 있는 아코디언을 실제 diff로 교체
+    const acc = document.getElementById("d-diffacc");
+    if (acc && acc.classList.contains("open") && acc.dataset.file) paintDiffAcc(acc.dataset.file);
   } catch { /* 자산은 부가층 — 실패해도 카드는 그대로 */ }
+}
+function imgSrc(im) { return `data:${esc(String(im.mediaType))};base64,${String(im.data).replace(/[^A-Za-z0-9+/=]/g, "")}`; }
+function renderAttachHost(id) {
+  const host = document.getElementById("d-assets"); if (!host) return;
+  const images = ASSET_CACHE[id]?.images ?? [];
+  if (!images.length) { host.innerHTML = ""; return; }
+  // 원문에서 꺼낸 base64가 깨져 있을 수 있다 — 깨진 이미지 아이콘을 클릭 가능한 채로
+  // 두면 라이트박스까지 깨진 그림으로 열린다. 실패한 장은 조용히 뺀다(부가층 원칙).
+  host.innerHTML = `<div class="d-h">첨부 (${images.length})</div>` +
+    `<img class="d-attach-main" loading="lazy" alt="첨부 이미지 1" src="${imgSrc(images[0])}" onerror="this.remove()" onclick="event.stopPropagation(); openLightbox(0)">` +
+    (images.length > 1
+      ? `<div class="d-attach-strip">${images.map((im, idx) => `<img class="d-attach-thumb" loading="lazy" alt="첨부 이미지 ${idx + 1}" src="${imgSrc(im)}" onerror="this.remove()" onclick="event.stopPropagation(); openLightbox(${idx})">`).join("")}</div>`
+      : "");
+}
+// 대표 썸네일이든 스트립 낱장이든 클릭하면 같은 라이트박스에서 원본 크기로 연다
+function openLightbox(idx) {
+  const images = ASSET_CACHE[expandedId]?.images ?? []; const im = images[idx]; if (!im) return;
+  const img = document.getElementById("lightbox-img");
+  img.src = imgSrc(im);
+  document.getElementById("lightbox").classList.add("open");
+  // <img>가 매번 재사용되므로 CSS 진입 애니메이션(lbImgIn)이 두 번째 열람부터는
+  // 재생되지 않는다 — 강제로 리플로우를 일으켜 매번 다시 트리거한다
+  img.style.animation = "none";
+  void img.offsetHeight;
+  img.style.animation = "";
+}
+function closeLightbox() { document.getElementById("lightbox").classList.remove("open"); }
+
+// "만진 파일" 칩을 누르면 그 파일의 diff가 카드 안 카드형 패널에 펼쳐진다(다시 누르면 접힘).
+// 읽기만 한 파일, 아직 로딩 중인 자산, diff가 안 잡힌 변경을 각각 다르게 안내한다.
+function toggleFileDiff(ev) {
+  const btn = ev.currentTarget; const file = btn.dataset.file;
+  const acc = document.getElementById("d-diffacc"); if (!acc) return;
+  const wasOpen = acc.classList.contains("open") && acc.dataset.file === file;
+  document.querySelectorAll(".d-filechip.active").forEach(b => b.classList.remove("active"));
+  if (wasOpen) { acc.classList.remove("open"); acc.innerHTML = ""; acc.dataset.file = ""; return; }
+  btn.classList.add("active");
+  acc.dataset.file = file;
+  acc.classList.add("open");
+  paintDiffAcc(file);
+}
+// 아코디언 본문 그리기 — 자산이 늦게 도착해도 같은 함수로 제자리 갱신할 수 있게 분리했다
+// (분리 전에는 로딩 중에 칩을 누르면 "불러오는 중…"에서 영영 멈춰 있었다)
+function paintDiffAcc(file) {
+  const acc = document.getElementById("d-diffacc"); if (!acc) return;
+  const t = byId[expandedId];
+  const edited = t?.tools.some(x => x.category === "edit" && x.filePath === file);
+  const diff = ASSET_CACHE[expandedId]?.diffs?.find(d => String(d.file) === file);
+  if (diff) {
+    const lines = Array.isArray(diff.lines) ? diff.lines : [];
+    const added = lines.filter(l => String(l).startsWith("+")).length;
+    const removed = lines.filter(l => String(l).startsWith("-")).length;
+    const stat = (added ? `<span class="dl-add">+${added}</span>` : "") + (removed ? `<span class="dl-del">-${removed}</span>` : "");
+    const body = lines.map(l => {
+      l = String(l);
+      const c = l.startsWith("+") ? "dl-add" : l.startsWith("-") ? "dl-del" : l.startsWith("@@") ? "dl-hunk" : "";
+      return `<div class="dl-line ${c}">${esc(l)}</div>`;
+    }).join("");
+    acc.innerHTML = `<div class="d-diffcard">`
+      + `<div class="d-diffhead"><span class="d-diff-file">${esc(file)}</span><span class="d-diff-stat">${stat}</span></div>`
+      + `<div class="d-diff-body">${body}</div></div>`;
+  } else if (!edited) {
+    acc.innerHTML = `<div class="d-diffcard"><div class="d-diffempty">읽기만 한 파일 — 수정 없음</div></div>`;
+  } else if (!ASSET_CACHE[expandedId]) {
+    acc.innerHTML = `<div class="d-diffcard"><div class="d-diffempty">코드 변경 내역을 불러오는 중…</div></div>`;
+  } else {
+    acc.innerHTML = `<div class="d-diffcard"><div class="d-diffempty">diff 정보 없음</div></div>`;
+  }
 }
 
 // ── 갈래(브랜치) 대화: 이 턴 시점의 맥락만 아는 AI와 나누는 곁가지 대화 ──
@@ -2338,6 +2659,7 @@ async function sendBranchWarp() {
   BR_INFLIGHT.add(brId);
   PENDING_BR = { brId, q };
   showBusy("갈래 응답 생성 중…", "이 시점까지만 아는 AI가 답을 쓰는 중 — 최대 3분");
+  closeExpanded(); // 재렌더가 열린 카드 DOM만 지운다 — 상태를 안 내리면 그 노드가 다시 안 열리고 패닝·휠줌도 막힌다
   render();
   requestAnimationFrame(() => requestAnimationFrame(() => focusOn("pending")));
   try {
@@ -2521,8 +2843,9 @@ window.addEventListener("keydown", (e) => {
   const typing = typingInField();
   if (e.key === "Shift" && !shiftHeld && !typing) { shiftHeld = true; updateSel(); }
   if (e.key === "Escape" && !typing) {
-    // 바깥 겹침부터 차례로 벗긴다: 도움말 → 모달 → 열린 카드 → 펼쳐둔 캡슐
-    if (helpEl.classList.contains("open")) closeHelp();
+    // 바깥 겹침부터 차례로 벗긴다: 라이트박스 → 도움말 → 모달 → 열린 카드 → 펼쳐둔 캡슐
+    if (document.getElementById("lightbox").classList.contains("open")) closeLightbox();
+    else if (helpEl.classList.contains("open")) closeHelp();
     else if (modal.classList.contains("open")) modal.classList.remove("open");
     else if (expandedId) closeExpanded();
     else collapseAllCaps();
@@ -2583,10 +2906,30 @@ document.getElementById("sb-go").addEventListener("click", async (ev) => {
     PKG = j;
     document.getElementById("m-branch").style.display = ""; // 압축 모드 — 갈래 버튼 복원
     document.getElementById("m-meta").textContent = `${ids.length}턴 · 파일 저장됨: ${j.savedTo}`;
+    // 압축→스킬 제안: 추가 LLM 호출 없이 이미 있는 신호(에러 보고 + 파일 변경 + 이후 무에러
+    // 수정)만으로 서버가 판정한 것 — 이 구간이 "문제를 풀고 끝난" 구간처럼 보이면 알려준다.
+    const sc = j.json?.meta?.skillCandidate;
+    const sugEl = document.getElementById("m-skill-suggest");
+    if (sc) {
+      document.getElementById("m-skill-suggest-text").textContent =
+        `이 구간에서 해결된 에러 ${sc.errorCount}건이 감지됐어요.`;
+      sugEl.title = (sc.reasons || []).join(" · ");
+      sugEl.style.display = "";
+    } else {
+      sugEl.style.display = "none";
+    }
     showTab("md");
     document.getElementById("modal").classList.add("open");
   } catch (e) { hideBusy(); alert("압축 실패: " + e.message); }
   finally { hideBusy(); btn.disabled = false; btn.textContent = "압축 패키지 생성"; }
+});
+// 압축 모달의 "스킬로 내보내기" 제안 — 기존 sb-skill 클릭 흐름을 그대로 재사용한다.
+// 선택 범위(rangeIds)는 보통 압축 이후에도 살아 있지만, 맵 클릭 등으로 해제됐을 수 있다 —
+// 그 상태로 넘기면 sb-skill이 조용히 return해 "눌렀는데 아무 일도 없음"이 된다.
+document.getElementById("m-skill-suggest-btn").addEventListener("click", () => {
+  if (rangeIds().length < 2) { alert("선택 범위가 해제되어 있어요 — shift+클릭으로 구간을 다시 선택한 뒤 [스킬로 내보내기]를 눌러주세요."); return; }
+  document.getElementById("modal").classList.remove("open");
+  document.getElementById("sb-skill").click();
 });
 document.getElementById("sb-skill").addEventListener("click", async (ev) => {
   ev.stopPropagation();
@@ -2601,8 +2944,9 @@ document.getElementById("sb-skill").addEventListener("click", async (ev) => {
     if (j.busy) throw new Error("이미 추출이 진행 중입니다 — 잠시 후 다시 시도해주세요");
     PKG = { md: j.md, json: { name: j.name, savedTo: j.savedTo, audit: j.audit }, pkgFile: null };
     document.getElementById("m-branch").style.display = "none"; // 스킬 모드 — 갈래 버튼 비적용
+    document.getElementById("m-skill-suggest").style.display = "none"; // 이미 스킬 모드 — 제안 불필요
     document.getElementById("m-meta").textContent =
-      `스킬 초안 (사람 검수 후 배포) · 근거 감사: 단계 ${j.audit.steps}개${j.audit.badEvidence ? ` / 앵커 무효 ${j.audit.badEvidence}` : " 전부 앵커 유효"} · 저장됨: ${j.savedTo}`;
+      `스킬 초안 (사람 검수 후 배포)${j.audit.needsReview ? " · ⚠ 검수 필요" : ""} · 근거 감사: 단계 ${j.audit.steps}개${j.audit.badEvidence ? ` / 앵커 무효 ${j.audit.badEvidence}` : " 전부 앵커 유효"} · 원문대조 ${j.audit.groundPass}/${j.audit.grounded} · 다양성 ${j.audit.distinctEvidence}/${j.audit.steps - j.audit.badEvidence} · 미검증 ${j.audit.unverifiedSteps}개 · 저장됨: ${j.savedTo}`;
     showTab("md");
     document.getElementById("modal").classList.add("open");
   } catch (e) { alert("스킬 추출 실패: " + e.message); }

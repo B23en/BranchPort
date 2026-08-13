@@ -18,6 +18,16 @@ node dist/server.js
 새 Claude Code 세션을 시작하면 `/branchport` 커맨드로 빌드+실행까지 한 번에 됩니다.
 (커맨드 목록은 세션 시작 시 고정되므로, 새로 받은 직후엔 세션을 한 번 새로 시작해야 인식됩니다.)
 
+## 과거 세션 검색 스킬 (branchport-recall)
+
+`.claude/skills/branchport-recall/`는 로컬에 떠 있는 BranchPort 서버(포트 4300)로 과거
+세션을 검색·인출하는 Claude Code 스킬입니다. 이 레포 안에서만 발동되게 하려면 그대로 두면
+되고, **모든 프로젝트에서 발동**되게 하려면 `~/.claude/skills/`로 복사하세요:
+
+```bash
+cp -r .claude/skills/branchport-recall ~/.claude/skills/
+```
+
 ## 기여하기
 
 작업 규칙(브랜치 · PR · 머지 절차)과 코드 규칙은 [CLAUDE.md](./CLAUDE.md)에 있습니다.

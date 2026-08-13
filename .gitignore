@@ -6,6 +6,7 @@ dist/
 # packages: 압축 패키지(대화 원문 일부 포함)
 # labels:   LLM이 지은 턴 제목·요약 캐시
 # branches: 갈래 대화 기록
+# index:    검색 인덱스(턴 제목·요약·식별자)
 packages/
 labels/
 branches/

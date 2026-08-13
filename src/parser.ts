@@ -142,6 +142,22 @@ export async function parseSessionFile(filePath: string, sessionId: string): Pro
       continue;
     }
 
+    // 작업 중 끼어든 메시지의 "실제 전달" 기록 — 2.1.231 무렵부터 큐 메시지가 진행 중인
+    // 턴 안으로 주입되면 queue-operation은 remove로 끝나고(초안 삭제와 구분 불가), 대신
+    // attachment(type: queued_command) 레코드가 원문·시각·origin과 함께 남는다.
+    // remove 휴리스틱만 믿으면 이 메시지들이 통째로 유실된다(8/13 세션에서 4건 실측).
+    // origin.kind==='human'만 취해 시스템 주입은 거른다.
+    if (d.type === 'attachment' && d.attachment?.type === 'queued_command'
+        && d.attachment.origin?.kind === 'human'
+        && typeof d.attachment.prompt === 'string' && d.timestamp) {
+      const text = sanitize(d.attachment.prompt.trim());
+      if (text && !isFakePrompt(text)
+          && !result.queuedPrompts.some(q => q.ts === d.timestamp && q.text === text)) {
+        result.queuedPrompts.push({ ts: d.timestamp, text });
+      }
+      continue;
+    }
+
     if (d.type === 'queue-operation') {
       // enqueue=입력, dequeue=실제 전송 확정(FIFO, content 없음), remove=보내기 전 삭제.
       // 실측: dequeue된 것의 86%가 정식 질문이 되고 remove된 것은 0.3%뿐 —
