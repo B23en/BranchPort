@@ -25,6 +25,7 @@ export function identTokens(text: string): Map<string, number> {
   };
   for (const m of text.matchAll(/\b[\w.-]+\.[a-z][a-z0-9]{1,4}\b/g)) add(m[0]);          // 파일명류
   for (const m of text.matchAll(/\b[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)+\b/g)) add(m[0]);    // CamelCase
+  for (const m of text.matchAll(/\b[a-z][a-z0-9]+(?:[A-Z][a-z0-9]+)+\b/g)) add(m[0]);    // lowerCamelCase (handleCompact 류 — 8/12 실측에서 누락 확인, TS 함수명의 주력 형태)
   for (const m of text.matchAll(/\b[A-Z][A-Z0-9_]{2,}\b/g)) add(m[0]);                   // ALL_CAPS
   for (const m of text.matchAll(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g)) add(m[0]);        // snake_case
   return out;
