@@ -57,7 +57,11 @@
   header{display:flex; align-items:center; gap:14px; flex-wrap:wrap;
     padding:12px 22px; border-bottom:1px solid var(--line); position:fixed; top:0; left:0; right:0;
     background:color-mix(in srgb, var(--surface) 82%, transparent); backdrop-filter:blur(16px) saturate(1.5);
-    -webkit-backdrop-filter:blur(16px) saturate(1.5); z-index:10;}
+    /* backdrop-filter가 헤더에 스택 컨텍스트를 만든다 — 그래서 검색 드롭다운의
+       z-index:60은 헤더 "안에서만" 통하고, 바깥에서는 헤더의 z-index로 뭉뚱그려진다.
+       10이면 범례(10, DOM 뒤)와 챕터바·버튼(20)이 드롭다운 위를 덮었다.
+       모달(40)·배너(60)·도움말(70)보다는 아래로 두어 덮는 순서는 유지한다. */
+    -webkit-backdrop-filter:blur(16px) saturate(1.5); z-index:30;}
   header h1{font-size:15px; margin:0; font-weight:700; display:flex; align-items:center; gap:8px; letter-spacing:-.01em;}
   /* 로고: 첫 화면 스플래시의 노선도를 헤더 크기로 줄인 것.
      같은 조형(간선 + 분기 + 역)이라 스플래시가 자리를 잡아 앉은 것처럼 이어진다.
@@ -192,7 +196,10 @@
      ON-SCREEN size always ends up the same regardless of how zoomed in the
      camera happens to be, instead of ballooning with the ambient zoom. */
   .node.expanded{width:min(86vw,520px) !important; height:70vh !important; border-radius:22px;
-    border-width:1.5px; box-shadow:0 20px 60px rgba(0,0,0,.28), 0 0 0 1px var(--pc); z-index:15; cursor:default;}
+    border-width:1.5px; box-shadow:0 20px 60px rgba(0,0,0,.28), 0 0 0 1px var(--pc);
+    /* 헤더보다 위 — 검색 드롭다운 가림을 고치며 헤더를 10→30으로 올렸으므로,
+       원래대로 카드가 헤더 위에 오도록 함께 올린다(모달 40보다는 아래) */
+    z-index:35; cursor:default;}
   .node.expanded:hover{box-shadow:0 20px 60px rgba(0,0,0,.28), 0 0 0 1px var(--pc);}
 
   .d-fork{color:#9b7fd4; font-size:12px; font-weight:700; margin-bottom:3px;}
@@ -348,6 +355,19 @@
   #search-results .sr-none{padding:10px 12px; color:var(--muted); font-size:12px;}
   #map.searching .node{opacity:.22 !important;}
   #map.searching .node.hit{opacity:1; box-shadow:0 0 0 3px var(--pc);}
+  /* 검색 결과로 착지한 노드 — 이동 직전에 흐림·하이라이트가 풀리므로, 표시가 없으면
+     어디에 내렸는지 알 수 없다. 잠깐 강조했다가 스스로 사라진다.
+     주의: .node의 animation은 popIn이고, 그게 opacity:0 → 1을 만들어 노드를 보이게 한다.
+     여기서 animation을 새로 선언하면 popIn이 밀려나 노드가 통째로 투명해진다.
+     그래서 강조는 animation을 건드리지 않는 box-shadow(전이가 이미 걸려 있다)와
+     별도 레이어인 ::before 링으로만 만든다. */
+  .node.landed{box-shadow:0 0 0 5px var(--glow); border-color:var(--exec); z-index:14;}
+  .node.landed::before{content:""; position:absolute; inset:-7px; border-radius:inherit;
+    border:2.5px solid var(--exec); pointer-events:none;
+    animation:landRing 1.3s cubic-bezier(.2,.7,.3,1) 3;}
+  @keyframes landRing{0%{opacity:.95; transform:scale(.72)} 60%{opacity:.4}
+    100%{opacity:0; transform:scale(1.6)}}
+  @media (prefers-reduced-motion:reduce){ .node.landed::before{animation:none; opacity:.85;} }
 
   /* ── 세션 뷰: 캡슐(접힌 구간 노드) · 포탈(워프) · 브레드크럼 · 챕터 바 ── */
   .capsule{position:absolute; transform:translate(-50%,-50%); background:var(--surface);
@@ -525,8 +545,9 @@
      범례와 같은 국면색을 써서 화면의 다른 색들과 어휘를 맞춘다. */
   #help-box h3::before{content:""; display:inline-block; width:7px; height:7px; border-radius:50%;
     background:var(--exec); margin-right:8px; vertical-align:1px;}
-  #help-box h3:nth-of-type(2)::before{background:var(--edit);}
-  #help-box h3:nth-of-type(3)::before{background:var(--explore);}
+  #help-box h3:nth-of-type(4n+2)::before{background:var(--edit);}
+  #help-box h3:nth-of-type(4n+3)::before{background:var(--explore);}
+  #help-box h3:nth-of-type(4n+4)::before{background:var(--chat);}
   dl.keys{margin:0; display:grid; gap:8px;}
   dl.keys > div{display:grid; grid-template-columns:132px 1fr; gap:14px; align-items:baseline;}
   dl.keys dt{margin:0; font-size:12.5px; font-weight:700; color:var(--ink); white-space:nowrap;}
@@ -536,6 +557,10 @@
     background:var(--chip); border:1px solid var(--line); border-bottom-width:2px;
     border-radius:5px; padding:1.5px 6px; color:var(--ink);}
   .hnote{font-size:11.5px; color:var(--muted); margin:10px 0 0; line-height:1.6;}
+  .hlead{font-size:13px; color:var(--ink2); margin:6px 0 2px; line-height:1.65;}
+  /* 기능이 화면 어디에 있는지 — 항목 이름 옆에 위치를 작게 붙인다 */
+  .loc{font-size:10.5px; font-weight:600; color:var(--muted); background:var(--chip);
+    border-radius:99px; padding:1px 7px; margin-left:5px; white-space:nowrap;}
   #help-box code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px;
     background:var(--chip); border-radius:4px; padding:1px 5px;}
 
@@ -682,40 +707,76 @@
     <div id="help-box">
       <button class="x" id="help-x" aria-label="닫기">×</button>
       <h2>도움말</h2>
+      <p class="hlead">Claude Code가 남긴 세션 기록을 하나의 트리로 읽고, 필요한 구간만 골라 다른 대화로 넘기는 도구입니다.</p>
 
-      <h3>단축키</h3>
+      <h3>화면 구성</h3>
       <dl class="keys">
-        <div><dt><kbd>스페이스</kbd></dt><dd>전체 보기 — 열린 카드를 닫고 트리 전체를 화면에 맞춥니다</dd></div>
-        <div><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>이전 / 다음 턴으로 이동. 접힌 구간 안이면 먼저 펼칩니다</dd></div>
-        <div><dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>같은 부모를 공유하는 형제 분기 사이를 오갑니다</dd></div>
-        <div><dt><kbd>shift</kbd> + 클릭</dt><dd>두 턴 사이 경로를 압축 범위로 선택합니다</dd></div>
-        <div><dt><kbd>Esc</kbd></dt><dd>겹친 순서대로 닫기 — 모달 → 열린 카드 → 펼쳐둔 구간</dd></div>
-        <div><dt>드래그 / 휠</dt><dd>화면 이동 / 확대·축소</dd></div>
-        <div><dt><kbd>?</kbd></dt><dd>이 도움말 열기</dd></div>
+        <div><dt>헤더 왼쪽</dt><dd><b>프로젝트</b>와 <b>세션</b> 선택. 세션 목록은 네 묶음입니다 — 사람이 대화한 <b>세션</b>, <b>⑂ 갈래</b>, <b>에이전트 기록</b>(서브에이전트), 그리고 모든 세션을 한 번에 보는 <b>전체 트리</b></dd></div>
+        <div><dt>헤더 가운데</dt><dd><b>[주제]</b> 버튼과 <b>검색창</b></dd></div>
+        <div><dt>헤더 오른쪽</dt><dd>턴·노드 수 표시와 <b>테마 전환</b> 버튼(밝게/어둡게)</dd></div>
+        <div><dt>헤더 아래 줄</dt><dd><b>범례</b> — 페이즈 색 안내이자 필터 버튼</dd></div>
+        <div><dt>화면 아래 가운데</dt><dd><b>챕터 바</b> — 세션 전체를 눈금으로 압축한 미니맵</dd></div>
+        <div><dt>화면 오른쪽 아래</dt><dd><b>⤢ 전체 보기</b>(화면을 움직였을 때만 나타남)와 <b>? 도움말</b></dd></div>
       </dl>
-      <p class="hnote">검색창이나 갈래 입력창에 커서가 있을 때는 단축키가 잠시 쉽니다.</p>
 
       <h3>화면 읽는 법</h3>
       <dl class="keys">
-        <div><dt>원</dt><dd>턴 하나 — 질문 1개와 그에 딸린 작업들. 크기는 작업량(출력 토큰)</dd></div>
-        <div><dt>색</dt><dd>국면 — 편집 / 실행 / 탐색 / 대화. 사용한 도구 기록으로 정해집니다</dd></div>
-        <div><dt>알약</dt><dd>접힌 구간(캡슐). 클릭하면 그 자리에서 펼쳐집니다</dd></div>
-        <div><dt><b style="color:var(--err)">⚠</b> · 이중 테두리</dt><dd>에러가 난 턴 · 서브에이전트에 위임한 턴</dd></div>
-        <div><dt><b style="color:#9b7fd4">◇</b> · 보라 라벨</dt><dd>다른 세션으로 건너가는 포탈 · 포크 지점</dd></div>
-        <div><dt>⑊ · ⋯30m</dt><dd>compact 경계 · 30분 이상 대화가 비었던 자리</dd></div>
-        <div><dt>점선 + +N</dt><dd>필터로 걸러져 접힌 구간과 그 안의 턴 수</dd></div>
+        <div><dt>턴</dt><dd>화면의 <b>원 하나</b>. 질문 하나와 그에 딸린 응답·도구 작업 전체를 묶은 단위입니다. 원 크기는 그 턴의 작업량(출력 토큰)</dd></div>
+        <div><dt>페이즈</dt><dd>턴의 성격을 색으로 나눈 것 — <b>편집</b>(파일 수정) / <b>실행</b>(명령 실행) / <b>탐색</b>(찾아보기) / <b>대화</b>(도구 없이 대화만). 사용한 도구로 정해지므로 항상 같은 값이 나옵니다</dd></div>
+        <div><dt>캡슐</dt><dd>연속된 턴 여러 개를 접어 하나로 만든 <b>가로로 긴 타원형</b>. 안에 든 첫 제목과 턴 수, 페이즈 색 점띠가 보입니다</dd></div>
+        <div><dt>포탈 ◇</dt><dd>선에서 아래로 매달린 <b>보라색 마름모</b>. 이 지점에서 다른 세션(주로 서브에이전트)으로 갈라졌다는 표시</dd></div>
+        <div><dt>⚠ 표시</dt><dd>그 턴에서 에러가 났다는 뜻. 캡슐에 접히지 않고 항상 낱개로 보입니다</dd></div>
+        <div><dt>이중 테두리</dt><dd>서브에이전트에게 작업을 위임한 턴</dd></div>
+        <div><dt>⑊ · ⋯30m</dt><dd>선 위의 작은 표시 — <code>/compact</code>가 일어난 지점 · 30분 이상 대화가 비었던 자리</dd></div>
+        <div><dt>점선 + +N</dt><dd>필터로 걸러져 접힌 구간과 그 안의 턴 수. 눌러서 펼칩니다</dd></div>
       </dl>
 
-      <h3>기능</h3>
+      <h3>단축키</h3>
       <dl class="keys">
-        <div><dt>범례 클릭</dt><dd>그 국면의 턴만 남기고 나머지를 접습니다. 여러 개를 동시에 켤 수 있습니다</dd></div>
-        <div><dt>주제</dt><dd>한 세션을 주제별 행으로 재배치합니다. 행을 shift+클릭하면 그 주제 전체가 압축 범위로 잡힙니다</dd></div>
-        <div><dt>검색</dt><dd>과거 턴을 제목·요약·파일·식별자로 찾습니다. 키워드가 없어도 같은 파일을 만진 턴이 "연결로 발견"으로 나옵니다</dd></div>
-        <div><dt>압축 패키지</dt><dd>선택 범위를 다른 세션·다른 AI가 이어받을 수 있는 문서로 만듭니다. 사실층·상태층은 코드가, 요약층은 LLM이 만듭니다</dd></div>
-        <div><dt>갈래</dt><dd>그 시점의 맥락만 아는 AI와 이어서 대화합니다. 분기 이후의 일은 모르는 상태입니다</dd></div>
-        <div><dt>챕터 바</dt><dd>세션 전체 미니맵. 클릭하면 그 턴으로 이동하고, 드래그하면 그 구간이 압축 범위로 잡힙니다</dd></div>
+        <div><dt><kbd>스페이스</kbd></dt><dd>전체 보기 — 열린 카드를 닫고 트리 전체를 화면에 맞춥니다(⤢ 버튼과 같음)</dd></div>
+        <div><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>이전 / 다음 턴. 목적지가 접힌 구간 안이면 먼저 펼치고 이동합니다</dd></div>
+        <div><dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>같은 지점에서 갈라진 형제 가지 사이를 오갑니다</dd></div>
+        <div><dt><kbd>shift</kbd> + 클릭</dt><dd>두 턴 사이 경로를 선택합니다(압축의 입력)</dd></div>
+        <div><dt><kbd>Esc</kbd></dt><dd>겹친 순서대로 닫기 — 도움말 → 압축 결과창 → 열린 카드 → 펼친 구간</dd></div>
+        <div><dt><kbd>?</kbd></dt><dd>이 도움말 열기</dd></div>
+        <div><dt>드래그 / 휠</dt><dd>화면 이동 / 확대·축소</dd></div>
       </dl>
-      <p class="hnote">이 도구는 <code>127.0.0.1</code>에만 붙는 완전 로컬 도구입니다. 압축·요약·갈래 응답은 이 컴퓨터에 설치된 <code>claude</code> CLI를 호출합니다.</p>
+      <p class="hnote">검색창이나 갈래 입력창에 커서가 있을 때는 단축키가 잠시 쉽니다.</p>
+
+      <h3>턴 살펴보기</h3>
+      <dl class="keys">
+        <div><dt>원 클릭</dt><dd>그 자리에서 카드로 펼쳐집니다. 질문 원문, 응답 요지, 사용한 도구, 만진 파일, 소요 시간이 담깁니다. 아래쪽에는 그 턴에 붙였던 <b>이미지</b>와 실제 <b>코드 변경(+/−)</b>이 함께 나옵니다</dd></div>
+        <div><dt>원에 마우스 올리기</dt><dd>제목과 한 줄 요약을 미리 봅니다</dd></div>
+        <div><dt>캡슐 클릭</dt><dd>제자리에서 펼쳐지고, 펼친 범위가 점선으로 표시됩니다. <b>⟨ 접기</b>나 <kbd>Esc</kbd>·배경 클릭으로 되접습니다</dd></div>
+        <div><dt>포탈 ◇ 클릭</dt><dd>건너편 세션으로 이동합니다. 왼쪽 위에 돌아가는 길(브레드크럼)이 쌓입니다</dd></div>
+        <div><dt>챕터 바</dt><dd>눈금 하나가 턴 하나입니다. 접히거나 걸러진 턴도 여기엔 전부 있습니다. <b>클릭</b>하면 그 턴으로 이동(접혀 있으면 펼치고), <b>드래그</b>하면 그 구간이 압축 범위로 잡힙니다</dd></div>
+      </dl>
+
+      <h3>추려 보기 — 범례 필터와 주제</h3>
+      <dl class="keys">
+        <div><dt>범례 클릭 <span class="loc">헤더 아래 줄</span></dt><dd>그 페이즈의 턴만 남기고 나머지는 <b>점선 + +N</b>으로 접습니다. 여러 개를 함께 켤 수 있고, <b>필터 해제</b>로 되돌립니다. 계산이 아니라 도구 기록만 보므로 즉시 반영됩니다</dd></div>
+        <div><dt>[주제] <span class="loc">헤더</span></dt><dd>한 세션을 <b>주제별 가로 행</b>으로 다시 배치합니다(세션을 고른 상태에서만). 처음 누르면 20초쯤 걸리고 이후에는 즉시 뜹니다. 행 머리글을 누르면 그 주제로 이동하고, <b>행 안의 캡슐을 shift+클릭</b>하면 그 주제 전체가 압축 범위로 잡힙니다. 다시 누르면 원래 배치로 돌아갑니다</dd></div>
+        <div><dt>검색 <span class="loc">헤더</span></dt><dd>단어를 넣고 <kbd>Enter</kbd>. 제목·요약·만진 파일·코드 식별자에서 찾습니다. 키워드가 없어도 <b>같은 파일을 만졌거나 바로 옆에 있던 턴</b>은 <b>연결로 발견</b>으로 함께 나옵니다. 화면에 있는 결과는 밝게 남고, 다른 세션 결과는 목록에서 눌러 이동합니다</dd></div>
+      </dl>
+      <p class="hnote">제목·요약은 처음 열 때 자동 생성됩니다. 아직 만들어지지 않은 턴은 원문이 흐린 기울임으로 보이고, 생성이 끝나면 교체됩니다. 검색은 제목이 만들어진 뒤에 더 잘 맞습니다.</p>
+
+      <h3>압축 — 구간을 다른 대화로 넘기기</h3>
+      <dl class="keys">
+        <div><dt>① 범위 잡기</dt><dd>턴 하나를 클릭한 뒤 다른 턴을 <b>shift+클릭</b>하거나, <b>챕터 바를 드래그</b>합니다. 주제 행을 shift+클릭해도 됩니다</dd></div>
+        <div><dt>② 만들기</dt><dd>화면 위에 뜨는 알림에서 <b>[압축 패키지 생성]</b>. 받는 쪽 목적(이어서 구현 / 버그 수정 / 팀원 설명)을 고를 수 있습니다</dd></div>
+        <div><dt>③ 결과</dt><dd>목표·요약·결정과 근거·완료/미완·열린 논점이 담긴 문서가 나옵니다. 여기에 코드가 직접 센 <b>만진 파일·실행 명령·실제 코드 변경</b>과, 범위 밖에서만 정의된 <b>용어 부록</b>이 함께 붙습니다. 복사하거나 파일로 내려받아 새 대화에 붙여 넣으면 됩니다</dd></div>
+        <div><dt>스킬로 내보내기</dt><dd>같은 범위에서 <b>해결 과정</b>만 뽑아 다른 프로젝트에서 재사용할 문서 초안으로 만듭니다</dd></div>
+      </dl>
+
+      <h3>갈래 — 그 시점의 AI와 이어 말하기</h3>
+      <dl class="keys">
+        <div><dt>만들기</dt><dd>턴을 클릭해 카드를 열고 아래쪽 <b>＋ 새 갈래</b>. 압축 결과창에서도 만들 수 있습니다</dd></div>
+        <div><dt>대화</dt><dd>그 분기 지점까지의 맥락만 아는 상태로 이어서 대화합니다 — <b>그 이후에 무슨 일이 있었는지는 모릅니다.</b> 아래 입력창에 질문하면 수십 초 뒤 답이 옵니다</dd></div>
+        <div><dt>돌아가기 · 지우기</dt><dd>세션 목록의 <b>⑂ 갈래</b> 묶음에서 다시 열 수 있습니다. 카드의 갈래 칩 옆 <b>×</b>나 갈래 화면 아래 <b>[갈래 삭제]</b>로 지웁니다</dd></div>
+      </dl>
+      <p class="hnote">갈래는 Claude Code의 실제 세션이 아니라 BranchPort가 따로 보관하는 대화입니다. 대화만 가능하고 파일 편집·명령 실행은 하지 않으며, 지워도 원본 기록에는 영향이 없습니다.</p>
+
+      <p class="hnote">이 도구는 <code>127.0.0.1</code>에만 붙는 완전 로컬 도구입니다. 제목·요약 생성, 압축, 갈래 응답은 이 컴퓨터에 설치된 <code>claude</code> CLI를 불러 처리합니다.</p>
     </div>
   </div>
 
@@ -1638,6 +1699,10 @@ function renderSession() {
   const TOPIC_MODE = els.length > 0 && els[0].row !== undefined;
   // 행 높이 150 → 116: 8행이면 1,200px라 전체 보기 배율이 과하게 줄어 노드가 안 읽혔다
   const ROWH = 116, ROW_HEAD_W = 150;
+  // 행의 세로 범위는 노드 기준 대칭이 아니다 — 노드는 cy 위로 15px뿐인데
+  // 제목 라벨이 아래로 두 줄 엇갈려 붙어(홀짝 16px) cy+49까지 내려간다.
+  // 대칭으로 잡으면 아래쪽만 모자라 라벨이 밴드·점선 블록 밖으로 흘러나온다.
+  const ROW_UP = 28, ROW_DOWN = 56;
   const Y0 = PADY + 30;
   // 역방향 포탈 자리는 실제 배치 규칙(간격 한 칸 + 포탈 22px)과 맞춰 비운다.
   // 주제 모드에서도 같은 자리를 비워야 한다 — 안 그러면 포탈이 왼쪽 머리글 위에 겹친다.
@@ -1671,26 +1736,65 @@ function renderSession() {
     : el.turns ? (el.turns[el.turns.length - 1].endTimestamp ?? el.turns[el.turns.length - 1].timestamp)
     : (el.t0?.timestamp ?? null);
   const elStartTs = el => el.type === "turn" ? el.t.timestamp : (el.turns?.[0].timestamp ?? el.t0?.timestamp ?? null);
+  // 주제 행 안에서 이웃한 두 요소가 시간상 붙어 있는지 재기 위한 자료.
+  // 행은 같은 주제만 모아 놓은 것이라, 두 요소 사이에 다른 주제의 턴이 통째로 빠져 있을 수 있다.
+  // 그 빠진 개수를 필터의 "+N"과 같은 어휘로 보여줘야 "사이에 뭐가 있었는지"가 읽힌다.
+  const sessPos = new Map(sess.map((t, i) => [t.id, i]));
+  const rowOfTurn = new Map();
+  for (const el of els) {
+    for (const t of (el.type === "turn" ? [el.t] : (el.turns ?? []))) rowOfTurn.set(t.id, el.row);
+  }
+  const elTurns = el => (el.type === "turn" ? [el.t] : (el.turns ?? (el.t0 ? [el.t0] : [])));
+  const betweenTurns = (a, b) => {
+    const ta = elTurns(a), tb = elTurns(b);
+    if (!ta.length || !tb.length) return [];
+    const i0 = sessPos.get(ta[ta.length - 1].id), i1 = sessPos.get(tb[0].id);
+    return (i0 == null || i1 == null || i1 <= i0 + 1) ? [] : sess.slice(i0 + 1, i1);
+  };
   for (let i = 1; i < els.length; i++) {
     if (els[i].row !== els[i - 1].row) continue; // 주제 행 경계 — 이음선 없음
     // 재방문 조각 경계: 같은 주제의 떨어진 시간대가 이어지는 자리 — 점선 + ⟲ 갭 표시
     const fragJump = els[i].frag !== undefined && els[i].frag !== els[i - 1].frag;
+    const gapTurns = betweenTurns(els[i - 1], els[i]);
     const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
     p.setAttribute("d", `M ${els[i - 1].cx} ${els[i].cy} L ${els[i].cx} ${els[i].cy}`);
-    // 생략 구간에 닿는 이음선은 점선 — 여기는 실제로 건너뛴 자리라는 표시
-    const skipSide = els[i - 1].type === "skip" || els[i].type === "skip" || fragJump;
+    // 생략 구간에 닿거나, 사이에 다른 주제 턴이 빠져 있으면 점선 — 건너뛴 자리라는 표시
+    const skipSide = els[i - 1].type === "skip" || els[i].type === "skip"
+      || fragJump || gapTurns.length > 0;
     p.setAttribute("class", "link" + (skipSide ? " skipline" : ""));
     p.dataset.from = elId(els[i - 1]); p.dataset.to = elId(els[i]);
     svg.appendChild(p);
     const t0 = els[i].type === "turn" ? els[i].t : (els[i].turns?.[0] ?? els[i].t0);
     const marks = [];
-    if (fragJump) { // 재방문 경계: 실제 벌어진 시간을 계산해 표시
-      const a = elEndTs(els[i - 1]), b = elStartTs(els[i]);
-      const g = a && b ? Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / 60000)) : 0;
-      marks.push("⟲" + (g >= 1 ? " " + fmtGap(g) : ""));
-    }
     if (t0?.compactBefore) marks.push("⑊");
     if (!fragJump && (t0?.gapMin || 0) >= 30) marks.push("⋯" + fmtGap(t0.gapMin));
+
+    // 사이에 빠진 다른 주제 턴을 "+N"으로 — 필터의 생략 구간과 같은 표기.
+    // 재방문 경계면 ⟲를 앞에 붙여 "같은 주제로 돌아왔다"는 뜻을 함께 담는다.
+    if (gapTurns.length) {
+      const a = elEndTs(els[i - 1]), b = elStartTs(els[i]);
+      const mins = a && b ? Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / 60000)) : 0;
+      const c = document.createElement("div");
+      c.className = "skip static";
+      c.textContent = (fragJump ? "⟲ " : "") + "+" + gapTurns.length;
+      const gl = els[i - 1].cx + els[i - 1].halfW, gr = els[i].cx - els[i].halfW;
+      c.style.left = ((gl + gr) / 2) + "px";
+      // ⑊·⋯ 표시가 같은 자리에 있으면 그 아래로 비켜 놓는다
+      c.style.top = (els[i].cy + (marks.length ? 15 : 0)) + "px";
+      // 어느 주제로 다녀왔는지 — 행 이름별로 묶어 개수와 함께
+      const byRow = new Map();
+      for (const t of gapTurns) {
+        const nm = TOPIC_ROWS[rowOfTurn.get(t.id)]?.name ?? "그 밖";
+        byRow.set(nm, (byRow.get(nm) ?? 0) + 1);
+      }
+      const lines = [...byRow.entries()].sort((x, y) => y[1] - x[1])
+        .slice(0, 6).map(([nm, n]) => `· ${nm} ${n}턴`).join("\n");
+      const more = byRow.size > 6 ? `\n… 외 ${byRow.size - 6}개 주제` : "";
+      c.addEventListener("mouseenter", () => showTooltip(c,
+        `사이에 다른 주제 ${gapTurns.length}턴${mins >= 1 ? ` · ${fmtGap(mins)}` : ""}\n${lines}${more}`));
+      c.addEventListener("mouseleave", hideTooltip);
+      map.appendChild(c);
+    }
     if (marks.length) {
       const s = document.createElement("div");
       s.className = "seam"; s.textContent = marks.join(" ");
@@ -1709,18 +1813,26 @@ function renderSession() {
   for (const el of els) {
     const rid = el.type === "collapse" ? el.capId : el.expandedCap;
     if (!rid) continue;
-    const r = regions.get(rid) ?? { min: el.cx, max: el.cx, cy: el.cy };
-    r.min = Math.min(r.min, el.cx); r.max = Math.max(r.max, el.cx);
+    // 가장자리 기준 — 중심에 고정값을 더하면 폭이 제각각인 요소에서 테두리가 들쭉날쭉해진다
+    const r = regions.get(rid) ?? { min: el.cx - el.halfW, max: el.cx + el.halfW, cy: el.cy };
+    r.min = Math.min(r.min, el.cx - el.halfW); r.max = Math.max(r.max, el.cx + el.halfW);
     regions.set(rid, r);
   }
   const mapEl = document.getElementById("map");
   for (const r of regions.values()) {
     const d = document.createElement("div");
     d.className = "cap-region";
-    d.style.left = (r.min - 48) + "px";
-    d.style.width = (r.max - r.min + 96) + "px";
-    d.style.top = (r.cy - 36) + "px";
-    d.style.height = "96px";
+    d.style.left = (r.min - 16) + "px";
+    d.style.width = (r.max - r.min + 32) + "px";
+    if (TOPIC_MODE) {
+      // 행 밴드 안쪽으로 4px씩 들여 넣는다 (밴드와 같은 비대칭 범위를 쓴다)
+      d.style.top = (r.cy - ROW_UP + 4) + "px";
+      d.style.height = (ROW_UP + ROW_DOWN - 8) + "px";
+    } else {
+      // 일반 모드도 같은 내용 기준 — 위로 26, 아래로 라벨 두 줄까지
+      d.style.top = (r.cy - 26) + "px";
+      d.style.height = (26 + ROW_DOWN) + "px";
+    }
     mapEl.appendChild(d);
   }
 
@@ -1741,8 +1853,8 @@ function renderSession() {
       const hue = TOPIC_HUES[ri % TOPIC_HUES.length];
       const band = document.createElement("div");
       band.className = "topic-band";
-      band.style.top = (cy - Math.round(ROWH / 2) + 8) + "px";
-      band.style.height = (ROWH - 24) + "px";
+      band.style.top = (cy - ROW_UP) + "px";
+      band.style.height = (ROW_UP + ROW_DOWN) + "px";
       // 밴드는 그 행이 실제로 차지하는 구간만 덮는다 — 전체 폭을 덮으면 2턴짜리
       // 주제도 화면 끝까지 색이 깔려 행 길이가 안 읽히고 색만 번잡해진다
       const right = Math.max(...rowEls.map(e => e.cx + e.halfW)) + 20;
@@ -2088,6 +2200,19 @@ function clearSearch() {
   document.getElementById("map").classList.remove("searching");
   document.querySelectorAll(".node.hit").forEach(n => n.classList.remove("hit"));
 }
+// 착지 강조 — 세션 전환이 끼면 노드가 아직 안 그려졌을 수 있어, 생길 때까지 잠시 기다린다.
+// (기존에는 double rAF만 믿고 이동해서, 데이터 로드가 늦으면 아무 표시도 남지 않았다)
+let landTimer = null;
+function markLanding(id, tries = 24) {
+  const el = NODE_EL[id];
+  if (!el) { if (tries > 0) landTimer = setTimeout(() => markLanding(id, tries - 1), 100); return; }
+  clearTimeout(landTimer);
+  document.querySelectorAll(".node.landed").forEach(n => n.classList.remove("landed"));
+  void el.offsetWidth; // 같은 노드에 연속 착지해도 애니메이션이 다시 돌게 리플로우를 강제
+  el.classList.add("landed");
+  landTimer = setTimeout(() => el.classList.remove("landed"), 4000); // 링 1.3s × 3회
+}
+
 async function runSearch(q) {
   clearSearch();
   try {
@@ -2108,8 +2233,10 @@ async function runSearch(q) {
     searchRes.querySelectorAll(".sr").forEach(el => el.onclick = () => {
       const h = hits[+el.dataset.i]; if (!h) return;
       clearSearch(); // 같은 세션 내 이동은 재렌더가 없을 수 있어 흐림까지 여기서 해제
+      // 착지 표시는 반드시 이동 "뒤"에 건다 — 접힌 캡슐을 펼치거나 세션을 바꾸면
+      // 재렌더로 노드가 새로 만들어져, 먼저 걸어둔 표시는 그 자리에서 사라진다.
       const iHere = VIEW_SESS.findIndex(t => t.id === h.id);
-      if (iHere >= 0) { jumpToTurn(iHere); return; }
+      if (iHere >= 0) { jumpToTurn(iHere); markLanding(h.id); return; }
       // 다른 세션의 턴 — 세션 셀렉터를 통해 전환 후 착지 (포탈과 같은 문법)
       const sel = document.getElementById("session-select");
       if ([...sel.options].some(o => o.value === h.sessionId)) {
@@ -2118,10 +2245,11 @@ async function runSearch(q) {
         requestAnimationFrame(() => requestAnimationFrame(() => {
           const i2 = VIEW_SESS.findIndex(t => t.id === h.id);
           if (i2 >= 0) jumpToTurn(i2);
+          markLanding(h.id);
         }));
       } else if (byId[h.id]) { // 셀렉터에 없는 기록이면 전체 트리에서 착지
         sel.value = ""; sel.dispatchEvent(new Event("change"));
-        requestAnimationFrame(() => requestAnimationFrame(() => focusOn(h.id)));
+        requestAnimationFrame(() => requestAnimationFrame(() => { focusOn(h.id); markLanding(h.id); }));
       }
     });
   } catch (e) { searchRes.innerHTML = `<div class="sr-none">검색 실패: ${esc(String(e.message || e))}</div>`; }
