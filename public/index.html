@@ -379,6 +379,13 @@
   .capsule:hover{box-shadow:0 0 0 5px var(--glow);}
   .capsule.selected{border-color:var(--exec); border-width:3px;
     background:linear-gradient(var(--sel),var(--sel)), var(--surface);}
+  /* shift를 누른 채 길게 눌러 구간 통째 선택 — 진행 막대가 없으면 얼마나 더 눌러야
+     하는지 알 수 없어 대부분 중간에 손을 뗀다. shift 없이는 이 경로가 뜨지 않는다. */
+  .capsule.holding::after{content:""; position:absolute; left:12px; right:12px; bottom:3px;
+    height:3px; border-radius:99px; background:var(--exec); pointer-events:none;
+    transform:scaleX(0); transform-origin:left center;
+    animation:holdFill .55s linear forwards;}
+  @keyframes holdFill{to{transform:scaleX(1)}}
   /* 폭 상한을 알약 자체에 묶는다 — 라벨이 나중에 더 긴 LLM 제목으로 교체돼도
      알약 밖으로 새지 않고 말줄임으로 잘린다 (고정 px면 알약보다 넓어질 수 있음) */
   .cap-title{font-size:11.5px; font-weight:650; color:var(--ink); white-space:nowrap;
@@ -748,6 +755,8 @@
         <div><dt>원 클릭</dt><dd>그 자리에서 카드로 펼쳐집니다. 질문 원문, 응답 요지, 사용한 도구, 만진 파일, 소요 시간이 담깁니다. 아래쪽에는 그 턴에 붙였던 <b>이미지</b>와 실제 <b>코드 변경(+/−)</b>이 함께 나옵니다</dd></div>
         <div><dt>원에 마우스 올리기</dt><dd>제목과 한 줄 요약을 미리 봅니다</dd></div>
         <div><dt>캡슐 클릭</dt><dd>제자리에서 펼쳐지고, 펼친 범위가 점선으로 표시됩니다. <b>⟨ 접기</b>나 <kbd>Esc</kbd>·배경 클릭으로 되접습니다</dd></div>
+        <div><dt>캡슐 <kbd>shift</kbd>+짧게 클릭</dt><dd>캡슐이 <b>열립니다</b>. 안에서 원하는 턴을 <kbd>shift</kbd>+클릭해 구간의 끝을 캡슐 중간까지로 잡을 때 씁니다</dd></div>
+        <div><dt>캡슐 <kbd>shift</kbd>+길게 누르기</dt><dd>0.5초쯤 누르면 아래에 진행 막대가 차면서 <b>캡슐 전체가 압축 범위</b>로 잡힙니다(펼쳐지지 않음). <b>여러 캡슐을 이어서 잡으면</b> 가장 이른 것부터 가장 늦은 것까지가 한 범위가 되고, 순서는 상관없습니다</dd></div>
         <div><dt>포탈 ◇ 클릭</dt><dd>건너편 세션으로 이동합니다. 왼쪽 위에 돌아가는 길(브레드크럼)이 쌓입니다</dd></div>
         <div><dt>챕터 바</dt><dd>눈금 하나가 턴 하나입니다. 접히거나 걸러진 턴도 여기엔 전부 있습니다. <b>클릭</b>하면 그 턴으로 이동(접혀 있으면 펼치고), <b>드래그</b>하면 그 구간이 압축 범위로 잡힙니다</dd></div>
       </dl>
@@ -762,7 +771,7 @@
 
       <h3>압축 — 구간을 다른 대화로 넘기기</h3>
       <dl class="keys">
-        <div><dt>① 범위 잡기</dt><dd>턴 하나를 클릭한 뒤 다른 턴을 <b>shift+클릭</b>하거나, <b>챕터 바를 드래그</b>합니다. 주제 행을 shift+클릭해도 됩니다</dd></div>
+        <div><dt>① 범위 잡기</dt><dd>턴 하나를 클릭한 뒤 다른 턴을 <b>shift+클릭</b>하거나, <b>챕터 바를 드래그</b>합니다. 캡슐은 <b>shift+길게 누르기</b>로 통째로, <b>shift+짧게 클릭</b>으로 열어서 안의 턴까지 잡을 수 있습니다</dd></div>
         <div><dt>② 만들기</dt><dd>화면 위에 뜨는 알림에서 <b>[압축 패키지 생성]</b>. 받는 쪽 목적(이어서 구현 / 버그 수정 / 팀원 설명)을 고를 수 있습니다</dd></div>
         <div><dt>③ 결과</dt><dd>목표·요약·결정과 근거·완료/미완·열린 논점이 담긴 문서가 나옵니다. 여기에 코드가 직접 센 <b>만진 파일·실행 명령·실제 코드 변경</b>과, 범위 밖에서만 정의된 <b>용어 부록</b>이 함께 붙습니다. 복사하거나 파일로 내려받아 새 대화에 붙여 넣으면 됩니다</dd></div>
         <div><dt>스킬로 내보내기</dt><dd>같은 범위에서 <b>해결 과정</b>만 뽑아 다른 프로젝트에서 재사용할 문서 초안으로 만듭니다</dd></div>
@@ -1658,7 +1667,7 @@ function capTip(el) {
   const first = el.turns[0], last = el.turns[el.turns.length - 1];
   const dur = first.timestamp && last.endTimestamp
     ? Math.max(0, Math.round((Date.parse(last.endTimestamp) - Date.parse(first.timestamp)) / 60000)) : 0;
-  return `${titleOf(first)} → ${titleOf(last)}\n${el.turns.length}턴 · ${fmtGap(dur)} · 클릭=펼치기 · shift+클릭=범위선택`;
+  return `${titleOf(first)} → ${titleOf(last)}\n${el.turns.length}턴 · ${fmtGap(dur)}\n클릭=펼치기 · shift+길게 누르기=구간 통째 선택`;
 }
 
 function renderSession() {
@@ -1999,15 +2008,45 @@ function makeCapsule(el, y, i) {
   if (isTopic) c.classList.add("topic");
   c.addEventListener("mouseenter", () => showTooltip(c, capTip(el)));
   c.addEventListener("mouseleave", hideTooltip);
+  // 캡슐 통째를 압축 범위로 — shift+클릭과 길게 누르기가 같은 동작을 한다.
+  // 캡슐을 "끝점 하나"가 아니라 "구간"으로 다뤄야 한다: trySetRangeEnd에 마지막 턴만
+  // 넘기면 오른쪽 캡슐을 먼저 고른 뒤 왼쪽 캡슐을 고를 때 범위가 두 캡슐의 안쪽으로
+  // 잘려(왼쪽의 끝 ~ 오른쪽의 처음) 정작 캡슐 내용이 빠진다.
+  // 그래서 시간 순서로 기존 범위와 이 캡슐의 바깥 경계를 합집합으로 넓힌다.
+  const pickWholeCapsule = () => {
+    if (expandedId) closeExpanded(); // 범위를 잡는 동안엔 열려 있던 카드도 치운다
+    selShift = true;
+    const posOf = id => VIEW_SESS.findIndex(t => t.id === id);
+    const nf = posOf(first.id), nl = posOf(last.id);
+    const setCap = () => { selA = first.id; selB = last.id; };
+    if (selA === null || nf < 0 || nl < 0) setCap();
+    else {
+      const a = posOf(selA), b = selB === null ? a : posOf(selB);
+      if (a < 0 || b < 0) setCap();
+      else {
+        const lo = Math.min(a, b, nf), hi = Math.max(a, b, nl);
+        selA = VIEW_SESS[lo].id; selB = VIEW_SESS[hi].id;
+      }
+    }
+    updateSel(); applySelectionClasses();
+  };
+  // shift를 누른 채 캡슐을 다루는 두 갈래 — 어느 쪽이든 "범위를 잡는" 제스처 안에 있다.
+  //   짧게 = 캡슐을 열어 안의 턴을 개별로 고르러 들어간다 (그냥 클릭과 같은 동작)
+  //   길게(0.55초) = 캡슐 구간을 통째로 잡는다
+  // 0.55초는 표준 롱프레스(0.4~0.6초) 범위다. 더 길면 반응이 없는 줄 알고 손을 뗀다.
+  let holdT = null, held = false;
+  const endHold = () => { clearTimeout(holdT); holdT = null; c.classList.remove("holding"); };
+  c.addEventListener("pointerdown", (ev) => {
+    if (ev.button !== 0 || !ev.shiftKey) return; // shift 없이는 롱프레스 경로가 없다
+    held = false;
+    c.classList.add("holding");
+    holdT = setTimeout(() => { held = true; endHold(); hideTooltip(); pickWholeCapsule(); }, 550);
+  });
+  for (const evName of ["pointerup", "pointerleave", "pointercancel"]) c.addEventListener(evName, endHold);
   c.addEventListener("click", (ev) => {
     ev.stopPropagation(); hideTooltip();
-    if (ev.shiftKey) { // 캡슐 통째 범위 선택
-      if (expandedId) closeExpanded(); // 범위를 잡는 동안엔 열려 있던 카드도 치운다
-      if (selA === null) { selA = first.id; selB = last.id; selShift = true; }
-      else trySetRangeEnd(last.id);
-      updateSel(); applySelectionClasses();
-      return;
-    }
+    if (held) { held = false; return; } // 길게 눌러 통째로 잡은 뒤 따라오는 클릭은 무시(펼치지 않음)
+    // shift+짧게도 그냥 클릭과 같이 펼치기 — 안에서 원하는 턴을 shift+클릭으로 고르라는 뜻
     // 재렌더는 열린 카드의 DOM만 지운다 — expandedId를 남겨두면 카드는 사라졌는데
     // 패닝·휠줌·자동갱신이 계속 막힌 "유령 열림" 상태가 된다
     closeExpanded();
@@ -2834,7 +2873,16 @@ function trySetRangeEnd(id) {
   const pa = pathToRoot(selA), pb = pathToRoot(id);
   if (pa.includes(id)) { selB = selA; selA = id; }
   else if (pb.includes(selA)) { selB = id; }
-  // 서로 조상·자손 관계가 아니면 범위가 안 된다 — 그 자리로 앵커만 새로 잡는다
+  else if (SESSION_SCOPE && !BRANCH_SCOPE) {
+    // 한 세션이 resume/continue로 여러 사슬로 나뉘면 사슬을 가로지르는 두 턴은
+    // 조상 관계가 없다(실측: 61턴 세션이 4사슬). 예전에는 여기서 범위를 포기하고
+    // 앵커만 옮겨, 캡슐을 열어 안의 턴을 고르는 흐름이 사슬 경계에서 끊겼다.
+    // 세션 뷰의 선은 시간순이므로 화면상 앞뒤로 범위를 잡는다.
+    const a = VIEW_SESS.findIndex(t => t.id === selA), b = VIEW_SESS.findIndex(t => t.id === id);
+    if (a < 0 || b < 0) { if (NODE_EL[id]) anchorAt(id); return; }
+    selA = VIEW_SESS[Math.min(a, b)].id; selB = VIEW_SESS[Math.max(a, b)].id;
+  }
+  // 전체 트리 뷰에서 조상 관계가 아니면 서로 다른 가지다 — 범위가 성립하지 않으므로 앵커만 옮긴다
   else { if (NODE_EL[id]) anchorAt(id); return; } // 화면에 없는 턴이면 앵커를 옮기지 않는다
   updateSel(); applySelectionClasses();
 }
@@ -2843,7 +2891,20 @@ function rangeIds() {
   if (selB === null) return [selA];
   const full = pathToRoot(selB);
   const i = full.indexOf(selA);
-  return i >= 0 ? full.slice(i) : [selA, selB];
+  if (i >= 0) return full.slice(i);
+  // 트리 조상 관계가 아닌 경우 — 한 세션이 resume/continue로 여러 사슬로 나뉘면
+  // 사슬을 가로지르는 구간에는 조상 관계가 없다(실측: 61턴 세션이 4사슬로 분리).
+  // 예전에는 여기서 [selA, selB] 두 개만 돌려줘, 20턴을 고른 줄 알고 압축하면
+  // 실제로는 2턴만 넘어가는 조용한 오작동이 있었다.
+  // 세션 뷰의 선은 시간순이므로 화면에서 "사이"에 놓인 턴을 그대로 범위로 삼는다.
+  // 전체 트리 뷰에서는 쓰지 않는다 — 거기서 조상 관계가 아니라는 건 서로 다른 가지라는
+  // 뜻이고, 시간순으로 이으면 실제로는 갈라진 두 갈래를 한 줄처럼 묶어버린다.
+  if (SESSION_SCOPE && !BRANCH_SCOPE) {
+    const a = VIEW_SESS.findIndex(t => t.id === selA);
+    const b = VIEW_SESS.findIndex(t => t.id === selB);
+    if (a >= 0 && b >= 0) return VIEW_SESS.slice(Math.min(a, b), Math.max(a, b) + 1).map(t => t.id);
+  }
+  return [selA, selB];
 }
 // expanding a node used to dim everything off its path to root — removed per
 // feedback: the rest of the tree should stay fully visible/colored regardless
