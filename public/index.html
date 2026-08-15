@@ -179,11 +179,9 @@
   body.below-be #selbar{border-color:#d64545;}
   body.below-be #selbar b{color:#d64545;}
   #sb-be-note{display:none; color:#d64545; font-weight:650;}
-  #sb-req-wrap{display:flex; gap:6px; align-items:center;}
-  #sb-request{width:230px; font:inherit; font-size:12.5px; padding:7px 10px; border-radius:99px;
+  #sb-request{width:300px; font:inherit; font-size:12.5px; padding:7px 10px; border-radius:99px;
     border:1px solid var(--line); background:var(--surface); color:var(--ink);}
   #sb-request:focus{outline:2px solid color-mix(in srgb, var(--exec) 45%, transparent); outline-offset:1px;}
-  #sb-preset{padding:7px 10px;}
   body.below-be #selbar.active #sb-be-note{display:inline;}
   /* absolute + translate(-50%,-50%) centers the icon's own box on the node's
      exact center point — robust regardless of odd/even pixel rounding on the
@@ -777,7 +775,12 @@
       <h3>압축 — 구간을 다른 대화로 넘기기</h3>
       <dl class="keys">
         <div><dt>① 범위 잡기</dt><dd>턴 하나를 클릭한 뒤 다른 턴을 <b>shift+클릭</b>하거나, <b>챕터 바를 드래그</b>합니다. 캡슐은 <b>shift+길게 누르기</b>로 통째로, <b>shift+짧게 클릭</b>으로 열어서 안의 턴까지 잡을 수 있습니다</dd></div>
-        <div><dt>② 만들기</dt><dd>화면 위에 뜨는 알림에서 <b>[압축 패키지 생성]</b>. 받는 쪽 목적(이어서 구현 / 버그 수정 / 팀원 설명)을 고를 수 있습니다</dd></div>
+        <div><dt>② 만들기</dt><dd>화면 위에 뜨는 알림에서 <b>[압축 패키지 생성]</b>. 옆의 <b>요청</b>란은 비워도 되고, 적으면 요청이 기본 규칙보다 우선합니다 — 무엇을 강조·생략할지, 어떤 말투·언어로 쓸지를 정합니다(출력 형식만 고정)</dd></div>
+        <div><dt>요청 예시</dt><dd>세 칸 양식으로 적으면 결과가 일관됩니다 — <b>받는 사람 · 강조 · 언어</b>.<br>
+          <code>받는 사람: 같은 코드베이스를 이어갈 AI 세션 · 강조: 남은 작업과 현재 위치, 지켜야 할 설정값 · 언어: 한국어</code><br>
+          <code>받는 사람: 이 문제를 고칠 사람 · 강조: 에러 원문과 재현 명령, 시도했다 되돌린 것 · 언어: 한국어</code><br>
+          <code>받는 사람: 코드 맥락 없는 팀원 · 강조: 결정과 그 이유, 누가 확인했는지 · 언어: 한국어</code><br>
+          한 줄도 됩니다: <code>English, errors first</code> · <code>짧게, 결정사항만</code></dd></div>
         <div><dt>③ 결과</dt><dd>목표·요약·결정과 근거·완료/미완·열린 논점이 담긴 문서가 나옵니다. 여기에 코드가 직접 센 <b>만진 파일·실행 명령·실제 코드 변경</b>과, 범위 밖에서만 정의된 <b>용어 부록</b>이 함께 붙습니다. 복사하거나 파일로 내려받아 새 대화에 붙여 넣으면 됩니다</dd></div>
         <div><dt>스킬로 내보내기</dt><dd>같은 범위에서 <b>해결 과정</b>만 뽑아 다른 프로젝트에서 재사용할 문서 초안으로 만듭니다</dd></div>
       </dl>
@@ -799,12 +802,7 @@
     <div id="sb-active-group">
       <span>경로 <b id="sb-n"></b>턴 선택됨</span>
       <span id="sb-be-note">손익분기 미만 — 패키지가 원문보다 클 수 있음</span>
-      <span id="sb-req-wrap">
-        <input id="sb-request" type="text" placeholder="요청 (선택) — 예: 영어로 써줘, 에러 위주로" title="압축에 반영할 요청. 비중·표현·언어를 바꾸며 사실(경로·명령·에러·수치)은 요청과 무관하게 보존됩니다">
-        <select id="sb-preset" class="btn ghost" title="자주 쓰는 요청 프리셋 — 고르면 입력란에 채워지고 수정할 수 있습니다">
-          <option value="">프리셋</option>
-        </select>
-      </span>
+      <input id="sb-request" type="text" placeholder="요청 (선택) — 예: 받는 사람: 팀원 · 강조: 결정과 이유 · 언어: 한국어" title="압축에 반영할 요청. 요청이 규칙보다 우선하며 비중·표현·언어·생략을 정합니다. 예시 양식은 도움말(?)의 '압축' 항목 참고">
       <button class="btn primary" id="sb-go">압축 패키지 생성</button>
       <button class="btn ghost" id="sb-skill" title="이 구간의 해결 과정을 재사용 가능한 SKILL.md 초안으로 증류 (사람 검수 후 배포)">스킬로 내보내기</button>
       <button class="btn ghost" id="sb-clear">해제</button>
@@ -3072,24 +3070,6 @@ document.getElementById("sb-clear").addEventListener("click", (ev) => { ev.stopP
 
 let compactWarnedKey = null; // 손익분기 미만 경고를 이미 보여준 구간 (재클릭 시 진행)
 
-// 압축 요청 프리셋 (v3.10) — 서버가 단일 정본(prompt.ts REQUEST_PRESETS)을 내려준다.
-// 고르면 입력란에 문안을 채우고 사용자가 고쳐 쓸 수 있다. 목적 셀렉트(코드 분기 3종)의 대체.
-(async () => {
-  try {
-    const r = await fetch("/api/compact/presets").then(r => r.json());
-    const sel = document.getElementById("sb-preset");
-    for (const [key, p] of Object.entries(r.presets || {})) {
-      const o = document.createElement("option");
-      o.value = key; o.textContent = p.label; o.dataset.text = p.text;
-      sel.appendChild(o);
-    }
-    sel.addEventListener("change", () => {
-      const o = sel.selectedOptions[0];
-      if (o && o.dataset.text) document.getElementById("sb-request").value = o.dataset.text;
-      sel.value = "";
-    });
-  } catch (e) { /* 프리셋 없이도 입력란은 동작 */ }
-})();
 document.getElementById("sb-go").addEventListener("click", async (ev) => {
   ev.stopPropagation();
   const btn = document.getElementById("sb-go");
