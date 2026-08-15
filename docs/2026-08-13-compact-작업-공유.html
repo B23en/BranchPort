@@ -113,7 +113,7 @@
 
 <header>
   <h1>BranchPort compact 작업 공유</h1>
-  <div class="sub">프롬프트 재설계 · 평가 지표 구축 · 용어 부록 — 2026-08-13 작성, 팀 공유용</div>
+  <div class="sub">프롬프트 재설계 · 평가 지표 구축 · 용어 부록 — 2026-08-13 작성 · 2026-08-14 갱신(handoff 새 질문셋 재검), 팀 공유용</div>
 </header>
 
 <p style="margin-top:20px">
@@ -133,23 +133,66 @@ BranchPort의 <b>compact</b>는 Claude Code 세션 로그(<code>~/.claude/projec
 </div>
 
 <!-- ══════════════════ 1. 프롬프트 ══════════════════ -->
-<h2><span class="no">1</span>요약 프롬프트 재설계 — v3.5 → v3.8.1</h2>
-<p class="lead">각 버전은 실측에서 발견된 구체적 실패를 고치고, 같은 지표로 회귀 확인 후 채택했습니다.</p>
+<h2><span class="no">1</span>요약 프롬프트 재설계 — 최종본 v3.8.1의 특징</h2>
+<p class="lead">실측에서 발견된 실패를 하나씩 고쳐 누적한 결과물입니다. 최종본이 지금 갖춘 특징과 기능은 다음과 같습니다.</p>
 
 <div class="card tablewrap">
 <table>
-  <tr><th style="width:110px">버전</th><th>무엇을 고쳤나</th><th class="num" style="width:170px">실측 효과</th></tr>
-  <tr><td><b>v3.5</b></td><td>수치 보존 규칙 — 개수·버전·측정값을 원문 그대로 유지</td><td class="num">QA 보존율 86% → <b>92%</b></td></tr>
-  <tr><td><b>v3.6</b></td><td>언어 보존 — 영어 세션에 한글 요약이 섞이는 비결정 누출 발견(운영자 언어 설정, 모델 무관).
-      서버 쪽 결정론 판정 + 명시 지시 + 위반 시 재시도</td><td class="num">위반 3건 → <b>0건</b></td></tr>
-  <tr><td><b>명령 캡 60</b></td><td>사실층 명령 목록 20개 캡을 60으로 상향</td><td class="num">명령 recall 65~81% → <b>97%</b></td></tr>
-  <tr><td><b>v3.7→v3.8</b></td><td>목적 프로파일(continue / bugfix / handoff) — 일반론 지침을 실측 기반으로 재작성</td><td class="num">4세션×4조건×10문항 A/B</td></tr>
-  <tr><td><b>v3.8.1</b></td><td>handoff에서 열거·에러 식별자가 서사에 밀려 탈락 → <i>"Narrative never eats facts"</i> 가드 추가</td><td class="num">handoff 75% → <b>80%</b></td></tr>
+  <tr><th style="width:150px">특징 / 기능</th><th>내용</th><th class="num" style="width:150px">실측 근거</th></tr>
+  <tr><td><b>실행 프레이밍 ·<br>인젝션 방어</b></td><td>시스템 프롬프트를 통째로 대체해 사용자 전역 설정·메모리 유입을 차단.
+      도구 호출 전면 금지, 트랜스크립트 안의 지시("ignore previous instructions" 류)는 따르지 않고 내용으로만 기록</td><td class="num">언어 오염 프로브로 확인</td></tr>
+  <tr><td><b>언어 고정</b></td><td>서버가 한글 비율로 세션 주 언어를 결정론 판정해 프롬프트에 명시 주입("한국어로"/"영어로"),
+      산출물 언어가 어긋나면 서버가 1회 재시도</td><td class="num">위반 <b>0건</b></td></tr>
+  <tr><td><b>식별자 · 수치<br>verbatim 보존</b></td><td>파일 경로·함수명·브랜치·명령·URL·에러 문자열과 개수·포트·버전·설정값 등 측정값을
+      원문 그대로, 지시 대상에 붙여 기록("backend :8001"). 모호한 수량어("몇 개", "크게 늘어남") 금지</td><td class="num">QA 보존율 <b>92%</b></td></tr>
+  <tr><td><b>사실 왜곡 방지<br>규칙군</b></td><td>증거(반박된 가설을 사실로 굳히지 않기) · 인과(수정 직후 통과 ≠ 인과 증명) ·
+      절단(잘린 출력 보간 금지) · 시점(수정 전 관찰을 현재형으로 남기지 않기) ·
+      귀속(어시스턴트 권고가 "사용자 제약"으로 승격되는 것 차단)</td><td class="num">교차 감사 결함 기반</td></tr>
+  <tr><td><b>밀도 규칙 ·<br>출력 예산</b></td><td>출력을 트랜스크립트의 ~10%(3,000~8,000자)로 제한. 압축 압력은 표현에만 작용 —
+      식별자·에러·수치·사용자 제약은 비압축 대상이라 예산 초과가 허용됨</td><td class="num">잔존율 회귀 방지</td></tr>
+  <tr><td><b>고정 9키<br>JSON 스키마</b></td><td>goal · summary · decisions · state(done/todo/current_focus) · open_threads ·
+      errors · constraints · env · gotchas. 목적과 무관하게 스키마 고정 — 사실층 병합·평가 스크립트·기존 벤치마크와의 비교 유지</td><td class="num">61세션 동일 기준</td></tr>
+  <tr><td><b>목적 프로파일<br>3종</b></td><td>수신자 프로파일 블록으로 필드 가중치만 조정(사실 삭제는 불허) —
+      <b>continue</b>: 중단 지점·미완 항목 열거·다음 편집이 지켜야 할 수치 우선 /
+      <b>bugfix</b>: 에러 전문·재현 명령 전문·실패한 처방·재현 함정 우선 /
+      <b>handoff</b>: 사람 독자용 홀로 서는 서사·용어 gloss·행위자 귀속·근거 확장</td><td class="num">continue <b>85%</b> · bugfix 83% · handoff 80%</td></tr>
+  <tr><td><b>"Narrative never<br>eats facts" 가드</b></td><td>handoff에서 서사 확장이 열거·에러 식별자를 밀어내지 못하게 —
+      확장 공간은 표현에서만 나오고 기록(이름·에러·제약)에서는 나오지 않음</td><td class="num">handoff 75% → <b>80%</b></td></tr>
+  <tr><td><b>명령 캡 60<br><span style="font-weight:normal">(사실층 설정)</span></b></td><td>프롬프트가 아닌 사실층(기계 병합) 설정이지만 패키지 품질의 한 축 — 명령 목록 캡 60개</td><td class="num">명령 recall <b>97%</b></td></tr>
 </table>
 </div>
 
 <p>목적 프로파일별 QA 보존율(동일 질문지): 목적 없음 80% · continue <b>85%</b> · bugfix 83% · handoff 80%.
 key-fact(수정 파일) recall은 목적과 무관하게 <b>100%</b> — 사실층이 기계 병합이기 때문입니다.</p>
+
+<p style="font-size:14px"><b>가드(guard)란?</b> 프롬프트에 넣는 한 줄짜리 안전장치 규칙입니다.
+handoff 프로파일은 사람 독자를 위해 서사(summary·decisions)에 예산을 더 주는데, 실측에서 그 서사 확장이
+용어 목록·에러 식별자 같은 <b>사실 나열을 밀어내며</b> 오답을 만들었습니다(고유 오답 3건 전부).
+그래서 "서사를 늘릴 공간은 다른 문장의 <b>표현을 압축해서</b> 만들고, 이름·에러·제약 같은 <b>사실 기록에서 가져오지 말라</b>"를
+명시한 것이 <i>"Narrative never eats facts"</i> 가드입니다.
+아래 재검 표의 "가드 전(v3.8) / 가드 후(v3.8.1)"는 이 한 줄의 유무만 다른 패키지를 비교한 것입니다.</p>
+
+<div class="card tablewrap">
+<h3 style="margin-top:0">새 질문셋 재검 (2026-08-14) — 가드 개선은 과적합이 아님</h3>
+<p style="font-size:14px">v3.8.1 가드는 튜닝에 쓴 질문지로 재측정했다는 한계가 있었습니다.
+그래서 기존 질문과 <b>같은 사실을 묻는 표현 변형까지 금지</b>한 새 질문셋 200문항으로,
+같은 패키지들을 재채점했습니다(패키지 재압축 없음 — 질문셋 효과만 분리, 구 v3.8 handoff 패키지 포함 5조건×4세션).</p>
+<table>
+  <tr><th>목적</th><th class="num">새 질문셋</th><th class="num">(참고) 기존 질문셋</th></tr>
+  <tr><td>목적 없음 (대조군)</td><td class="num">63%</td><td class="num">80%</td></tr>
+  <tr><td>continue</td><td class="num">48%</td><td class="num">85%</td></tr>
+  <tr><td>bugfix</td><td class="num">55%</td><td class="num">83%</td></tr>
+  <tr><td>handoff v3.8 (가드 전)</td><td class="num">63%</td><td class="num">75%</td></tr>
+  <tr><td><b>handoff v3.8.1 (가드 후)</b></td><td class="num win">68%</td><td class="num">80%</td></tr>
+</table>
+<ul style="font-size:14px; margin-bottom:2px">
+  <li>미접촉 질문에서도 가드 개선 방향 유지(v3.8 63% → v3.8.1 <b>68%</b>, 세션별 악화 0) —
+      새 질문셋에서 <b>전 조건 최고</b>이고, 구 질문지의 대조군 미달도 재발하지 않았습니다</li>
+  <li>절대 수치의 전반 하락은 <b>2차 추첨 효과</b> — 두드러진 사실이 기존 질문지에 이미 소진돼
+      꼬리 사실만 출제 대상으로 남습니다. 질문셋 사이 절대 비교는 무효, 같은 질문셋 안의 조건 비교만 유효</li>
+  <li>표본 40문항/조건 — 조건 간 ±2문항은 노이즈 경계. 결론은 "개선 방향 유지·회귀 없음"까지입니다</li>
+</ul>
+</div>
 
 <!-- ══════════════════ 2. 평가 지표 ══════════════════ -->
 <h2><span class="no">2</span>평가 지표 구축 — "압축이 잘 됐다"를 수치로</h2>
@@ -268,16 +311,16 @@ SWE-chat 공개 데이터셋에서 경계 보유 세션을 두 차례(+30, +20) 
 <div class="note">
 <b>알고 있는 한계 (보고서에도 병기)</b>
 <ul style="margin:0">
-  <li>~~버전 혼합~~ → <b>해소</b>: 기존 11세션도 같은 질문지로 v3.8.1·캡60 재측정, 61세션 전부 동일 기준 (v3.5 원기록은 legacy 보존)</li>
+  <li><s>버전 혼합</s> → <b>해소</b>: 기존 11세션도 같은 질문지로 v3.8.1·캡60 재측정, 61세션 전부 동일 기준 (v3.5 원기록은 legacy 보존)</li>
   <li>내장 요약의 생성 모델·버전은 세션마다 다르고 미상 (프로덕션 산출물의 본질적 한계)</li>
   <li>우리 패키지가 평균 1.6배 커서 QA에 구조적으로 유리할 수 있음 — 더 작으면서 이긴 반례 2세션 존재</li>
-  <li>handoff 가드(v3.8.1)는 튜닝한 질문지로 재측정 → 과적합 위험. 새 질문셋 재검 필요</li>
+  <li><s>handoff 가드 과적합 위험</s> → <b>해소</b>: 무겹침 새 질문셋 5조건×4세션 재검, 개선 유지·회귀 없음 (§1)</li>
 </ul>
 </div>
 
 <ul>
   <li><b>+20세션 추가</b> — 완료. 61세션에서도 결론 동일, CI 폭 13.2%p → 10.0%p로 축소</li>
-  <li><b>새 질문셋으로 handoff 재검</b> — 과적합 방어</li>
+  <li><b>새 질문셋으로 handoff 재검</b> — 완료. 미접촉 질문에서도 가드 개선 유지, 전 조건 최고 (§1)</li>
   <li><b>Githru식 과제 완료 시간 A/B</b> — 원시 로그 vs BranchPort로 같은 과제 수행, 시간·정답률 비교. <b>오늘 이 자리에서 팀원 참여로 가능</b></li>
   <li>결과보고서 작성 착수 (제출 마감 2026-08-27)</li>
 </ul>
