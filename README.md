@@ -28,6 +28,22 @@ node dist/server.js
 cp -r .claude/skills/branchport-recall ~/.claude/skills/
 ```
 
+## 압축 프롬프트 바꾸기
+
+압축(요약)에 쓰는 프롬프트는 통째로 사용자 파일로 갈아끼울 수 있습니다. 기본값을 파일로 내보낸 뒤 고치세요:
+
+```bash
+node dist/server.js --export-compact-config
+# → ~/.branchport/compact-prompt.md   (프롬프트 템플릿)
+#   ~/.branchport/compact-system.md   (시스템 프롬프트)
+```
+
+(화면의 도움말 `?` → "프롬프트 바꾸기"의 버튼으로도 됩니다.) 파일은 호출마다 다시 읽으므로 재시작이 필요 없습니다.
+템플릿 자리표시자는 `{{transcript}}`(필수) · `{{request}}`(압축 시 입력한 요청) · `{{schema}}` · `{{output_budget}}` ·
+`{{#if request}}…{{/if}}` 다섯 가지이고, `{{transcript}}`가 없거나 문법이 깨지면 내장 기본값으로 돌아갑니다.
+위치는 `BRANCHPORT_HOME` 환경변수로 바꿀 수 있습니다. 압축 시 요청란에 적는 한 줄("받는 사람 · 강조 · 언어")은
+기본 규칙보다 우선하므로, 매번 다른 지시는 요청란에, 항상 같은 지시는 템플릿 파일에 두면 됩니다.
+
 ## 기여하기
 
 작업 규칙(브랜치 · PR · 머지 절차)과 코드 규칙은 [CLAUDE.md](./CLAUDE.md)에 있습니다.

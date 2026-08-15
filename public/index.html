@@ -783,6 +783,7 @@
           한 줄도 됩니다: <code>English, errors first</code> · <code>짧게, 결정사항만</code></dd></div>
         <div><dt>③ 결과</dt><dd>목표·요약·결정과 근거·완료/미완·열린 논점이 담긴 문서가 나옵니다. 여기에 코드가 직접 센 <b>만진 파일·실행 명령·실제 코드 변경</b>과, 범위 밖에서만 정의된 <b>용어 부록</b>이 함께 붙습니다. 복사하거나 파일로 내려받아 새 대화에 붙여 넣으면 됩니다</dd></div>
         <div><dt>스킬로 내보내기</dt><dd>같은 범위에서 <b>해결 과정</b>만 뽑아 다른 프로젝트에서 재사용할 문서 초안으로 만듭니다</dd></div>
+        <div><dt>프롬프트 바꾸기</dt><dd>압축에 쓰는 프롬프트는 통째로 사용자 파일로 갈아끼울 수 있습니다. <button class="btn ghost" id="help-export-tpl" style="padding:3px 10px; font-size:12px">기본 프롬프트를 파일로 내보내기</button> — <code id="help-tpl-home">~/.branchport/</code>에 <code>compact-prompt.md</code>(템플릿)와 <code>compact-system.md</code>(시스템 프롬프트)를 만듭니다(이미 있으면 건드리지 않음). 파일을 고치면 다음 압축부터 바로 반영되고, <code>{{transcript}}</code> 자리가 없거나 문법이 깨지면 내장 기본값으로 돌아갑니다. <span id="help-tpl-status" class="hnote" style="display:inline"></span></dd></div>
       </dl>
 
       <h3>갈래 — 그 시점의 AI와 이어 말하기</h3>
@@ -996,6 +997,33 @@ function hideTooltip() {
 }
 const api = (url, body) => fetch(url, { method:"POST",
   headers:{ "Content-Type":"application/json", "X-BranchPort":"1" }, body: JSON.stringify(body) }).then(r => r.json());
+
+// 압축 프롬프트 커스텀 (v3.11) — 현재 소스 표시 + 기본값 내보내기
+async function refreshTemplateStatus() {
+  const el = document.getElementById("help-tpl-status");
+  if (!el) return;
+  try {
+    const r = await fetch("/api/compact/template").then(r => r.json());
+    document.getElementById("help-tpl-home").textContent = r.home.replace(/\\/g, "/") + "/";
+    const custom = r.template.source !== "builtin";
+    el.textContent = custom
+      ? `현재: 사용자 템플릿 사용 중 (${r.template.sha1})${r.template.warnings?.length ? " · 경고: " + r.template.warnings.join("; ") : ""}`
+      : r.template.error ? `현재: 내장 기본값 — 파일 오류로 폴백: ${r.template.error}` : "현재: 내장 기본 프롬프트";
+    const req = document.getElementById("sb-request");
+    if (req) req.title = (custom ? "[사용자 템플릿 적용 중] " : "") + "압축에 반영할 요청. 요청이 규칙보다 우선하며 비중·표현·언어·생략을 정합니다. 예시 양식은 도움말(?)의 '압축' 항목 참고";
+  } catch (e) { el.textContent = ""; }
+}
+document.getElementById("help-export-tpl")?.addEventListener("click", async () => {
+  const el = document.getElementById("help-tpl-status");
+  try {
+    const r = await api("/api/compact/template/export", {});
+    if (r.error) throw new Error(r.error);
+    el.textContent = (r.written.length ? "생성: " + r.written.map(f => f.replace(/\\/g, "/")).join(", ") : "") +
+      (r.skipped.length ? (r.written.length ? " · " : "") + "이미 있음(그대로 둠): " + r.skipped.map(f => f.split(/[\\/]/).pop()).join(", ") : "");
+    setTimeout(refreshTemplateStatus, 1500);
+  } catch (e) { el.textContent = "내보내기 실패: " + e.message; }
+});
+refreshTemplateStatus();
 
 // 대기 오버레이 — 오래 걸리는 claude 호출 동안만
 function showBusy(msg, sub) {

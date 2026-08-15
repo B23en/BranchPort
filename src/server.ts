@@ -8,7 +8,8 @@ import { listProjects, listSessionFiles, listForkFiles } from './discover';
 import { buildForest } from './tree';
 import { buildTurnForest } from './turns';
 import { renderTranscript } from './transcript';
-import { buildCompactPrompt, parseSummary, normalizeRequest, COMPACT_SYSTEM_PROMPT } from './prompt';
+import { renderCompactPrompt, parseSummary, normalizeRequest, COMPACT_SYSTEM_PROMPT } from './prompt';
+import { loadCompactTemplate, loadCompactSystemPrompt, exportCompactDefaults, COMPACT_TEMPLATE_FILE, COMPACT_SYSTEM_FILE, BRANCHPORT_HOME } from './config';
 import { splitAncestorSegments, findAncestorEvidence, buildGlossaryPrompt, parseGlossary, GlossaryItem, AncestorSegment, identTokens } from './glossary';
 import { buildSearchIndex, searchIndex, persistIndex, relatedToRange, SearchIndex, SearchHit } from './search';
 import { Turn } from './types';
@@ -1104,7 +1105,11 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
     // v3.6~v3.8의 한글 비율 판정·언어 hard rule·불일치 재시도는 제거 (prompt.ts 주석 참고).
     // 사용자 요청 (v3.10): UI 입력란의 자유 텍스트. 프리셋·목적 키는 없다 — 요청 원문이 전부다.
     const userRequest = normalizeRequest(request);
-    const prompt = buildCompactPrompt(transcript, userRequest);
+    // 프롬프트 템플릿·시스템 프롬프트 (v3.11): ~/.branchport 의 사용자 파일이 있으면 그것, 없으면 내장.
+    // 어떤 프롬프트로 만든 패키지인지 meta.promptTemplate 에 남긴다(실측 재현성).
+    const tpl = loadCompactTemplate();
+    const sysPrompt = loadCompactSystemPrompt();
+    const prompt = renderCompactPrompt(tpl.text, { transcript, request: userRequest });
 
     // 용어 부록(범위 밖 정의) 후보 — 범위에서 참조되는 식별자의 첫 등장 스니펫을
     // 조상 턴(범위 이전)에서 기계 검색으로 수집. 실측 근거: OOR 보존율 23%
@@ -1186,7 +1191,7 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
     // 재실행이면 통과하므로, 모델이 실행됐는데 파싱만 실패한 경우 1회 자동 재시도한다.
     const runCompact = (attempt: number) => askClaude(prompt, {
       model: typeof model === 'string' ? model : undefined,
-      systemPrompt: COMPACT_SYSTEM_PROMPT, json: true, noTools: true, timeoutMs: 420_000,
+      systemPrompt: sysPrompt.text, json: true, noTools: true, timeoutMs: 420_000,
     }, (out, err, code, metrics) => {
       try {
         const S = parseSummary(out);
@@ -1312,6 +1317,8 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
           meta: {
             generated: new Date().toISOString(),
             request: userRequest || null,
+            promptTemplate: { source: tpl.source, sha1: tpl.sha1, ...(tpl.error ? { error: tpl.error } : {}), ...(tpl.warnings ? { warnings: tpl.warnings } : {}) },
+            systemPrompt: { source: sysPrompt.source, sha1: sysPrompt.sha1 },
             transcriptChars: transcript.length, promptChars: prompt.length,
             model: typeof model === 'string' && ALLOWED_MODELS.has(model) ? model : 'default',
             attempts: attempt, claude: metrics,
@@ -1545,6 +1552,11 @@ const server = http.createServer((req, res) => {
 
   if (req.method === 'POST' && req.url === '/api/compact') return handleCompact(req, res);
   if (req.method === 'POST' && req.url === '/api/compact/estimate') return handleEstimate(req, res);
+  if (req.method === 'POST' && req.url === '/api/compact/template/export') {
+    // 기본 템플릿·시스템 프롬프트를 사용자 파일로 내보내기 — 커스텀의 시작점. 있는 파일은 덮어쓰지 않는다.
+    try { return sendJson(res, 200, { home: BRANCHPORT_HOME, ...exportCompactDefaults() }); }
+    catch (e: any) { return sendJson(res, 500, { error: String(e?.message ?? e) }); }
+  }
   if (req.method === 'POST' && req.url === '/api/label') return handleLabel(req, res);
   if (req.method === 'POST' && req.url === '/api/capsule-label') return handleCapsuleLabel(req, res);
   if (req.method === 'POST' && req.url === '/api/topics') return handleTopics(req, res);
@@ -1655,6 +1667,16 @@ const server = http.createServer((req, res) => {
       .catch((e: any) => sendJson(res, 500, { error: e?.message ?? String(e) }));
   }
 
+  if (url.pathname === '/api/compact/template') {
+    // 현재 적용 중인 압축 프롬프트 — 어디서 왔는지(내장/파일)와 내용. UI 도움말·디버깅용.
+    const tpl = loadCompactTemplate(), sys = loadCompactSystemPrompt();
+    return sendJson(res, 200, {
+      home: BRANCHPORT_HOME,
+      template: { source: tpl.source, file: COMPACT_TEMPLATE_FILE, sha1: tpl.sha1, error: tpl.error ?? null, warnings: tpl.warnings ?? [], text: tpl.text },
+      systemPrompt: { source: sys.source, file: COMPACT_SYSTEM_FILE, sha1: sys.sha1, text: sys.text },
+    });
+  }
+
   if (url.pathname === '/api/labels') {
     const project = url.searchParams.get('project');
     if (!project) return sendJson(res, 400, { error: 'missing ?project=' });
@@ -1736,6 +1758,14 @@ const server = http.createServer((req, res) => {
 
   return serveStatic(url.pathname, res);
 });
+
+if (process.argv.includes('--export-compact-config')) {
+  const r = exportCompactDefaults();
+  for (const f of r.written) console.log(`생성: ${f}`);
+  for (const f of r.skipped) console.log(`이미 있음(덮어쓰지 않음): ${f}`);
+  console.log(`압축 프롬프트 템플릿을 고치려면 위 파일을 편집하세요 — 호출마다 다시 읽습니다.`);
+  process.exit(0);
+}
 
 server.listen(PORT, '127.0.0.1', () => {
   const url = `http://127.0.0.1:${PORT}`;
