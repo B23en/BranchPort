@@ -8,7 +8,7 @@ import { listProjects, listSessionFiles, listForkFiles } from './discover';
 import { buildForest } from './tree';
 import { buildTurnForest } from './turns';
 import { renderTranscript } from './transcript';
-import { buildCompactPrompt, parseSummary, normalizePurpose, COMPACT_SYSTEM_PROMPT } from './prompt';
+import { buildCompactPrompt, parseSummary, normalizeRequest, REQUEST_PRESETS, COMPACT_SYSTEM_PROMPT } from './prompt';
 import { splitAncestorSegments, findAncestorEvidence, buildGlossaryPrompt, parseGlossary, GlossaryItem, AncestorSegment, identTokens } from './glossary';
 import { buildSearchIndex, searchIndex, persistIndex, relatedToRange, SearchIndex, SearchHit } from './search';
 import { Turn } from './types';
@@ -325,8 +325,8 @@ ${items}
   });
 }
 
-// 목적별 지시는 prompt.ts의 PURPOSE_BLOCKS(v3.7)로 옮겼다 — 한국어 한 줄을 영어 프롬프트에
-// 삽입하던 기존 방식이 v3.6 언어 판정과 충돌했다. 서버는 UI가 보낸 키를 그대로 넘긴다.
+// 목적별 지시(v3.7~v3.8.1 PURPOSE_BLOCKS)는 v3.10에서 사용자 자유 텍스트 요청으로 대체됐다 —
+// prompt.ts REQUEST_PRESETS 주석 참고. 서버는 UI가 보낸 request 문자열을 정리해 넘긴다.
 
 // ── 캡슐 제목: 구간 첫 턴 제목 대신 구간 전체를 대표하는 LLM 제목 ─────────────
 // 재료는 멤버 턴들의 기존 라벨(제목·요약) — 원문 재입력 없이 배치 1회로 생성.
@@ -1021,7 +1021,7 @@ ${hist ? '\n[이 브랜치에서 나눈 대화]\n' + hist : ''}
 }
 
 function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
-  readBody(req, res, 10_000, async ({ project, turnIds, model, purpose, glossary, glossaryModel }) => {
+  readBody(req, res, 20_000, async ({ project, turnIds, model, request, purpose, glossary, glossaryModel }) => {
     try { // 파싱 중 파일 로테이션 등 비동기 예외가 프로세스를 죽이지 않게 — 다른 핸들러와 동일
     if (!project || !Array.isArray(turnIds) || !turnIds.length) {
       return sendJson(res, 400, { error: 'project와 turnIds가 필요합니다' });
@@ -1102,7 +1102,11 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
 
     // 산출물 언어는 강제하지 않는다 (v3.9) — 사용자의 환경 설정과 모델 판단에 맡긴다.
     // v3.6~v3.8의 한글 비율 판정·언어 hard rule·불일치 재시도는 제거 (prompt.ts 주석 참고).
-    const prompt = buildCompactPrompt(transcript, purpose);
+    // 사용자 요청 (v3.10): UI 입력란의 자유 텍스트. 레거시 purpose 키(batch-compact.mjs 등
+    // 실측 스크립트)는 같은 문안의 프리셋으로 매핑해 호환을 유지한다.
+    const legacyPreset = typeof purpose === 'string' ? REQUEST_PRESETS[purpose] : undefined;
+    const userRequest = normalizeRequest(typeof request === 'string' && request.trim() ? request : legacyPreset?.text);
+    const prompt = buildCompactPrompt(transcript, userRequest);
 
     // 용어 부록(범위 밖 정의) 후보 — 범위에서 참조되는 식별자의 첫 등장 스니펫을
     // 조상 턴(범위 이전)에서 기계 검색으로 수집. 실측 근거: OOR 보존율 23%
@@ -1308,7 +1312,9 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
         } catch (e: any) { console.error('[skillCandidate 판정 실패 — 생략]', e?.message); }
         const jsonPkg = {
           meta: {
-            generated: new Date().toISOString(), purpose: normalizePurpose(purpose),
+            generated: new Date().toISOString(),
+            request: userRequest || null,
+            purpose: legacyPreset ? purpose : null, // 레거시 프리셋 키 (실측 스크립트 호환)
             transcriptChars: transcript.length, promptChars: prompt.length,
             model: typeof model === 'string' && ALLOWED_MODELS.has(model) ? model : 'default',
             attempts: attempt, claude: metrics,
@@ -1650,6 +1656,10 @@ const server = http.createServer((req, res) => {
         return respondSearch(idx, true);
       })
       .catch((e: any) => sendJson(res, 500, { error: e?.message ?? String(e) }));
+  }
+
+  if (url.pathname === '/api/compact/presets') {
+    return sendJson(res, 200, { presets: REQUEST_PRESETS });
   }
 
   if (url.pathname === '/api/labels') {
