@@ -1100,22 +1100,9 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
     // 시크릿 마스킹은 상태층뿐 아니라 LLM에 보내는 트랜스크립트 원문에도 적용한다
     const transcript = sanitize(renderTranscript(range, forest.roots, forest.toolResults));
 
-    // 세션 주 언어 결정론 판정 (v3.6) — 사용자 프롬프트의 한글 비율. 혼합 구간(5~15%)은
-    // 판정 보류(null)해 기존 추상 규칙으로 둔다. lang-preserve 실측·프로브 근거:
-    // 언어를 모델 판단에 맡기면 운영자 언어 설정이 비결정적으로 누출된다.
-    const hangulRatio = (text: string) => {
-      const h = (text.match(/[가-힣]/g) ?? []).length;
-      const l = (text.match(/[A-Za-z]/g) ?? []).length;
-      return h + l ? h / (h + l) : 0;
-    };
-    const userHangul = hangulRatio(range.map(t => t.prompt).filter(p => p && p !== '(계속)').join('\n'));
-    const lang = userHangul >= 0.15 ? 'ko' as const : userHangul < 0.05 ? 'en' as const : null;
-    const prompt = buildCompactPrompt(transcript, purpose, lang);
-    const summaryLangText = (S: ReturnType<typeof parseSummary> & object) => [
-      S.goal, S.summary, ...S.decisions.flatMap(d => [d.d, d.why]),
-      ...S.state.done, ...S.state.todo, S.state.current_focus, ...S.open_threads,
-      ...S.errors.flatMap(e => [e.error, e.fix]), ...S.constraints, ...S.env, ...S.gotchas,
-    ].filter(Boolean).join('\n');
+    // 산출물 언어는 강제하지 않는다 (v3.9) — 사용자의 환경 설정과 모델 판단에 맡긴다.
+    // v3.6~v3.8의 한글 비율 판정·언어 hard rule·불일치 재시도는 제거 (prompt.ts 주석 참고).
+    const prompt = buildCompactPrompt(transcript, purpose);
 
     // 용어 부록(범위 밖 정의) 후보 — 범위에서 참조되는 식별자의 첫 등장 스니펫을
     // 조상 턴(범위 이전)에서 기계 검색으로 수집. 실측 근거: OOR 보존율 23%
@@ -1201,15 +1188,6 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
     }, (out, err, code, metrics) => {
       try {
         const S = parseSummary(out);
-        // 언어 검증 (v3.6): 판정된 주 언어와 산출물 언어가 어긋나면 언어 설정 누출로 보고
-        // 1회 재시도 — 프로브 실측에서 누출은 비결정적이라 재실행이면 대체로 회복된다.
-        if (S && lang && attempt === 1) {
-          const outHangul = hangulRatio(summaryLangText(S));
-          if (lang === 'ko' ? outHangul < 0.15 : outHangul >= 0.05) {
-            console.warn(`[compact] 언어 불일치 (기대 ${lang}, 산출 한글 ${Math.round(outHangul * 100)}%) — 1회 재시도`);
-            return runCompact(2);
-          }
-        }
         if (!S) {
           if (attempt === 1 && code !== null && out.trim()) {
             console.warn('[compact] 응답 파싱 실패 (절단 추정) — 1회 재시도');
@@ -1334,7 +1312,6 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
             transcriptChars: transcript.length, promptChars: prompt.length,
             model: typeof model === 'string' && ALLOWED_MODELS.has(model) ? model : 'default',
             attempts: attempt, claude: metrics,
-            lang, userHangulPct: Math.round(userHangul * 100),
             skillCandidate,
           },
           facts, summary: S, anchors,
