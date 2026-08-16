@@ -8,7 +8,8 @@ import { listProjects, listSessionFiles, listForkFiles } from './discover';
 import { buildForest } from './tree';
 import { buildTurnForest } from './turns';
 import { renderTranscript } from './transcript';
-import { buildCompactPrompt, parseSummary, normalizePurpose, COMPACT_SYSTEM_PROMPT } from './prompt';
+import { renderCompactPrompt, parseSummary, normalizeRequest, COMPACT_SYSTEM_PROMPT } from './prompt';
+import { loadCompactTemplate, loadCompactSystemPrompt, exportCompactDefaults, COMPACT_TEMPLATE_FILE, COMPACT_SYSTEM_FILE, BRANCHPORT_HOME } from './config';
 import { splitAncestorSegments, findAncestorEvidence, buildGlossaryPrompt, parseGlossary, GlossaryItem, AncestorSegment, identTokens } from './glossary';
 import { buildSearchIndex, searchIndex, persistIndex, relatedToRange, SearchIndex, SearchHit } from './search';
 import { Turn } from './types';
@@ -325,8 +326,8 @@ ${items}
   });
 }
 
-// 목적별 지시는 prompt.ts의 PURPOSE_BLOCKS(v3.7)로 옮겼다 — 한국어 한 줄을 영어 프롬프트에
-// 삽입하던 기존 방식이 v3.6 언어 판정과 충돌했다. 서버는 UI가 보낸 키를 그대로 넘긴다.
+// 목적별 지시(v3.7~v3.8.1 PURPOSE_BLOCKS)는 v3.10에서 사용자 자유 텍스트 요청으로 대체됐다 —
+// prompt.ts REQUEST_PREAMBLE 주석 참고. 서버는 UI가 보낸 request 문자열을 정리해 넘긴다.
 
 // ── 캡슐 제목: 구간 첫 턴 제목 대신 구간 전체를 대표하는 LLM 제목 ─────────────
 // 재료는 멤버 턴들의 기존 라벨(제목·요약) — 원문 재입력 없이 배치 1회로 생성.
@@ -1021,7 +1022,7 @@ ${hist ? '\n[이 브랜치에서 나눈 대화]\n' + hist : ''}
 }
 
 function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
-  readBody(req, res, 10_000, async ({ project, turnIds, model, purpose, glossary, glossaryModel }) => {
+  readBody(req, res, 20_000, async ({ project, turnIds, model, request, glossary, glossaryModel }) => {
     try { // 파싱 중 파일 로테이션 등 비동기 예외가 프로세스를 죽이지 않게 — 다른 핸들러와 동일
     if (!project || !Array.isArray(turnIds) || !turnIds.length) {
       return sendJson(res, 400, { error: 'project와 turnIds가 필요합니다' });
@@ -1100,22 +1101,15 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
     // 시크릿 마스킹은 상태층뿐 아니라 LLM에 보내는 트랜스크립트 원문에도 적용한다
     const transcript = sanitize(renderTranscript(range, forest.roots, forest.toolResults));
 
-    // 세션 주 언어 결정론 판정 (v3.6) — 사용자 프롬프트의 한글 비율. 혼합 구간(5~15%)은
-    // 판정 보류(null)해 기존 추상 규칙으로 둔다. lang-preserve 실측·프로브 근거:
-    // 언어를 모델 판단에 맡기면 운영자 언어 설정이 비결정적으로 누출된다.
-    const hangulRatio = (text: string) => {
-      const h = (text.match(/[가-힣]/g) ?? []).length;
-      const l = (text.match(/[A-Za-z]/g) ?? []).length;
-      return h + l ? h / (h + l) : 0;
-    };
-    const userHangul = hangulRatio(range.map(t => t.prompt).filter(p => p && p !== '(계속)').join('\n'));
-    const lang = userHangul >= 0.15 ? 'ko' as const : userHangul < 0.05 ? 'en' as const : null;
-    const prompt = buildCompactPrompt(transcript, purpose, lang);
-    const summaryLangText = (S: ReturnType<typeof parseSummary> & object) => [
-      S.goal, S.summary, ...S.decisions.flatMap(d => [d.d, d.why]),
-      ...S.state.done, ...S.state.todo, S.state.current_focus, ...S.open_threads,
-      ...S.errors.flatMap(e => [e.error, e.fix]), ...S.constraints, ...S.env, ...S.gotchas,
-    ].filter(Boolean).join('\n');
+    // 산출물 언어는 강제하지 않는다 (v3.9) — 사용자의 환경 설정과 모델 판단에 맡긴다.
+    // v3.6~v3.8의 한글 비율 판정·언어 hard rule·불일치 재시도는 제거 (prompt.ts 주석 참고).
+    // 사용자 요청 (v3.10): UI 입력란의 자유 텍스트. 프리셋·목적 키는 없다 — 요청 원문이 전부다.
+    const userRequest = normalizeRequest(request);
+    // 프롬프트 템플릿·시스템 프롬프트 (v3.11): ~/.branchport 의 사용자 파일이 있으면 그것, 없으면 내장.
+    // 어떤 프롬프트로 만든 패키지인지 meta.promptTemplate 에 남긴다(실측 재현성).
+    const tpl = loadCompactTemplate();
+    const sysPrompt = loadCompactSystemPrompt();
+    const prompt = renderCompactPrompt(tpl.text, { transcript, request: userRequest });
 
     // 용어 부록(범위 밖 정의) 후보 — 범위에서 참조되는 식별자의 첫 등장 스니펫을
     // 조상 턴(범위 이전)에서 기계 검색으로 수집. 실측 근거: OOR 보존율 23%
@@ -1197,19 +1191,10 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
     // 재실행이면 통과하므로, 모델이 실행됐는데 파싱만 실패한 경우 1회 자동 재시도한다.
     const runCompact = (attempt: number) => askClaude(prompt, {
       model: typeof model === 'string' ? model : undefined,
-      systemPrompt: COMPACT_SYSTEM_PROMPT, json: true, noTools: true, timeoutMs: 420_000,
+      systemPrompt: sysPrompt.text, json: true, noTools: true, timeoutMs: 420_000,
     }, (out, err, code, metrics) => {
       try {
         const S = parseSummary(out);
-        // 언어 검증 (v3.6): 판정된 주 언어와 산출물 언어가 어긋나면 언어 설정 누출로 보고
-        // 1회 재시도 — 프로브 실측에서 누출은 비결정적이라 재실행이면 대체로 회복된다.
-        if (S && lang && attempt === 1) {
-          const outHangul = hangulRatio(summaryLangText(S));
-          if (lang === 'ko' ? outHangul < 0.15 : outHangul >= 0.05) {
-            console.warn(`[compact] 언어 불일치 (기대 ${lang}, 산출 한글 ${Math.round(outHangul * 100)}%) — 1회 재시도`);
-            return runCompact(2);
-          }
-        }
         if (!S) {
           if (attempt === 1 && code !== null && out.trim()) {
             console.warn('[compact] 응답 파싱 실패 (절단 추정) — 1회 재시도');
@@ -1330,11 +1315,13 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
         } catch (e: any) { console.error('[skillCandidate 판정 실패 — 생략]', e?.message); }
         const jsonPkg = {
           meta: {
-            generated: new Date().toISOString(), purpose: normalizePurpose(purpose),
+            generated: new Date().toISOString(),
+            request: userRequest || null,
+            promptTemplate: { source: tpl.source, sha1: tpl.sha1, ...(tpl.error ? { error: tpl.error } : {}), ...(tpl.warnings ? { warnings: tpl.warnings } : {}) },
+            systemPrompt: { source: sysPrompt.source, sha1: sysPrompt.sha1 },
             transcriptChars: transcript.length, promptChars: prompt.length,
             model: typeof model === 'string' && ALLOWED_MODELS.has(model) ? model : 'default',
             attempts: attempt, claude: metrics,
-            lang, userHangulPct: Math.round(userHangul * 100),
             skillCandidate,
           },
           facts, summary: S, anchors,
@@ -1565,6 +1552,11 @@ const server = http.createServer((req, res) => {
 
   if (req.method === 'POST' && req.url === '/api/compact') return handleCompact(req, res);
   if (req.method === 'POST' && req.url === '/api/compact/estimate') return handleEstimate(req, res);
+  if (req.method === 'POST' && req.url === '/api/compact/template/export') {
+    // 기본 템플릿·시스템 프롬프트를 사용자 파일로 내보내기 — 커스텀의 시작점. 있는 파일은 덮어쓰지 않는다.
+    try { return sendJson(res, 200, { home: BRANCHPORT_HOME, ...exportCompactDefaults() }); }
+    catch (e: any) { return sendJson(res, 500, { error: String(e?.message ?? e) }); }
+  }
   if (req.method === 'POST' && req.url === '/api/label') return handleLabel(req, res);
   if (req.method === 'POST' && req.url === '/api/capsule-label') return handleCapsuleLabel(req, res);
   if (req.method === 'POST' && req.url === '/api/topics') return handleTopics(req, res);
@@ -1675,6 +1667,16 @@ const server = http.createServer((req, res) => {
       .catch((e: any) => sendJson(res, 500, { error: e?.message ?? String(e) }));
   }
 
+  if (url.pathname === '/api/compact/template') {
+    // 현재 적용 중인 압축 프롬프트 — 어디서 왔는지(내장/파일)와 내용. UI 도움말·디버깅용.
+    const tpl = loadCompactTemplate(), sys = loadCompactSystemPrompt();
+    return sendJson(res, 200, {
+      home: BRANCHPORT_HOME,
+      template: { source: tpl.source, file: COMPACT_TEMPLATE_FILE, sha1: tpl.sha1, error: tpl.error ?? null, warnings: tpl.warnings ?? [], text: tpl.text },
+      systemPrompt: { source: sys.source, file: COMPACT_SYSTEM_FILE, sha1: sys.sha1, text: sys.text },
+    });
+  }
+
   if (url.pathname === '/api/labels') {
     const project = url.searchParams.get('project');
     if (!project) return sendJson(res, 400, { error: 'missing ?project=' });
@@ -1756,6 +1758,14 @@ const server = http.createServer((req, res) => {
 
   return serveStatic(url.pathname, res);
 });
+
+if (process.argv.includes('--export-compact-config')) {
+  const r = exportCompactDefaults();
+  for (const f of r.written) console.log(`생성: ${f}`);
+  for (const f of r.skipped) console.log(`이미 있음(덮어쓰지 않음): ${f}`);
+  console.log(`압축 프롬프트 템플릿을 고치려면 위 파일을 편집하세요 — 호출마다 다시 읽습니다.`);
+  process.exit(0);
+}
 
 server.listen(PORT, '127.0.0.1', () => {
   const url = `http://127.0.0.1:${PORT}`;

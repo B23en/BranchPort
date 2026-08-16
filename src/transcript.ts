@@ -12,18 +12,30 @@ const DEFAULT_BUDGET = 120_000; // 트랜스크립트 전체 문자 예산 (~40k
 // 그중 Read가 58% — 반면 반박 증거는 에러·검증성 출력(Bash/Grep)에 몰려 있다.
 // 에러와 검증 출력은 전문 유지, 내용 덩어리(Read)와 확인성 응답(Edit/Write)만
 // 줄여서 증거 소실 없이 입력을 다이어트한다.
-const CAPS = {
+type Caps = { error: number; evidence: number; content: number; ack: number };
+const CAPS: Caps = {
   error: 1500,     // 실패 결과: 어떤 도구든 전문 — 반박 증거의 핵심
   evidence: 1500,  // Bash·Grep 등 검증성 출력
   content: 300,    // Read·Glob 등 내용 조회 — 어시스턴트 본문이 핵심을 재서술함
   ack: 200,        // Edit·Write 등 확인성 응답 ("성공" 한 줄이면 충분)
 };
-const TIGHT = { error: 800, evidence: 400, content: 150, ack: 100 }; // 예산 초과 시
+const TIGHT: Caps = { error: 800, evidence: 400, content: 150, ack: 100 }; // 최종 단계
+
+// 적응형 절단 (2026-08-15) — 예산 초과 시 균등 TIGHT 한 번이 아니라, 증거 가치가 낮은
+// 종류부터 단계적으로 줄인다. 어떤 단계든 "에러 > 검증 출력 > 내용 조회 > 확인 응답"
+// 순으로 살아남는다. 사다리는 순서대로 시도해 예산에 처음 드는 단계를 쓴다.
+const LADDER: Caps[] = [
+  CAPS,                                                   // 0단: 기본
+  { ...CAPS, content: TIGHT.content, ack: TIGHT.ack },    // 1단: 내용 조회·확인 응답만
+  { ...CAPS, content: TIGHT.content, ack: TIGHT.ack, evidence: TIGHT.evidence }, // 2단: +검증 출력
+  TIGHT,                                                  // 3단: 에러까지
+];
+// 예산이 남을 때 에러 결과만 더 살린다 — 에러는 대개 짧고 반박 증거의 밀도가 가장 높다.
+const ERROR_RELIEF = 4000;
 
 const CONTENT_TOOLS = new Set(['Read', 'Glob', 'NotebookRead', 'WebFetch', 'ListMcpResourcesTool']);
 const ACK_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'TodoWrite', 'TaskStop', 'ToolSearch']);
 
-type Caps = typeof CAPS;
 
 function capFor(t: ToolCall, caps: Caps): number {
   if (t.isError) return caps.error;
@@ -51,13 +63,28 @@ function chainOf(first: TreeNode): TreeNode[] {
   return chain;
 }
 
+// 절단 형태 (2026-08-15): 에러·검증 출력은 앞+뒤를 남긴다 — 테스트 요약·"N errors"·
+// 스택 최하단·마지막 실패 줄이 출력 끝에 몰리는데 앞만 남기면 정확히 그 부분이 사라진다.
+// 내용 조회(Read)·확인 응답은 앞만으로 충분하다(본문이 재서술·"성공" 한 줄).
+// 표기는 프롬프트의 truncation rule이 인식하는 "…(truncated …)" 형태를 유지한다.
+function clip(raw: string, cap: number, headTail: boolean): string {
+  if (raw.length <= cap) return raw;
+  if (!headTail) return raw.slice(0, cap) + `…(truncated ${raw.length}→${cap} chars)`;
+  const head = Math.ceil(cap * 0.6);
+  let tailStart = raw.length - (cap - head);
+  // 꼬리는 가능하면 줄 경계에서 시작 (잘린 반 줄이 식별자를 오염시키지 않게)
+  const nl = raw.indexOf('\n', tailStart);
+  if (nl !== -1 && nl - tailStart < 120) tailStart = nl + 1;
+  return raw.slice(0, head) + `\n…(truncated ${raw.length - head - (raw.length - tailStart)} chars in the middle)…\n` + raw.slice(tailStart);
+}
+
 function renderTool(t: ToolCall, toolResults: Map<string, string>, caps: Caps): string {
   const lines = [`[TOOL] ${t.name} — ${t.inputPreview || '(no input preview)'}`];
   const full = t.toolUseId ? toolResults.get(t.toolUseId) : undefined;
   const raw = full ?? t.resultPreview ?? '';
-  const cap = capFor(t, caps);
-  const body = raw.slice(0, cap);
-  if (body) lines.push(`[${t.isError ? 'TOOL ERROR' : 'TOOL RESULT'}] ${body}${raw.length > cap ? `…(truncated ${raw.length}→${cap} chars)` : ''}`);
+  const headTail = t.isError || (!CONTENT_TOOLS.has(t.name) && !ACK_TOOLS.has(t.name));
+  const body = clip(raw, capFor(t, caps), headTail);
+  if (body) lines.push(`[${t.isError ? 'TOOL ERROR' : 'TOOL RESULT'}] ${body}`);
   else if (t.isError) lines.push('[TOOL ERROR] (no result text)');
   return lines.join('\n');
 }
@@ -74,7 +101,7 @@ function renderNode(n: TreeNode, toolResults: Map<string, string>, caps: Caps): 
   return parts.join('\n');
 }
 
-function renderOnce(range: Turn[], idx: Map<string, TreeNode>, toolResults: Map<string, string>, caps: Caps): string {
+function renderBlocks(range: Turn[], idx: Map<string, TreeNode>, toolResults: Map<string, string>, caps: Caps): string[] {
   const blocks: string[] = [];
   range.forEach((turn, i) => {
     const first = idx.get(turn.id);
@@ -84,7 +111,11 @@ function renderOnce(range: Turn[], idx: Map<string, TreeNode>, toolResults: Map<
     const body = chainOf(first).map(n => renderNode(n, toolResults, caps)).filter(Boolean).join('\n');
     blocks.push(`${head}\n${body}`);
   });
-  return blocks.join('\n\n');
+  return blocks;
+}
+
+function renderOnce(range: Turn[], idx: Map<string, TreeNode>, toolResults: Map<string, string>, caps: Caps): string {
+  return renderBlocks(range, idx, toolResults, caps).join('\n\n');
 }
 
 export function renderTranscript(
@@ -94,12 +125,32 @@ export function renderTranscript(
   budget = DEFAULT_BUDGET,
 ): string {
   const idx = indexNodes(roots);
-  let out = renderOnce(range, idx, toolResults, CAPS);
-  if (out.length > budget) out = renderOnce(range, idx, toolResults, TIGHT);
-  if (out.length > budget) {
-    // 그래도 초과하면 앞쪽(오래된 턴)을 잘라내되, 잘렸음을 명시해 모델이
-    // 빠진 구간을 추측으로 메우지 않게 한다.
-    out = `[NOTE] transcript exceeds budget — oldest part omitted below this line\n…\n` + out.slice(out.length - budget);
+  // 사다리를 순서대로 내려가며 예산에 처음 드는 단계를 택한다.
+  let out = '';
+  let caps = LADDER[LADDER.length - 1];
+  for (const c of LADDER) {
+    out = renderOnce(range, idx, toolResults, c);
+    caps = c;
+    if (out.length <= budget) break;
   }
-  return out;
+  if (out.length <= budget) {
+    // 여유가 있으면 에러 결과만 전문에 가깝게 복원 — 예산 안에 들 때만 채택.
+    if (caps.error < ERROR_RELIEF) {
+      const relieved = renderOnce(range, idx, toolResults, { ...caps, error: ERROR_RELIEF });
+      if (relieved.length <= budget) out = relieved;
+    }
+    return out;
+  }
+  // 최종 단계로도 초과: 오래된 턴을 통째로 떨어뜨린다 — 턴 중간을 자르면 헤더 없는
+  // 파편이 남고, 남은 턴의 "TURN i/N" 번호는 원래 인덱스를 유지해 앵커·evidence
+  // 체계(TURN N 참조)가 어긋나지 않게 한다. 빠졌음을 명시해 모델이 추측으로 메우지 않게 한다.
+  const blocks = renderBlocks(range, idx, toolResults, caps);
+  let dropped = 0;
+  let total = blocks.reduce((n, b) => n + b.length + 2, 0);
+  while (dropped < blocks.length - 1 && total > budget) { total -= blocks[dropped].length + 2; dropped++; }
+  const kept = blocks.slice(dropped).join('\n\n');
+  const note = `[NOTE] transcript exceeds budget — TURN 1–${dropped}/${range.length} omitted entirely; the range below starts at TURN ${dropped + 1}\n…\n`;
+  if (kept.length + note.length <= budget) return note + kept;
+  // 마지막 턴 하나만으로도 초과하는 극단: 예전 방식대로 뒷부분(최신)만 남긴다.
+  return `[NOTE] transcript exceeds budget — oldest part omitted below this line\n…\n` + kept.slice(kept.length - budget);
 }
