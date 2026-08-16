@@ -179,10 +179,40 @@
   body.below-be #selbar{border-color:#d64545;}
   body.below-be #selbar b{color:#d64545;}
   #sb-be-note{display:none; color:#d64545; font-weight:650;}
-  #sb-request{width:300px; font:inherit; font-size:12.5px; padding:7px 10px; border-radius:99px;
-    border:1px solid var(--line); background:var(--surface); color:var(--ink);}
+  /* 요청란은 자동으로 자라는 textarea — 예시 양식(60~70자)만 넣어도 한 줄에는 안 들어간다.
+     1줄에서 시작해 최대 5줄까지 늘고, 그 뒤로는 안에서 스크롤. */
+  #sb-request{width:380px; font:inherit; font-size:12.5px; line-height:1.45; padding:7px 12px; border-radius:14px;
+    border:1px solid var(--line); background:var(--surface); color:var(--ink); resize:none; overflow-y:hidden;
+    display:block; box-sizing:border-box; min-height:32px; max-height:calc(12.5px * 1.45 * 5 + 16px);}
+  #sb-request.scroll{overflow-y:auto;}
+  #sb-req-count{position:absolute; right:34px; bottom:-14px; font-size:10px; color:var(--muted);
+    font-variant-numeric:tabular-nums; display:none; pointer-events:none;}
+  #sb-req-count.on{display:block;}
+  #sb-req-count.warn{color:#d64545;}
   #sb-request:focus{outline:2px solid color-mix(in srgb, var(--exec) 45%, transparent); outline-offset:1px;}
   body.below-be #selbar.active #sb-be-note{display:inline;}
+  /* 요청란 옆 ? — 전체 도움말을 열지 않고 요청 양식·프롬프트 파일 안내만 그 자리에서 본다 */
+  #sb-req-wrap{position:relative; display:inline-flex; align-items:center; gap:4px;}
+  #sb-req-help{width:24px; height:24px; border-radius:50%; border:1px solid var(--line); background:var(--surface);
+    color:var(--muted); font-size:12px; font-weight:700; line-height:1; padding:0; display:inline-flex;
+    align-items:center; justify-content:center; flex:none;}
+  #sb-req-help:hover, #sb-req-help.on{color:var(--exec); border-color:var(--exec);}
+  #sb-req-pop{display:none; position:absolute; top:calc(100% + 10px); left:0; width:min(520px, 80vw); z-index:65;
+    background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 14px 10px;
+    box-shadow:0 14px 34px rgba(20,18,12,.28); font-size:12.5px; color:var(--ink2); line-height:1.6;
+    text-align:left; white-space:normal; font-weight:400; cursor:default;}
+  #sb-req-pop.open{display:block; animation:fadeIn .15s ease;}
+  #sb-req-pop h4{margin:0 0 6px; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:750;}
+  #sb-req-pop h4 + p{margin:0 0 6px;}
+  #sb-req-pop p{margin:6px 0 0;}
+  #sb-req-pop .ex{display:block; width:100%; text-align:left; margin:3px 0; padding:5px 8px; border-radius:7px;
+    border:1px dashed var(--line); background:var(--bg); color:var(--ink); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:11.5px; line-height:1.5; cursor:pointer;}
+  #sb-req-pop .ex:hover{border-style:solid; border-color:var(--exec);}
+  #sb-req-pop .ex-row{display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;}
+  #sb-req-pop .ex-row .ex{display:inline-block; width:auto; margin:0;}
+  #sb-req-pop .tpl{margin-top:9px; padding-top:8px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted);}
+  #sb-req-pop .tpl a{color:var(--exec); cursor:pointer; text-decoration:underline; text-underline-offset:2px;}
   /* absolute + translate(-50%,-50%) centers the icon's own box on the node's
      exact center point — robust regardless of odd/even pixel rounding on the
      node's size, unlike relying purely on flex + percentage sizing. */
@@ -783,7 +813,7 @@
           한 줄도 됩니다: <code>English, errors first</code> · <code>짧게, 결정사항만</code></dd></div>
         <div><dt>③ 결과</dt><dd>목표·요약·결정과 근거·완료/미완·열린 논점이 담긴 문서가 나옵니다. 여기에 코드가 직접 센 <b>만진 파일·실행 명령·실제 코드 변경</b>과, 범위 밖에서만 정의된 <b>용어 부록</b>이 함께 붙습니다. 복사하거나 파일로 내려받아 새 대화에 붙여 넣으면 됩니다</dd></div>
         <div><dt>스킬로 내보내기</dt><dd>같은 범위에서 <b>해결 과정</b>만 뽑아 다른 프로젝트에서 재사용할 문서 초안으로 만듭니다</dd></div>
-        <div><dt>프롬프트 바꾸기</dt><dd>압축에 쓰는 프롬프트는 통째로 사용자 파일로 갈아끼울 수 있습니다. <button class="btn ghost" id="help-export-tpl" style="padding:3px 10px; font-size:12px">기본 프롬프트를 파일로 내보내기</button> — <code id="help-tpl-home">~/.branchport/</code>에 <code>compact-prompt.md</code>(템플릿)와 <code>compact-system.md</code>(시스템 프롬프트)를 만듭니다(이미 있으면 건드리지 않음). 파일을 고치면 다음 압축부터 바로 반영되고, <code>{{transcript}}</code> 자리가 없거나 문법이 깨지면 내장 기본값으로 돌아갑니다. <span id="help-tpl-status" class="hnote" style="display:inline"></span></dd></div>
+        <div id="help-tpl-row"><dt>프롬프트 바꾸기</dt><dd>압축에 쓰는 프롬프트는 통째로 사용자 파일로 갈아끼울 수 있습니다. <button class="btn ghost" id="help-export-tpl" style="padding:3px 10px; font-size:12px">기본 프롬프트를 파일로 내보내기</button> — <code id="help-tpl-home">~/.branchport/</code>에 <code>compact-prompt.md</code>(템플릿)와 <code>compact-system.md</code>(시스템 프롬프트)를 만듭니다(이미 있으면 건드리지 않음). 파일을 고치면 다음 압축부터 바로 반영되고, <code>{{transcript}}</code> 자리가 없거나 문법이 깨지면 내장 기본값으로 돌아갑니다. <span id="help-tpl-status" class="hnote" style="display:inline"></span></dd></div>
       </dl>
 
       <h3>갈래 — 그 시점의 AI와 이어 말하기</h3>
@@ -803,7 +833,22 @@
     <div id="sb-active-group">
       <span>경로 <b id="sb-n"></b>턴 선택됨</span>
       <span id="sb-be-note">손익분기 미만 — 패키지가 원문보다 클 수 있음</span>
-      <input id="sb-request" type="text" placeholder="요청 (선택) — 예: 받는 사람: 팀원 · 강조: 결정과 이유 · 언어: 한국어" title="압축에 반영할 요청. 요청이 규칙보다 우선하며 비중·표현·언어·생략을 정합니다. 예시 양식은 도움말(?)의 '압축' 항목 참고">
+      <span id="sb-req-wrap">
+        <textarea id="sb-request" rows="1" maxlength="2000" placeholder="요청 (선택) — 예: 받는 사람: 팀원 · 강조: 결정과 이유 · 언어: 한국어" title="압축에 반영할 요청. 요청이 규칙보다 우선하며 비중·표현·언어·생략을 정합니다. 옆의 ? 에서 예시 양식을 볼 수 있습니다"></textarea>
+        <span id="sb-req-count" aria-live="polite"></span>
+        <button id="sb-req-help" type="button" title="요청 작성 예시 · 프롬프트 바꾸기" aria-label="요청 작성 도움말" aria-expanded="false">?</button>
+        <div id="sb-req-pop" role="dialog" aria-label="요청 작성 도움말">
+          <h4>요청 — 무엇을 강조·생략할지, 어떤 언어로 쓸지</h4>
+          <p>비워도 됩니다. 적으면 기본 규칙보다 우선합니다(출력 형식만 고정). <b>받는 사람 · 강조 · 언어</b> 세 칸으로 적으면 결과가 일관됩니다 — 예시를 누르면 입력란에 들어갑니다.</p>
+          <button class="ex" type="button">받는 사람: 같은 코드베이스를 이어갈 AI 세션 · 강조: 남은 작업과 현재 위치, 지켜야 할 설정값 · 언어: 한국어</button>
+          <button class="ex" type="button">받는 사람: 이 문제를 고칠 사람 · 강조: 에러 원문과 재현 명령, 시도했다 되돌린 것 · 언어: 한국어</button>
+          <button class="ex" type="button">받는 사람: 코드 맥락 없는 팀원 · 강조: 결정과 그 이유, 누가 확인했는지 · 언어: 한국어</button>
+          <div class="ex-row"><span style="font-size:11.5px; color:var(--muted); align-self:center">한 줄도 됩니다:</span>
+            <button class="ex" type="button">English, errors first</button>
+            <button class="ex" type="button">짧게, 결정사항만</button></div>
+          <div class="tpl">프롬프트 자체를 바꾸려면 <code>~/.branchport/compact-prompt.md</code>를 편집합니다 — <a id="sb-req-pop-tpl">기본 프롬프트 내보내기·자세히</a>. <span id="sb-tpl-status"></span></div>
+        </div>
+      </span>
       <button class="btn primary" id="sb-go">압축 패키지 생성</button>
       <button class="btn ghost" id="sb-skill" title="이 구간의 해결 과정을 재사용 가능한 SKILL.md 초안으로 증류 (사람 검수 후 배포)">스킬로 내보내기</button>
       <button class="btn ghost" id="sb-clear">해제</button>
@@ -1010,7 +1055,9 @@ async function refreshTemplateStatus() {
       ? `현재: 사용자 템플릿 사용 중 (${r.template.sha1})${r.template.warnings?.length ? " · 경고: " + r.template.warnings.join("; ") : ""}`
       : r.template.error ? `현재: 내장 기본값 — 파일 오류로 폴백: ${r.template.error}` : "현재: 내장 기본 프롬프트";
     const req = document.getElementById("sb-request");
-    if (req) req.title = (custom ? "[사용자 템플릿 적용 중] " : "") + "압축에 반영할 요청. 요청이 규칙보다 우선하며 비중·표현·언어·생략을 정합니다. 예시 양식은 도움말(?)의 '압축' 항목 참고";
+    if (req) req.title = (custom ? "[사용자 템플릿 적용 중] " : "") + "압축에 반영할 요청. 요청이 규칙보다 우선하며 비중·표현·언어·생략을 정합니다. 옆의 ? 에서 예시 양식을 볼 수 있습니다";
+    const st = document.getElementById("sb-tpl-status");
+    if (st) st.textContent = custom ? `(현재: 사용자 템플릿 ${r.template.sha1})` : "(현재: 내장 기본 프롬프트)";
   } catch (e) { el.textContent = ""; }
 }
 document.getElementById("help-export-tpl")?.addEventListener("click", async () => {
@@ -2218,6 +2265,49 @@ document.getElementById("help-btn").addEventListener("click", openHelp);
 document.getElementById("help-x").addEventListener("click", closeHelp);
 helpEl.addEventListener("click", (e) => { if (e.target === helpEl) closeHelp(); }); // 바깥 클릭
 
+// ── 요청란 옆 ? 팝오버 — 요청 예시(클릭 → 입력)·프롬프트 파일 안내를 그 자리에서 ──
+// 함수 선언(호이스팅)만 쓴다 — clearSel()이 초기 로드 중 이 줄보다 먼저 불릴 수 있다.
+function setReqPop(open) {
+  const pop = document.getElementById("sb-req-pop"), btn = document.getElementById("sb-req-help");
+  pop.classList.toggle("open", open);
+  btn.classList.toggle("on", open);
+  btn.setAttribute("aria-expanded", String(open));
+}
+function reqPopOpen() { return document.getElementById("sb-req-pop").classList.contains("open"); }
+const reqPop = document.getElementById("sb-req-pop");
+const reqHelpBtn = document.getElementById("sb-req-help");
+const reqInput = document.getElementById("sb-request");
+reqHelpBtn.addEventListener("click", (e) => { e.stopPropagation(); setReqPop(!reqPop.classList.contains("open")); });
+reqPop.addEventListener("click", (e) => e.stopPropagation());
+reqInput.addEventListener("keydown", (e) => { if (e.key === "Escape" && reqPop.classList.contains("open")) { e.stopPropagation(); setReqPop(false); } });
+// 내용에 맞춰 높이 갱신 + 상한(2000자, 서버 REQUEST_MAX_CHARS와 동일) 근처에서 글자수 표시
+function fitReqInput() {
+  reqInput.style.height = "auto";
+  const max = parseFloat(getComputedStyle(reqInput).maxHeight);
+  const h = reqInput.scrollHeight + 2; // 테두리
+  reqInput.style.height = Math.min(h, max) + "px";
+  reqInput.classList.toggle("scroll", h > max);
+  const n = reqInput.value.length, cnt = document.getElementById("sb-req-count");
+  cnt.textContent = n.toLocaleString() + " / 2,000";
+  cnt.classList.toggle("on", n >= 1500);
+  cnt.classList.toggle("warn", n >= 1900);
+}
+reqInput.addEventListener("input", fitReqInput);
+reqPop.querySelectorAll(".ex").forEach(b => b.addEventListener("click", () => {
+  reqInput.value = b.textContent.trim();
+  fitReqInput();
+  setReqPop(false);
+  reqInput.focus();
+}));
+document.getElementById("sb-req-pop-tpl").addEventListener("click", () => {
+  setReqPop(false);
+  openHelp();
+  document.getElementById("help-tpl-row")?.scrollIntoView({ block:"center" });
+});
+document.addEventListener("click", (e) => {
+  if (reqPop.classList.contains("open") && !e.target.closest("#sb-req-wrap")) setReqPop(false);
+});
+
 const topicBtn = document.getElementById("topic-btn");
 topicBtn.addEventListener("click", async () => {
   if (TOPIC_ON) { // 끄기 — 원래 배치로 복귀
@@ -3066,6 +3156,7 @@ window.addEventListener("keydown", (e) => {
     // 바깥 겹침부터 차례로 벗긴다: 라이트박스 → 도움말 → 모달 → 열린 카드 → 펼쳐둔 캡슐
     if (document.getElementById("lightbox").classList.contains("open")) closeLightbox();
     else if (helpEl.classList.contains("open")) closeHelp();
+    else if (reqPopOpen()) setReqPop(false);
     else if (modal.classList.contains("open")) modal.classList.remove("open");
     else if (expandedId) closeExpanded();
     else collapseAllCaps();
@@ -3093,7 +3184,7 @@ window.addEventListener("keyup", (e) => {
 window.addEventListener("blur", () => {
   if (shiftHeld) { shiftHeld = false; updateSel(); } // e.g. alt-tabbing away while held
 });
-function clearSel() { selA = selB = null; selShift = false; updateSel(); applySelectionClasses(); }
+function clearSel() { selA = selB = null; selShift = false; setReqPop(false); updateSel(); applySelectionClasses(); }
 document.getElementById("sb-clear").addEventListener("click", (ev) => { ev.stopPropagation(); clearSel(); });
 
 let compactWarnedKey = null; // 손익분기 미만 경고를 이미 보여준 구간 (재클릭 시 진행)
