@@ -55,6 +55,11 @@
     -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
     background-image:radial-gradient(var(--line) 1px, transparent 1px);
     background-size:24px 24px;
+    /* 한글은 CSS 기본값에서 글자 단위로 끊긴다 — "압축 패키지 생성"이 "…생 / 성"으로
+       잘리는 이유. keep-all로 띄어쓰기에서만 끊고, 그래도 한 덩어리가 칸을 넘치면
+       (긴 경로·식별자 등) overflow-wrap이 그때만 단어를 쪼갠다.
+       코드·경로처럼 글자 단위 절단이 필요한 곳은 각자 word-break를 따로 선언한다. */
+    word-break:keep-all; overflow-wrap:break-word;
   }
 
   header{display:flex; align-items:center; gap:14px; flex-wrap:wrap;
@@ -182,9 +187,12 @@
   body.below-be #selbar{border-color:#d64545;}
   body.below-be #selbar b{color:#d64545;}
   #sb-be-note{display:none; color:#d64545; font-weight:650;}
-  /* 요청란은 자동으로 자라는 textarea — 예시 양식(60~70자)만 넣어도 한 줄에는 안 들어간다.
+  /* 요청란은 자동으로 자라는 textarea. 380px일 때는 안내 문구(실측 430px)조차 두 줄이 되어
+     바가 3줄 높이로 부풀었다 — 안내 문구(430px)와 가장 긴 예시 요청(669px)이 모두 한 줄에
+     들어가는 폭(내부 674px)으로 잡는다.
+     좁은 화면에서는 max-width:100%로 이 칸만 줄어들고(바깥 max-width가 상한), 그때만 두 줄이 된다.
      1줄에서 시작해 최대 5줄까지 늘고, 그 뒤로는 안에서 스크롤. */
-  #sb-request{width:380px; font:inherit; font-size:12.5px; line-height:1.45; padding:7px 12px; border-radius:14px;
+  #sb-request{width:700px; max-width:100%; font:inherit; font-size:12.5px; line-height:1.45; padding:7px 12px; border-radius:14px;
     border:1px solid var(--line); background:transparent; color:var(--ink); resize:none; overflow-y:hidden;
     display:block; box-sizing:border-box; min-height:32px; max-height:calc(12.5px * 1.45 * 5 + 16px); position:relative;}
   #sb-request.scroll{overflow-y:auto;}
@@ -205,26 +213,38 @@
   #sb-request:focus{outline:2px solid color-mix(in srgb, var(--exec) 45%, transparent); outline-offset:1px;}
   body.below-be #selbar.active #sb-be-note{display:inline;}
   /* 요청란 옆 ? — 전체 도움말을 열지 않고 요청 양식·프롬프트 파일 안내만 그 자리에서 본다 */
-  #sb-req-wrap{position:relative; display:inline-flex; align-items:center; gap:4px;}
+  #sb-req-wrap{position:relative; display:inline-flex; align-items:center; gap:4px;
+    flex:0 1 auto; min-width:150px;}
   #sb-req-help{width:24px; height:24px; border-radius:50%; border:1px solid var(--line); background:var(--surface);
     color:var(--muted); font-size:12px; font-weight:700; line-height:1; padding:0; display:inline-flex;
     align-items:center; justify-content:center; flex:none;}
   #sb-req-help:hover, #sb-req-help.on{color:var(--exec); border-color:var(--exec);}
-  #sb-req-pop{display:none; position:absolute; top:calc(100% + 10px); left:0; width:min(520px, 80vw); z-index:65;
+  /* 너비는 가장 긴 예시가 한 줄에 들어가는 값 — 실측 639px(11.5px 등폭) + 안팎 패딩 ≈ 687px.
+     520px일 때는 세 칸 양식 예시가 2~3줄로 접혀 무엇이 한 항목인지 읽히지 않았다. */
+  #sb-req-pop{display:none; position:absolute; top:calc(100% + 10px); left:0; width:min(720px, 92vw); z-index:65;
     background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 14px 10px;
     box-shadow:0 14px 34px rgba(20,18,12,.28); font-size:12.5px; color:var(--ink2); line-height:1.6;
     text-align:left; white-space:normal; font-weight:400; cursor:default;}
   #sb-req-pop.open{display:block; animation:fadeIn .15s ease;}
   #sb-req-pop h4{margin:0 0 6px; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:750;}
-  #sb-req-pop h4 + p{margin:0 0 6px;}
+  #sb-req-pop h4 + p{margin:0 0 10px;}
   #sb-req-pop p{margin:6px 0 0;}
-  #sb-req-pop .ex{display:block; width:100%; text-align:left; margin:3px 0; padding:5px 8px; border-radius:7px;
+  /* 두 예시 묶음(세 칸 양식 / 한 줄)에 같은 모양의 머리표를 달아 층위를 맞춘다 —
+     예전엔 앞 묶음은 머리표가 없고 뒤 묶음만 인라인 라벨이라 두 줄의 성격이 달라 보였다 */
+  #sb-req-pop .exlabel{display:block; margin:9px 0 4px; font-size:11px; font-weight:700;
+    letter-spacing:.03em; color:var(--muted);}
+  #sb-req-pop .exlabel:first-of-type{margin-top:0;}
+  #sb-req-pop .ex{display:block; width:100%; text-align:left; margin:4px 0; padding:6px 9px; border-radius:7px;
     border:1px dashed var(--line); background:var(--bg); color:var(--ink); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-    font-size:11.5px; line-height:1.5; cursor:pointer;}
+    font-size:11.5px; line-height:1.5; cursor:pointer;
+    /* 한 항목은 한 줄 — 좁은 화면에서만 가로 스크롤로 넘긴다(잘라내지 않는다) */
+    white-space:nowrap; overflow-x:auto; overflow-y:hidden;}
   #sb-req-pop .ex:hover{border-style:solid; border-color:var(--exec);}
-  #sb-req-pop .ex-row{display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;}
+  #sb-req-pop .ex:focus-visible{outline:2px solid var(--exec); outline-offset:1px;}
+  #sb-req-pop .ex-row{display:flex; flex-wrap:wrap; gap:6px;}
   #sb-req-pop .ex-row .ex{display:inline-block; width:auto; margin:0;}
-  #sb-req-pop .tpl{margin-top:9px; padding-top:8px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted);}
+  #sb-req-pop .tpl{margin-top:11px; padding-top:9px; border-top:1px solid var(--line); font-size:11.5px;
+    color:var(--muted); line-height:1.65;}
   #sb-req-pop .tpl a{color:var(--exec); cursor:pointer; text-decoration:underline; text-underline-offset:2px;}
   /* absolute + translate(-50%,-50%) centers the icon's own box on the node's
      exact center point — robust regardless of odd/even pixel rounding on the
@@ -265,7 +285,7 @@
   .d-turn-label::before{content:""; width:6px; height:6px; border-radius:50%; flex:none;}
   .d-turn.user .d-turn-label::before{background:var(--pc);}
   .d-turn.ai .d-turn-label::before{background:var(--axis);}
-  .d-msg{font-size:13.75px; line-height:1.68; padding:11px 15px; border-radius:16px; word-break:break-word;
+  .d-msg{font-size:13.75px; line-height:1.68; padding:11px 15px; border-radius:16px; word-break:keep-all; overflow-wrap:anywhere;
     box-shadow:0 1px 2px rgba(0,0,0,.07);}
   .d-msg.user{background:var(--pc); color:#fff; border-bottom-left-radius:4px;}
   .d-msg.ai{background:var(--chip); color:var(--ink); border-bottom-right-radius:4px;}
@@ -533,7 +553,7 @@
   .brdel:focus-visible{outline:2px solid var(--err); outline-offset:1px;}
   .br-msgs{display:flex; flex-direction:column; gap:6px; margin:8px 0;}
   .br-msg{font-size:12.8px; line-height:1.55; padding:8px 11px; border-radius:10px;
-    white-space:pre-wrap; word-break:break-word;}
+    white-space:pre-wrap; word-break:keep-all; overflow-wrap:anywhere;}
   .br-msg.user{background:#9b7fd4; color:#fff; align-self:flex-end; max-width:88%;}
   .br-msg.ai{background:var(--chip); color:var(--ink); align-self:flex-start; max-width:92%;}
   .br-input{display:flex; gap:6px; margin-top:8px;}
@@ -549,6 +569,7 @@
     backdrop-filter:blur(20px) saturate(1.8); -webkit-backdrop-filter:blur(20px) saturate(1.8);
     border:1px solid var(--line); border-radius:16px; padding:10px 12px 10px 18px;
     box-shadow:0 14px 34px rgba(20,18,12,.28); font-size:13px;
+    max-width:calc(100vw - 28px);
     transform:translate(-50%,-140%); opacity:0; pointer-events:none;
     transition:transform .4s cubic-bezier(.32,1.4,.5,1), opacity .25s ease;}
   #selbar.on{transform:translate(-50%,0); opacity:1; pointer-events:auto;}
@@ -557,7 +578,10 @@
   @keyframes bump{0%{transform:scale(1)} 40%{transform:scale(1.5)} 100%{transform:scale(1)}}
   #sb-hint{color:var(--ink2);}
   #sb-hint b{color:var(--exec); font-weight:700;}
-  #sb-active-group{display:none; align-items:center; gap:12px;}
+  #sb-active-group{display:none; align-items:center; gap:12px; min-width:0;}
+  /* 폭이 모자랄 때 줄어드는 건 입력칸 하나뿐 — 버튼·라벨까지 눌리면 글자가 접힌다 */
+  #sb-active-group > span:not(#sb-req-wrap), #sb-active-group > .btn{flex:none;}
+  #sb-req-box{min-width:0;}
   #selbar.active #sb-hint{display:none;}
   #selbar.active #sb-active-group{display:flex;}
   button{font:inherit; cursor:pointer;}
@@ -586,7 +610,9 @@
     align-items:center; justify-content:center; padding:26px; backdrop-filter:blur(2px);}
   #help.open{display:flex; animation:fadeIn .18s ease;}
   #help-box{position:relative; background:var(--surface); border:1px solid var(--line);
-    border-radius:15px; width:min(660px,100%); max-height:86vh; overflow-y:auto; padding:24px 26px 26px;
+    /* 폭은 요청 예시 한 줄이 들어가는 값 — 예시 612px + 좌열/여백 198px + 여유.
+       660px에서는 예시가 두 줄로 접혀 무엇이 한 항목인지 읽히지 않았다. */
+    border-radius:15px; width:min(860px,100%); max-height:86vh; overflow-y:auto; padding:24px 26px 26px;
     box-shadow:0 24px 70px rgba(0,0,0,.35); animation:modalIn .2s cubic-bezier(.2,.8,.3,1);}
   #help-box h2{font-size:17px; margin:0 30px 4px 0;}
   /* 구분선은 섹션 제목이 이고 온다 — 앞 섹션과 사이를 벌리고, 선 아래에 제목을 둔다.
@@ -610,6 +636,20 @@
     background:var(--chip); border:1px solid var(--line); border-bottom-width:2px;
     border-radius:5px; padding:1.5px 6px; color:var(--ink);}
   .hnote{font-size:11.5px; color:var(--muted); margin:10px 0 0; line-height:1.6;}
+  /* 요청 예시 — 요청란 옆 ? 팝업의 .ex와 같은 모양으로 맞춘다(같은 것을 두 곳에서
+     다르게 보여주지 않는다). 한 항목은 한 줄, 좁을 때만 가로 스크롤. */
+  .reqlabel{display:block; margin:8px 0 4px; font-size:11px; font-weight:700;
+    letter-spacing:.03em; color:var(--muted);}
+  .reqlabel:first-child{margin-top:2px;}
+  /* #help-box code(ID 선택자)가 padding·background·border-radius를 이미 잡고 있어
+     클래스만으로는 덮이지 않는다 — 같은 ID를 붙여 우선순위를 맞춘다. */
+  #help-box .reqex{display:block; margin:4px 0; padding:5px 9px; border-radius:7px;
+    border:1px dashed var(--line); background:var(--bg);
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; line-height:1.55;
+    color:var(--ink); white-space:nowrap; overflow-x:auto; overflow-y:hidden;}
+  #help-box .reqex .k{color:var(--exec); font-weight:700;}
+  #help-box .reqrow{display:flex; flex-wrap:wrap; gap:6px;}
+  #help-box .reqrow .reqex{display:inline-block; margin:0;}
   .hlead{font-size:13px; color:var(--ink2); margin:6px 0 2px; line-height:1.65;}
   /* 기능이 화면 어디에 있는지 — 항목 이름 옆에 위치를 작게 붙인다 */
   .loc{font-size:10.5px; font-weight:600; color:var(--muted); background:var(--chip);
@@ -628,12 +668,19 @@
   #mbox .hd{padding:18px 22px 0;}
   #mbox h2{font-size:16.5px; margin:0 30px 4px 0;}
   #mbox .m{font-size:12px; color:var(--muted);}
+  /* 결과가 어떤 요청으로 만들어졌는지 — 없으면 "기본 규칙대로"인지 요청이 먹히지 않은 건지
+     구분할 수 없다. 요청이 있을 때만 뜬다. */
+  #m-req{display:none; margin-top:8px; font-size:12px; line-height:1.55; color:var(--ink2);
+    background:var(--chip); border-left:3px solid var(--exec); border-radius:0 8px 8px 0;
+    padding:7px 11px; white-space:pre-wrap; word-break:keep-all; overflow-wrap:anywhere; max-height:88px; overflow-y:auto;}
+  #m-req.on{display:block;}
+  #m-req b{color:var(--ink); font-weight:700;}
   .tabs{display:flex; gap:4px; padding:12px 22px 0; border-bottom:1px solid var(--line);}
   .tab{border:0; background:none; padding:7px 13px 9px; font-size:13px; color:var(--muted);
     border-bottom:2px solid transparent; margin-bottom:-1px;}
   .tab.on{color:var(--ink); font-weight:650; border-bottom-color:var(--exec);}
   #mbody{overflow:auto; padding:16px 22px; flex:1;}
-  #mbody pre{white-space:pre-wrap; word-break:break-word; margin:0; font-size:12.3px; line-height:1.65;
+  #mbody pre{white-space:pre-wrap; word-break:keep-all; overflow-wrap:anywhere; margin:0; font-size:12.3px; line-height:1.65;
     font-family:ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--ink2);}
   #mbox .ft{display:flex; gap:8px; padding:14px 22px; border-top:1px solid var(--line); flex-wrap:wrap;}
   .x{position:absolute; top:14px; right:14px; border:0; background:var(--chip); color:var(--ink2);
@@ -660,7 +707,7 @@
     padding:7px 12px; border-radius:10px; font-size:12px; line-height:1.5; font-weight:500;
     box-shadow:0 10px 26px rgba(0,0,0,.28); opacity:0;
     transform:translate(-50%,calc(-100% - 14px)) translateY(4px);
-    transition:opacity .12s ease, transform .12s ease; white-space:pre-wrap; word-break:break-word;}
+    transition:opacity .12s ease, transform .12s ease; white-space:pre-wrap; word-break:keep-all; overflow-wrap:anywhere;}
   #tooltip.show{opacity:1; transform:translate(-50%,calc(-100% - 14px)) translateY(0);}
 
   /* ── busy: 오래 걸리는 작업(압축·갈래 응답) 동안 뜨는 대기 카드.
@@ -819,11 +866,14 @@
       <dl class="keys">
         <div><dt>① 범위 잡기</dt><dd>턴 하나를 클릭한 뒤 다른 턴을 <b>shift+클릭</b>하거나, <b>챕터 바를 드래그</b>합니다. 캡슐은 <b>shift+길게 누르기</b>로 통째로, <b>shift+짧게 클릭</b>으로 열어서 안의 턴까지 잡을 수 있습니다</dd></div>
         <div><dt>② 만들기</dt><dd>화면 위에 뜨는 알림에서 <b>[압축 패키지 생성]</b>. 옆의 <b>요청</b>란은 비워도 되고, 적으면 요청이 기본 규칙보다 우선합니다 — 무엇을 강조·생략할지, 어떤 말투·언어로 쓸지를 정합니다(출력 형식만 고정)</dd></div>
-        <div><dt>요청 예시</dt><dd>세 칸 양식으로 적으면 결과가 일관됩니다 — <b>받는 사람 · 강조 · 언어</b>.<br>
-          <code><span class="k">받는 사람:</span> 같은 코드베이스를 이어갈 AI 세션 · <span class="k">강조:</span> 남은 작업과 현재 위치, 지켜야 할 설정값 · <span class="k">언어:</span> 한국어</code><br>
-          <code><span class="k">받는 사람:</span> 이 문제를 고칠 사람 · <span class="k">강조:</span> 에러 원문과 재현 명령, 시도했다 되돌린 것 · <span class="k">언어:</span> 한국어</code><br>
-          <code><span class="k">받는 사람:</span> 코드 맥락 없는 팀원 · <span class="k">강조:</span> 결정과 그 이유, 누가 확인했는지 · <span class="k">언어:</span> 한국어</code><br>
-          한 줄도 됩니다: <code>English, errors first</code> · <code>짧게, 결정사항만</code></dd></div>
+        <div><dt>요청 예시</dt><dd>
+          <span class="reqlabel">세 칸 양식 — 받는 사람 · 강조 · 언어</span>
+          <code class="reqex"><span class="k">받는 사람:</span> 같은 코드베이스를 이어갈 AI 세션 · <span class="k">강조:</span> 남은 작업과 현재 위치, 지켜야 할 설정값 · <span class="k">언어:</span> 한국어</code>
+          <code class="reqex"><span class="k">받는 사람:</span> 이 문제를 고칠 사람 · <span class="k">강조:</span> 에러 원문과 재현 명령, 시도했다 되돌린 것 · <span class="k">언어:</span> 한국어</code>
+          <code class="reqex"><span class="k">받는 사람:</span> 코드 맥락 없는 팀원 · <span class="k">강조:</span> 결정과 그 이유, 누가 확인했는지 · <span class="k">언어:</span> 한국어</code>
+          <span class="reqlabel">한 줄로 적어도 됩니다</span>
+          <span class="reqrow"><code class="reqex">English, errors first</code><code class="reqex">짧게, 결정사항만</code></span>
+        </dd></div>
         <div><dt>③ 결과</dt><dd>목표·요약·결정과 근거·완료/미완·열린 논점이 담긴 문서가 나옵니다. 여기에 코드가 직접 센 <b>만진 파일·실행 명령·실제 코드 변경</b>과, 범위 밖에서만 정의된 <b>용어 부록</b>이 함께 붙습니다. 복사하거나 파일로 내려받아 새 대화에 붙여 넣으면 됩니다</dd></div>
         <div><dt>스킬로 내보내기</dt><dd>같은 범위에서 <b>해결 과정</b>만 뽑아 다른 프로젝트에서 재사용할 문서 초안으로 만듭니다</dd></div>
         <div id="help-tpl-row"><dt>프롬프트 바꾸기</dt><dd>압축에 쓰는 프롬프트는 통째로 사용자 파일로 갈아끼울 수 있습니다. <button class="btn ghost" id="help-export-tpl" style="padding:3px 10px; font-size:12px">기본 프롬프트를 파일로 내보내기</button> — <code id="help-tpl-home">~/.branchport/</code>에 <code>compact-prompt.md</code>(템플릿)와 <code>compact-system.md</code>(시스템 프롬프트)를 만듭니다(이미 있으면 건드리지 않음). 파일을 고치면 다음 압축부터 바로 반영되고, <code>{{transcript}}</code> 자리가 없거나 문법이 깨지면 내장 기본값으로 돌아갑니다. <span id="help-tpl-status" class="hnote" style="display:inline"></span></dd></div>
@@ -852,12 +902,13 @@
         <button id="sb-req-help" type="button" title="요청 작성 예시 · 프롬프트 바꾸기" aria-label="요청 작성 도움말" aria-expanded="false">?</button>
         <div id="sb-req-pop" role="dialog" aria-label="요청 작성 도움말">
           <h4>요청 — 무엇을 강조·생략할지, 어떤 언어로 쓸지</h4>
-          <p>비워도 됩니다. 적으면 기본 규칙보다 우선합니다(출력 형식만 고정). <b>받는 사람 · 강조 · 언어</b> 세 칸으로 적으면 결과가 일관됩니다 — 예시를 누르면 입력란에 들어갑니다.</p>
+          <p>비워도 됩니다. 적으면 기본 규칙보다 우선합니다 — 출력 형식만 고정됩니다. 아래 예시를 누르면 입력란에 들어갑니다.</p>
+          <span class="exlabel">세 칸 양식 — 받는 사람 · 강조 · 언어</span>
           <button class="ex" type="button"><span class="k">받는 사람:</span> 같은 코드베이스를 이어갈 AI 세션 · <span class="k">강조:</span> 남은 작업과 현재 위치, 지켜야 할 설정값 · <span class="k">언어:</span> 한국어</button>
           <button class="ex" type="button"><span class="k">받는 사람:</span> 이 문제를 고칠 사람 · <span class="k">강조:</span> 에러 원문과 재현 명령, 시도했다 되돌린 것 · <span class="k">언어:</span> 한국어</button>
           <button class="ex" type="button"><span class="k">받는 사람:</span> 코드 맥락 없는 팀원 · <span class="k">강조:</span> 결정과 그 이유, 누가 확인했는지 · <span class="k">언어:</span> 한국어</button>
-          <div class="ex-row"><span style="font-size:11.5px; color:var(--muted); align-self:center">한 줄도 됩니다:</span>
-            <button class="ex" type="button">English, errors first</button>
+          <span class="exlabel">한 줄로 적어도 됩니다</span>
+          <div class="ex-row">            <button class="ex" type="button">English, errors first</button>
             <button class="ex" type="button">짧게, 결정사항만</button></div>
           <div class="tpl">프롬프트 자체를 바꾸려면 <code>~/.branchport/compact-prompt.md</code>를 편집합니다 — <a id="sb-req-pop-tpl">기본 프롬프트 내보내기·자세히</a>. <span id="sb-tpl-status"></span></div>
         </div>
@@ -871,7 +922,8 @@
   <div id="modal">
     <div id="mbox">
       <button class="x" onclick="modal.classList.remove('open')">×</button>
-      <div class="hd"><h2>압축 패키지</h2><div class="m" id="m-meta"></div></div>
+      <div class="hd"><h2>압축 패키지</h2><div class="m" id="m-meta"></div>
+        <div id="m-req" title="이 패키지를 만들 때 함께 보낸 요청"></div></div>
       <div id="m-skill-suggest" class="hnote" style="display:none">
         <span id="m-skill-suggest-text"></span>
         <button class="btn ghost" id="m-skill-suggest-btn">스킬로 내보내기</button>
@@ -2316,10 +2368,21 @@ function fitReqInput() {
   cnt.classList.toggle("on", n >= 1500);
   cnt.classList.toggle("warn", n >= 1900);
 }
-reqInput.addEventListener("input", fitReqInput);
+// 요청은 대개 사람마다 고정된 문장("받는 사람: 팀원 · 강조: 결정과 이유")을 반복해서 쓴다.
+// 매번 다시 치게 두면 그냥 비우고 압축하게 되므로, 마지막 요청을 기억했다가 되살린다.
+const REQ_KEY = "bp-compact-request";
+reqInput.addEventListener("input", () => {
+  fitReqInput();
+  try { localStorage.setItem(REQ_KEY, reqInput.value); } catch (e) { /* 저장 불가 — 이번 세션만 */ }
+});
+try {
+  const saved = localStorage.getItem(REQ_KEY);
+  if (saved) { reqInput.value = saved; fitReqInput(); }
+} catch (e) { /* localStorage 차단 환경 */ }
 reqPop.querySelectorAll(".ex").forEach(b => b.addEventListener("click", () => {
   reqInput.value = b.textContent.trim();
   fitReqInput();
+  try { localStorage.setItem(REQ_KEY, reqInput.value); } catch (e) { /* 저장 불가 */ }
   setReqPop(false);
   reqInput.focus();
 }));
@@ -3242,6 +3305,12 @@ document.getElementById("sb-go").addEventListener("click", async (ev) => {
     PKG = j;
     document.getElementById("m-branch").style.display = ""; // 압축 모드 — 갈래 버튼 복원
     document.getElementById("m-meta").textContent = `${ids.length}턴 · 파일 저장됨: ${j.savedTo}`;
+    // 어떤 요청이 반영됐는지 결과 화면에서 바로 확인 — 서버가 정리한 값(meta.request)을
+    // 쓴다. 입력칸 값을 그대로 쓰면 서버에서 잘리거나 걸러진 부분이 드러나지 않는다.
+    const reqEl = document.getElementById("m-req");
+    const usedReq = PKG.json?.meta?.request;
+    reqEl.classList.toggle("on", !!usedReq);
+    reqEl.innerHTML = usedReq ? `<b>요청</b> — ${esc(usedReq)}` : "";
     // 압축→스킬 제안: 추가 LLM 호출 없이 이미 있는 신호(에러 보고 + 파일 변경 + 이후 무에러
     // 수정)만으로 서버가 판정한 것 — 이 구간이 "문제를 풀고 끝난" 구간처럼 보이면 알려준다.
     const sc = j.json?.meta?.skillCandidate;

@@ -1338,6 +1338,12 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
         const md = [
           `# 압축 패키지 — ${range.length}턴`,
           `> 프로젝트 ${facts.project} · ${(facts.period[0] ?? '').slice(0, 16)} → ${(facts.period[1] ?? '').slice(11, 16)}`,
+          // 요청은 이 패키지가 무엇을 강조하고 무엇을 뺐는지를 결정한다 — 결과에 그 근거가
+          // 없으면 받은 쪽도, 나중의 나도 왜 이렇게 정리됐는지 알 수 없고 재현도 못 한다.
+          // json meta.request에는 이미 있었지만, 실제로 새 대화에 붙여넣는 건 이 md 쪽이다.
+          ...(userRequest
+            ? userRequest.split('\n').map((l, i) => (i === 0 ? `> 요청: ${l}` : `>       ${l}`))
+            : []),
           ``, `## 목표`, S.goal || '-',
           ``, `## 요약`, S.summary || '-',
           ``, `## 결정사항`, ...(S.decisions.length ? S.decisions.map(d => `- **${d.d || '-'}** — ${d.why || '-'}`) : ['- (없음)']),
