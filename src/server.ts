@@ -7,7 +7,7 @@ import { exec, spawn } from 'node:child_process';
 import { listProjects, listSessionFiles, listForkFiles } from './discover';
 import { buildForest } from './tree';
 import { buildTurnForest } from './turns';
-import { renderTranscript } from './transcript';
+import { renderTranscript, truncatePackage } from './transcript';
 import { renderCompactPrompt, parseSummary, normalizeRequest, COMPACT_SYSTEM_PROMPT } from './prompt';
 import { loadCompactTemplate, loadCompactSystemPrompt, exportCompactDefaults, COMPACT_TEMPLATE_FILE, COMPACT_SYSTEM_FILE, BRANCHPORT_HOME } from './config';
 import { splitAncestorSegments, findAncestorEvidence, buildGlossaryPrompt, parseGlossary, GlossaryItem, AncestorSegment, identTokens } from './glossary';
@@ -66,6 +66,36 @@ function pointiness(hits: { score: number }[]): number {
 // 프로젝트별 검색 인덱스 캐시 — 세션·라벨 파일 mtime이 그대로면 재사용.
 // 전체 Turn 배열을 물고 있으므로 최근 4개만 유지(단순 FIFO 상한).
 const searchIdxCache = new Map<string, { key: string; idx: SearchIndex }>();
+// 검색 인덱스 캐시 키 — 세션 파일 mtime + 라벨 파일 mtime. /api/search와 갈래 조상 발췌가
+// 같은 키를 쓰므로 한쪽이 만든 인덱스를 다른 쪽이 그대로 재사용한다(갈래는 질문마다
+// 재빌드해 1,200턴 기준 64ms를 쓰고 있었다 — 8/17 실측).
+function searchIdxKey(project: string): string {
+  try {
+    let m = 0;
+    for (const sf of listSessionFiles(project)) { try { m = Math.max(m, fs.statSync(sf.filePath).mtimeMs); } catch { /* 삭제 경합 무시 */ } }
+    let lm = 0; try { lm = fs.statSync(labelFile(project)).mtimeMs; } catch { /* 라벨 없음 */ }
+    return m + '-' + lm;
+  } catch { return ''; } // 키 실패 시 캐시 미사용
+}
+function cachedSearchIndex(project: string, turns: Turn[], labels: Record<string, { t: string; g: string }>): SearchIndex {
+  const key = searchIdxKey(project);
+  const hit = searchIdxCache.get(project);
+  if (key && hit && hit.key === key) return hit.idx;
+  const idx = buildSearchIndex(turns, labels);
+  if (key) {
+    searchIdxCache.set(project, { key, idx });
+    if (searchIdxCache.size > SEARCH_CACHE_MAX) searchIdxCache.delete(searchIdxCache.keys().next().value!);
+  }
+  // 재구축에 딸린 부수효과는 캐시를 채우는 쪽이 같이 진다. 종전에는 /api/search의 캐시
+  // 미스 분기에만 있었는데, 갈래 조상 발췌가 같은 캐시를 쓰기 시작하면서 갈래가 먼저
+  // 새 mtime의 캐시를 채우면 /api/search는 그 뒤로 캐시 히트로만 돌아 새 턴의 벡터가
+  // 영영 안 만들어졌다(semanticRank는 벡터 없는 턴을 건너뛰므로 최신 턴이 시맨틱 회수에서
+  // 조용히 빠진다) — 물질화 인덱스도 같이 스테일이 됐다.
+  try { persistIndex(project, idx); } catch (e: any) { console.error('[index 저장 실패 — 검색은 계속]', e?.message); }
+  // await 하지 않는다 — 이번 응답은 지연 없이 나가고, 벡터가 없던 첫 질의는 키워드-only로 동작
+  ensureVectors(project, turns, labels).catch((e: any) => console.error('[벡터 백그라운드 인덱싱 실패]', e?.message));
+  return idx;
+}
 const SEARCH_CACHE_MAX = 4;
 // 프로젝트별 forest 캐시 — QA 실측: buildForest가 매 요청 전체 JSONL(현 45K줄)을 재파싱해
 // /api/expand·tree·turns가 캐시 여부와 무관하게 매번 ~1.1초. 세션 파일 mtime·개수가
@@ -900,7 +930,8 @@ function handleBranchChat(req: http.IncomingMessage, res: http.ServerResponse) {
       let ctx: string;
       if (br.kind === 'compact') {
         try {
-          ctx = fs.readFileSync(path.join(PKG_ROOT, path.basename(project), br.pkgFile + '.md'), 'utf8').slice(0, 14_000);
+          const full = fs.readFileSync(path.join(PKG_ROOT, path.basename(project), br.pkgFile + '.md'), 'utf8');
+          ctx = truncatePackage(full, 14_000);
         } catch {
           return sendJson(res, 404, { error: '압축 패키지 파일을 찾을 수 없습니다: ' + br.pkgFile + '.md' });
         }
@@ -935,7 +966,7 @@ function handleBranchChat(req: http.IncomingMessage, res: http.ServerResponse) {
           const q = (String(question) + ' ' + (lb?.t ?? '') + ' ' + bpIdents.join(' ')).slice(0, 120);
           const allow = new Set(ancestors.filter(a => a.prompt !== '(계속)' && (a.prompt + a.answer).length > 400).map(a => a.id));
           if (allow.size) {
-            const bIdx = buildSearchIndex(all, labels);
+            const bIdx = cachedSearchIndex(project, all, labels);
             const kwHits = searchIndex(bIdx, q, 10, allow);
             // /api/search와 같은 확신도 게이트 — 키워드가 뾰족하면 그대로 신뢰, 아니면
             // 조상 범위(allow) 전체로 풀을 넓혀(풀 절단 절벽 제거) 시맨틱과 RRF 융합.
@@ -1020,6 +1051,7 @@ ${hist ? '\n[이 브랜치에서 나눈 대화]\n' + hist : ''}
     } catch (e: any) { sendJson(res, 500, { error: e?.message ?? String(e) }); }
   });
 }
+
 
 function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
   readBody(req, res, 20_000, async ({ project, turnIds, model, request, glossary, glossaryModel }) => {
@@ -1192,7 +1224,7 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
     const runCompact = (attempt: number) => askClaude(prompt, {
       model: typeof model === 'string' ? model : undefined,
       systemPrompt: sysPrompt.text, json: true, noTools: true, timeoutMs: 420_000,
-    }, (out, err, code, metrics) => {
+    }, async (out, err, code, metrics) => {
       try {
         const S = parseSummary(out);
         if (!S) {
@@ -1210,29 +1242,81 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
         // 질의로 삼아 범위 밖 원문을 찾는다 — "부족한 것을 LLM이 판단하고 리트리버가
         // 채우는" 구조를 추가 호출 0회로 구현 (판단은 이미 요약 안에 있다).
         // 문장형 질의는 식별자만 추리고, 점수 문턱 미달이면 안 붙인다 (정밀도 게이트).
-        // TODO(하이브리드 리트리버, 8/14): 이 블록은 askClaude의 동기 콜백 안이라 여기서
-        // semanticRank를 await할 수 없다(콜백을 async로 바꾸는 리팩터가 필요, 이번 라운드
-        // 범위 밖). /api/search·갈래 조상 발췌(handleBranchChat)는 이미 하이브리드 RRF로
-        // 전환됨 — 같은 패턴(kwHits + semanticRank(project, q, all) + rrfFuse)을 여기 적용하면 됨.
-        let threadRelated: { q: string; id: string; ts: string | null; title: string; score: number }[] = [];
+        // 하이브리드 (8/17): 키워드 점수가 문턱(3점)을 넘으면 지금까지처럼 키워드만
+        // 신뢰(회귀 0). 문턱 미달이거나 0건일 때만(=커버리지 실패 구간, 좋은 키워드 히트를
+        // 밀어낼 위험이 없다) 임베딩 후보를 본다 — 채택 기준은 OPEN_THREAD_EMBED_TAU
+        // (절대 코사인이 아니라 뾰족함, 위 주석 참고). 쿼리별로 최대 1건만 승격한다
+        // (여러 개를 고르기엔 임베딩 단독 판단의 확신이 낮다).
+        let threadRelated: { q: string; id: string; ts: string | null; title: string; score: number; via: 'direct' | 'graph' | 'semantic' }[] = [];
         try {
           if (relIdx) {
             const qs = [...(Array.isArray(S.open_threads) ? S.open_threads : []),
                         ...(Array.isArray(S.state?.todo) ? S.state.todo : [])].slice(0, 4);
             const seen = new Set<string>(related.map(r => r.id));
+            const allTurns = [...relIdx.entries.values()].map(e => e.t);
+            // 후보에서 범위 안 턴을 미리 제외 — 상위 3건이 범위 안 턴으로 낭비되지 않게
+            const outside = new Set<string>(allTurns.map(t => t.id).filter(id => !rangeSet.has(id)));
+            const perQuery: { rawQ: string; ranked: { id: string; score: number; via: 'direct' | 'graph' | 'semantic' }[] }[] = [];
             for (const rawQ of qs) {
-              const idents = [...identTokens(String(rawQ)).keys()];
-              const q = (idents.length ? idents.slice(0, 4).join(' ') : String(rawQ)).slice(0, 80);
-              for (const h of searchIndex(relIdx, q, 3)) {
-                if (h.score < 3 || rangeSet.has(h.id) || seen.has(h.id)) continue;
-                seen.add(h.id);
-                threadRelated.push({
-                  q: String(rawQ).replace(/\s+/g, ' ').slice(0, 40), id: h.id, ts: h.ts,
-                  title: h.title || byId.get(h.id)?.headline || '', score: h.score,
-                });
-                if (threadRelated.length >= 4) break;
+              // 질의는 원문 문장 그대로. 종전의 identTokens 변환은 실측(8/17, 실질의 72건)에서
+              // 72건 중 54건(75%)이 빈 배열이라 사실상 무동작이었고, 상위 3건이 원문 질의와
+              // 76% 동일했으며 hit@3도 66.7% vs 70.8%로 오히려 원문 쪽이 나았다 — 제거.
+              const q = String(rawQ).slice(0, 200);
+              const kwHits = searchIndex(relIdx, q, 30, outside);
+              let semHits: { id: string; score: number }[] | null = null;
+              try { semHits = await semanticRank(project, q, allTurns, outside); }
+              catch (e: any) { console.error('[열린 스레드 시맨틱 검색 실패 — 키워드로 계속]', e?.message); }
+
+              // 융합은 절대 점수 게이트 없이 항상 수행한다. 종전 게이트("키워드 top1<3점이면
+              // 임베딩")는 실측에서 0/72건 진입 — 이 코퍼스의 top1 점수 분포가 6.4~124.7이라
+              // 3점 문턱이 스케일에 안 맞아 임베딩이 한 번도 호출되지 않았다.
+              // 블라인드 판정(72질의·539쌍) 결과 항상 융합이 최선: hit@3 80.6%(현행 66.7%),
+              // precision@3 60.2%(50.5%), 전부무관 18.1%(31.9%). 임베딩 단독은 46.3%로
+              // 현행보다 나빠 "대체"가 아니라 "융합"이어야 한다는 점도 같이 확인됐다.
+              // Ollama가 없으면 semHits가 null이라 키워드 순위 그대로 = 측정 조건 B(70.8%)로
+              // 자연 퇴화한다 — 폴백도 현행보다 나은 상태다.
+              let ranked: { id: string; score: number; via: 'direct' | 'graph' | 'semantic' }[];
+              if (semHits && semHits.length) {
+                const fused = rrfFuse(kwHits, semHits.slice(0, 30));
+                const kwById = new Map(kwHits.map(h => [h.id, h]));
+                ranked = [...fused.entries()]
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([id, score]) => ({ id, score, via: (kwById.get(id)?.via ?? 'semantic') as 'direct' | 'graph' | 'semantic' }));
+              } else {
+                ranked = kwHits.map(h => ({ id: h.id, score: h.score, via: h.via }));
               }
-              if (threadRelated.length >= 4) break;
+
+              perQuery.push({ rawQ: String(rawQ), ranked: ranked.slice(0, 3) });
+            }
+
+            // 슬롯 배분: 질의별로 한 건씩 라운드로빈. 질의당 상위 3건을 먼저 다 담으면
+            // 첫 스레드가 4슬롯 중 3개를 독식해 나머지 미해결 항목이 빈다(8/17 실압축에서
+            // 실제로 관측). 의도는 "각 미해결 항목마다 관련 원문을 붙인다"이므로 커버리지를
+            // 우선하고, 남는 슬롯만 2·3순위로 채운다.
+            // 중복(이미 related에 있거나 앞 질의가 가져간 턴)은 그 질의의 다음 후보로 넘어간다.
+            // 라운드마다 고정 순위(ranked[rank])를 보면 1순위가 중복인 질의는 그 라운드를
+            // 통째로 잃고, 다음 라운드에서는 이미 슬롯을 받은 앞 질의들이 먼저 채워 영영
+            // 0건이 된다 — 실측 재현(8/17, compact-v3 범위): Q3·Q4의 1순위가 둘 다 related와
+            // 겹쳐 커버리지가 4질의 중 2질의로 떨어지고 Q1·Q2가 2슬롯씩 독식했다.
+            const cursor = perQuery.map(() => 0);
+            for (let round = 0; round < 3 && threadRelated.length < 4; round++) {
+              for (let i = 0; i < perQuery.length; i++) {
+                if (threadRelated.length >= 4) break;
+                const pq = perQuery[i];
+                let h: { id: string; score: number; via: 'direct' | 'graph' | 'semantic' } | undefined;
+                while (cursor[i] < pq.ranked.length) {
+                  const c = pq.ranked[cursor[i]++];
+                  if (!rangeSet.has(c.id) && !seen.has(c.id)) { h = c; break; }
+                }
+                if (!h) continue;
+                seen.add(h.id);
+                const e = relIdx.entries.get(h.id);
+                threadRelated.push({
+                  q: pq.rawQ.replace(/\s+/g, ' ').slice(0, 40), id: h.id,
+                  ts: e?.t.timestamp ?? null, title: e?.title || byId.get(h.id)?.headline || '',
+                  score: Math.round(h.score * 10000) / 10000, via: h.via,
+                });
+              }
             }
           }
         } catch (e: any) { console.error('[열린 스레드 리트리벌 실패 — 생략]', e?.message); }
@@ -1574,13 +1658,7 @@ const server = http.createServer((req, res) => {
     const project = url.searchParams.get('project');
     const q = url.searchParams.get('q');
     if (!project || !q) return sendJson(res, 400, { error: 'missing ?project= or ?q=' });
-    let mtimeKey = '';
-    try {
-      let m = 0;
-      for (const sf of listSessionFiles(project)) { try { m = Math.max(m, fs.statSync(sf.filePath).mtimeMs); } catch { /* 삭제 경합 무시 */ } }
-      let lm = 0; try { lm = fs.statSync(labelFile(project)).mtimeMs; } catch { /* 라벨 없음 */ }
-      mtimeKey = m + '-' + lm;
-    } catch { /* 키 실패 시 캐시 미사용 */ }
+    const mtimeKey = searchIdxKey(project);
     const n = Math.max(1, Math.min(Number(url.searchParams.get('n')) || 10, 50));
 
     // 확신도 게이트 조건부 융합 — 키워드가 뾰족하게 확신하면(식별자 직격 추정) 그대로
@@ -1589,7 +1667,7 @@ const server = http.createServer((req, res) => {
     // semanticRank가 null이면(Ollama 부재·타임아웃·벡터 미구축) 키워드 결과만 그대로
     // 반환 — 예외·지연 없는 무손실 폴백. route로 세 경로(confident/fused/fallback)를,
     // hybrid로 "실제로 시맨틱이 순위에 반영됐는지"를 소비자에 노출.
-    const respondSearch = async (idx: SearchIndex, freshBuild: boolean) => {
+    const respondSearch = async (idx: SearchIndex) => {
       const kwHits = searchIndex(idx, q, 30);
       // 키워드 0건 = "무매치"이지 "저확신"이 아니다 — 이대로 융합에 넘기면 순수 시맨틱이
       // 무문턱으로 n건을 채워, 기록에 없는 질문에 그럴듯한 무관 턴이 근거로 주입되고
@@ -1639,30 +1717,20 @@ const server = http.createServer((req, res) => {
           hits = kwHits.slice(0, n);
         }
       }
-      // 인덱스를 방금 새로 지었을 때만(캐시 미스) 벡터도 백그라운드로 채운다 — await 하지
-      // 않으므로 이번 응답은 지연 없이 나가고, 벡터가 없던 첫 질의는 키워드-only로 동작한다.
-      if (freshBuild) {
-        ensureVectors(project!, [...idx.entries.values()].map(e => e.t), loadLabels(project!))
-          .catch((e: any) => console.error('[벡터 백그라운드 인덱싱 실패]', e?.message));
-      }
+      // 벡터 백그라운드 채우기·물질화는 cachedSearchIndex(재구축 시점)가 맡는다.
       // indexed: 소비자(스킬)가 "프로젝트명 오타로 0건"과 "진짜 무매치"를 구분하게 한다
       sendJson(res, 200, { hits, indexed: idx.n, hybrid, route });
     };
 
+    // 캐시 히트면 cachedForest(전체 JSONL 재파싱)조차 건너뛴다 — 스킬이 2~3회 연속 질의하므로
     const cached = searchIdxCache.get(project);
     if (mtimeKey && cached && cached.key === mtimeKey) {
-      return respondSearch(cached.idx, false).catch((e: any) => sendJson(res, 500, { error: e?.message ?? String(e) }));
+      return respondSearch(cached.idx).catch((e: any) => sendJson(res, 500, { error: e?.message ?? String(e) }));
     }
     return cachedForest(project)
       .then(forest => {
         const all = flattenTurns(buildTurnForest(forest.roots, forest.compactBoundaries, forest.queuedPrompts));
-        const idx = buildSearchIndex(all, loadLabels(project));
-        if (mtimeKey) {
-          searchIdxCache.set(project, { key: mtimeKey, idx });
-          if (searchIdxCache.size > SEARCH_CACHE_MAX) searchIdxCache.delete(searchIdxCache.keys().next().value!);
-        }
-        try { persistIndex(project, idx); } catch (e: any) { console.error('[index 저장 실패 — 검색은 계속]', e?.message); }
-        return respondSearch(idx, true);
+        return respondSearch(cachedSearchIndex(project, all, loadLabels(project)));
       })
       .catch((e: any) => sendJson(res, 500, { error: e?.message ?? String(e) }));
   }
