@@ -7,7 +7,7 @@ import { exec, spawn } from 'node:child_process';
 import { listProjects, listSessionFiles, listForkFiles } from './discover';
 import { buildForest } from './tree';
 import { buildTurnForest } from './turns';
-import { renderTranscript, truncatePackage } from './transcript';
+import { renderTranscript, truncatePackage, indexNodes } from './transcript';
 import { renderCompactPrompt, parseSummary, normalizeRequest, COMPACT_SYSTEM_PROMPT } from './prompt';
 import { loadCompactTemplate, loadCompactSystemPrompt, exportCompactDefaults, COMPACT_TEMPLATE_FILE, COMPACT_SYSTEM_FILE, BRANCHPORT_HOME } from './config';
 import { splitAncestorSegments, findAncestorEvidence, buildGlossaryPrompt, parseGlossary, GlossaryItem, AncestorSegment, identTokens } from './glossary';
@@ -931,7 +931,10 @@ function handleBranchChat(req: http.IncomingMessage, res: http.ServerResponse) {
       if (br.kind === 'compact') {
         try {
           const full = fs.readFileSync(path.join(PKG_ROOT, path.basename(project), br.pkgFile + '.md'), 'utf8');
-          ctx = truncatePackage(full, 14_000);
+          // 20,000: 실측 패키지 크기가 6,263~19,444자로 절반 가까이가 14,000을 넘어
+          // 중략됐다(19,444자는 28% 소실). 패키지 안 내용은 전부 범위 안이라 상한을
+          // 올려도 시점 격리 위험이 0이다.
+          ctx = truncatePackage(full, 20_000);
         } catch {
           return sendJson(res, 404, { error: '압축 패키지 파일을 찾을 수 없습니다: ' + br.pkgFile + '.md' });
         }
@@ -1035,7 +1038,9 @@ ${hist ? '\n[이 브랜치에서 나눈 대화]\n' + hist : ''}
 
 새 질문: ${question}`;
 
-      askClaude(prompt, {}, (out, err) => {
+      // noTools — 맥락이 통제 불가 로그 텍스트라 압축 본체와 같은 원칙을 적용한다.
+      // (도구 없음 = "속아도 피해가 없게"의 구조적 장치. 입력 토큰도 줄어든다.)
+      askClaude(prompt, { noTools: true }, (out, err) => {
         try {
           const answer = out.trim() || '(응답 없음: ' + err.slice(0, 200) + ')';
           // 응답 대기 중 다른 요청이 branches를 저장했을 수 있으므로 새로 읽어 병합
@@ -1153,7 +1158,10 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
       .sort((a, b) => (a.timestamp ?? '').localeCompare(b.timestamp ?? ''));
     // 검색 인덱스 — 용어 부록의 조상 선별과 관련 원문 동봉(아래)이 공유한다
     let relIdx: SearchIndex | null = null;
-    try { relIdx = buildSearchIndex([...byId.values()], labels); }
+    // cachedSearchIndex를 쓴다 — 직접 buildSearchIndex를 부르면 벡터 증분 인덱싱
+    // (ensureVectors)이 안 걸려, 트리를 열고 압축만 쓰는 사용자는 벡터가 영영 생기지
+    // 않고 하이브리드가 조용히 키워드-only로 퇴화한다(아키텍처 검토 8/17 §5-③).
+    try { relIdx = cachedSearchIndex(project, [...byId.values()], labels); }
     catch (e: any) { console.error('[검색 인덱스 구축 실패 — 부가층 생략]', e?.message); }
 
     let glossaryEvidence: ReturnType<typeof findAncestorEvidence> = [];
@@ -1165,10 +1173,11 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
         // 기계 검색 대상일 뿐이므로 총량 상한 자체가 불필요 — 턴 단위 전문 세그먼트로 바꾼다.
         // (수정 후 전량 기준과 불일치 0·누락 0, 조상 400턴 기준 137ms 측정)
         const segs: AncestorSegment[] = [];
+        const nodeIdx = indexNodes(forest.roots); // 루프 밖에서 1회 — 조상마다 재인덱싱 금지
         for (const a of ancestors) {
           // 턴 전문 스캔 — 이 텍스트는 LLM이 아니라 기계 검색에만 쓰이므로 자를 이유가 없다
           // (150k 총량 상한이 오래된 조상을 버려 오귀속 58~69%의 원인이었음 — 8/12 실측)
-          const r = sanitize(renderTranscript([a], forest.roots, forest.toolResults, 1_000_000));
+          const r = sanitize(renderTranscript([a], forest.roots, forest.toolResults, 1_000_000, nodeIdx));
           if (!r.trim()) continue;
           segs.push({ turnId: a.id, ts: a.timestamp, text: r });
         }
@@ -1186,7 +1195,10 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
     let related: RelatedTurn[] = [];
     try {
       if (!relIdx) throw new Error('검색 인덱스 없음');
-      const hits = relatedToRange(relIdx, rangeSet, 6);
+      // 6→4: 실측 7건 중 4건에서 상위 6칸 중 4~6칸이 완전 동점이었다(동점 순서는
+      // Map 삽입 순일 뿐 의미 없음). 변별은 상위 1~3건에서 끝나고 나머지는 자리만
+      // 차지하며 열린 스레드 슬롯과 중복 경쟁까지 유발한다.
+      const hits = relatedToRange(relIdx, rangeSet, 4);
       // 발췌 위치는 앞머리가 아니라 "범위와 공유하는 식별자가 처음 등장하는 지점" 주변 —
       // 앞머리 절단은 수치·에러 식별자가 담긴다는 보장이 없다 (T2의 존재 이유가 그 보존이므로)
       const rangeIdents = new Set<string>();
@@ -1247,7 +1259,7 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
         // 밀어낼 위험이 없다) 임베딩 후보를 본다 — 채택 기준은 OPEN_THREAD_EMBED_TAU
         // (절대 코사인이 아니라 뾰족함, 위 주석 참고). 쿼리별로 최대 1건만 승격한다
         // (여러 개를 고르기엔 임베딩 단독 판단의 확신이 낮다).
-        let threadRelated: { q: string; id: string; ts: string | null; title: string; score: number; via: 'direct' | 'graph' | 'semantic' }[] = [];
+        let threadRelated: { q: string; id: string; ts: string | null; title: string; gist: string; score: number; via: 'direct' | 'graph' | 'semantic' }[] = [];
         try {
           if (relIdx) {
             const qs = [...(Array.isArray(S.open_threads) ? S.open_threads : []),
@@ -1286,7 +1298,9 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
                 ranked = kwHits.map(h => ({ id: h.id, score: h.score, via: h.via }));
               }
 
-              perQuery.push({ rawQ: String(rawQ), ranked: ranked.slice(0, 3) });
+              // 깊이 6: 3이면 상위 3건이 전부 구조 연결과 겹칠 때 커서가 소진돼 그 질의가
+              // 영영 0건이 된다(실측 커버리지 평균 2.6/4). 융합 결과엔 후보가 30건+ 있다.
+              perQuery.push({ rawQ: String(rawQ), ranked: ranked.slice(0, 6) });
             }
 
             // 슬롯 배분: 질의별로 한 건씩 라운드로빈. 질의당 상위 3건을 먼저 다 담으면
@@ -1314,7 +1328,7 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
                 threadRelated.push({
                   q: pq.rawQ.replace(/\s+/g, ' ').slice(0, 40), id: h.id,
                   ts: e?.t.timestamp ?? null, title: e?.title || byId.get(h.id)?.headline || '',
-                  score: Math.round(h.score * 10000) / 10000, via: h.via,
+                  gist: e?.gist ?? '', score: Math.round(h.score * 10000) / 10000, via: h.via,
                 });
               }
             }
@@ -1355,7 +1369,7 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
           ...(threadRelated.length ? [
             `- 열린 스레드 관련 (요약이 미해결로 지목한 항목을 질의로 검색):`,
             ...threadRelated.map(r =>
-              `  - "${r.q}" → ${(r.ts ?? '').slice(5, 16)} · \`${r.id}\` — ${r.title}`),
+              `  - "${r.q}" → ${(r.ts ?? '').slice(5, 16)} · \`${r.id}\` — **${r.title}**${r.gist ? ` — ${r.gist}` : ''}`),
           ] : []),
           ``, `## 사실층`,
           `- 만진 파일: ${facts.files.join(', ') || '-'}`,
