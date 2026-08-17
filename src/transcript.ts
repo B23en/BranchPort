@@ -154,3 +154,27 @@ export function renderTranscript(
   // 마지막 턴 하나만으로도 초과하는 극단: 예전 방식대로 뒷부분(최신)만 남긴다.
   return `[NOTE] transcript exceeds budget — oldest part omitted below this line\n…\n` + kept.slice(kept.length - budget);
 }
+
+// 압축 패키지를 갈래 맥락으로 승계할 때의 절단 — 앞에서 통째로 자르면 md 끝에 있는
+// "## 원문 앵커"가 통째로 날아간다(실측: 19,444자 패키지에서 앵커가 18,754자 위치라 잘림).
+// 앵커는 갈래 AI가 /expand로 원문을 더 파낼 유일한 경로라, 잘리면 손실 보완 파이프라인의
+// 마지막 고리가 끊긴다. 그래서 앞부분(요약층·관련 원문)을 우선 담되 앵커 섹션은 별도로
+// 떼어 끝에 반드시 붙인다. 앵커도 길면 자르되 잘렸다는 사실을 표시한다.
+const ANCHOR_HEAD = '## 원문 앵커';
+export function truncatePackage(md: string, limit: number): string {
+  if (md.length <= limit) return md;
+  // 마지막 등장을 찾는다 — 앵커는 패키지 md의 마지막 섹션이라 뒤에서 찾는 게 정확하고,
+  // 요약층(LLM 자유 서술)이 줄머리에 "## 원문 앵커"를 그대로 인용해도 오탐하지 않는다.
+  // parseSummary는 개행을 지우지 않으므로 요약·주의 항목에 이 헤더가 줄머리로 들어올 수
+  // 있고, 그때 앞에서 찾으면 진짜 앵커 목록이 통째로 날아간다(이 리포지터리는 자기 세션을
+  // 압축하므로 요약이 이 섹션명을 언급할 개연성이 특히 높다).
+  const ai = md.lastIndexOf('\n' + ANCHOR_HEAD);
+  if (ai < 0) return md.slice(0, limit); // 앵커 섹션이 없는 옛 패키지 — 종전 동작
+  let anchor = md.slice(ai + 1);
+  const ANCHOR_MAX = Math.min(2_500, Math.floor(limit * 0.2)); // 앵커에 내줄 상한
+  if (anchor.length > ANCHOR_MAX) anchor = anchor.slice(0, ANCHOR_MAX) + '\n- …(앵커 목록 일부 생략 — 전체는 패키지 원본 참조)';
+  const headBudget = limit - anchor.length - 40;
+  if (headBudget <= 0) return md.slice(0, limit);
+  const head = md.slice(0, Math.min(ai, headBudget));
+  return head + '\n\n…(중략 — 분량 상한)\n\n' + anchor;
+}
