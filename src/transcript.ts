@@ -44,7 +44,7 @@ function capFor(t: ToolCall, caps: Caps): number {
   return caps.evidence;
 }
 
-function indexNodes(roots: TreeNode[]): Map<string, TreeNode> {
+export function indexNodes(roots: TreeNode[]): Map<string, TreeNode> {
   const idx = new Map<string, TreeNode>();
   const walk = (n: TreeNode) => { idx.set(n.id, n); n.children.forEach(walk); };
   roots.forEach(walk);
@@ -123,8 +123,12 @@ export function renderTranscript(
   roots: TreeNode[],
   toolResults: Map<string, string>,
   budget = DEFAULT_BUDGET,
+  // 미리 만든 노드 인덱스 — 같은 트리로 여러 번 렌더할 때(용어 부록의 조상 세그먼트화 등)
+  // 호출마다 트리 전체를 재인덱싱하면 조상 N × 노드 M의 준2차 비용이 된다
+  // (실측 1회 1.35ms · 조상 1,000건 1,117ms, 프로젝트 10배면 동기 블로킹 168초).
+  nodeIdx?: Map<string, TreeNode>,
 ): string {
-  const idx = indexNodes(roots);
+  const idx = nodeIdx ?? indexNodes(roots);
   // 사다리를 순서대로 내려가며 예산에 처음 드는 단계를 택한다.
   let out = '';
   let caps = LADDER[LADDER.length - 1];
