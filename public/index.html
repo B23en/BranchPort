@@ -326,8 +326,12 @@
 
   .d-h{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:18px 0 8px; font-weight:700;}
   .d-empty{font-size:12.5px; color:var(--muted);}
+  /* 닫기 버튼도 .detail처럼 카드가 접힐 때 함께 사라진다 — 규칙이 없으면 380ms 축소 동안
+     innerHTML이 교체될 때까지 작아지는 노드 위에 ×만 끝까지 남는다 */
   .d-close{position:absolute; top:12px; right:12px; width:26px; height:26px; border-radius:50%;
-    border:0; background:var(--chip); color:var(--ink2); font-size:13px; cursor:pointer;}
+    border:0; background:var(--chip); color:var(--ink2); font-size:13px; cursor:pointer;
+    opacity:0; pointer-events:none; transition:opacity .15s ease;}
+  .node.expanded .d-close{opacity:1; pointer-events:auto; transition-delay:.1s;}
 
   /* ── 도구 내역: 국면색 점 + 도구명 + 미리보기를 한 줄로 정렬 — 기호(⚠) 대신 텍스트 배지 */
   .d-toollist{display:flex; flex-direction:column; gap:1px;}
@@ -2781,6 +2785,9 @@ function collapseNode(id) {
   // 카드는 없는데 패닝·휠줌·자동갱신만 계속 막힌다
   if (expandedId === id) expandedId = null;
   closeLightbox(); // 카드가 닫히는데 그 위 라이트박스만 떠 있는 상태 방지(방향키 이동 포함)
+  // 카드가 열릴 때 숨긴 그 노드의 제목 라벨(hide-self)을 되살린다 — 이걸 안 하면 ×·Esc·배경
+  // 클릭으로 닫았을 때 라벨이 사라진 채 남고, 다른 노드를 클릭할 때만 우연히 돌아온다
+  document.querySelector(`.node-label[data-id="${CSS.escape(id)}"]`)?.classList.remove("hide-self");
   const t = byId[id]; const el = NODE_EL[id]; if (!t || !el) return;
   el.classList.remove("expanded");
   el.style.transform = "";
