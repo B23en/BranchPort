@@ -8,7 +8,7 @@ import { listProjects, listSessionFiles, listForkFiles } from './discover';
 import { buildForest } from './tree';
 import { buildTurnForest } from './turns';
 import { renderTranscript, truncatePackage, indexNodes } from './transcript';
-import { renderCompactPrompt, parseSummary, normalizeRequest, COMPACT_SYSTEM_PROMPT } from './prompt';
+import { renderCompactPrompt, parseSummary, normalizeRequest, COMPACT_SYSTEM_PROMPT, DEFAULT_COMPACT_TEMPLATE, validateTemplate } from './prompt';
 import { loadCompactTemplate, loadCompactSystemPrompt, exportCompactDefaults, COMPACT_TEMPLATE_FILE, COMPACT_SYSTEM_FILE, BRANCHPORT_HOME } from './config';
 import { splitAncestorSegments, findAncestorEvidence, buildGlossaryPrompt, parseGlossary, GlossaryItem, AncestorSegment, identTokens } from './glossary';
 import { buildSearchIndex, searchIndex, persistIndex, relatedToRange, SearchIndex, SearchHit } from './search';
@@ -1661,6 +1661,27 @@ const server = http.createServer((req, res) => {
     try { return sendJson(res, 200, { home: BRANCHPORT_HOME, ...exportCompactDefaults() }); }
     catch (e: any) { return sendJson(res, 500, { error: String(e?.message ?? e) }); }
   }
+  if (req.method === 'POST' && req.url === '/api/compact/template/save') {
+    // 설정 창의 프롬프트 편집기 저장. 유효하지 않은 템플릿은 쓰지 않는다 —
+    // 어차피 로드 시 내장으로 폴백되지만, "저장했는데 조용히 무시되는" 상태를 만들지 않기 위해
+    // 여기서 막고 사유를 돌려준다. 빈 내용 저장 = 사용자 파일 삭제(내장 기본값으로 복귀).
+    return readBody(req, res, 300_000, ({ text }) => {
+      try {
+        if (typeof text !== 'string') return sendJson(res, 400, { error: 'text가 필요합니다' });
+        const body = text.replace(/\r\n/g, '\n');
+        if (!body.trim()) {
+          try { fs.unlinkSync(COMPACT_TEMPLATE_FILE); } catch { /* 없으면 이미 내장 상태 */ }
+          return sendJson(res, 200, { ok: true, reverted: true });
+        }
+        const check = validateTemplate(body);
+        if (!check.ok) return sendJson(res, 200, { ok: false, errors: check.errors, warnings: check.warnings });
+        fs.mkdirSync(BRANCHPORT_HOME, { recursive: true });
+        fs.writeFileSync(COMPACT_TEMPLATE_FILE, body, 'utf8');
+        const sha = createHash('sha1').update(body).digest('hex').slice(0, 12);
+        return sendJson(res, 200, { ok: true, file: COMPACT_TEMPLATE_FILE, sha1: sha, warnings: check.warnings });
+      } catch (e: any) { return sendJson(res, 500, { error: String(e?.message ?? e) }); }
+    });
+  }
   if (req.method === 'POST' && req.url === '/api/label') return handleLabel(req, res);
   if (req.method === 'POST' && req.url === '/api/capsule-label') return handleCapsuleLabel(req, res);
   if (req.method === 'POST' && req.url === '/api/topics') return handleTopics(req, res);
@@ -1668,6 +1689,21 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && req.url === '/api/branch-create') return handleBranchCreate(req, res);
   if (req.method === 'POST' && req.url === '/api/branch-chat') return handleBranchChat(req, res);
   if (req.method === 'POST' && req.url === '/api/branch-delete') return handleBranchDelete(req, res);
+  if (req.method === 'POST' && req.url === '/api/branch-rename') {
+    // 설정의 갈래 관리에서 제목만 바꾼다 — 대화 내용·앵커는 그대로
+    return readBody(req, res, 10_000, ({ project, id, title }) => {
+      try {
+        if (!project || !id || typeof title !== 'string' || !title.trim())
+          return sendJson(res, 400, { error: 'project·id·title이 필요합니다' });
+        const B = loadBranches(project);
+        const br = B.branches.find(x => x.id === id);
+        if (!br) return sendJson(res, 404, { error: 'unknown branch: ' + id });
+        br.title = title.trim().slice(0, 40);
+        saveBranches(project, B);
+        sendJson(res, 200, { ok: true, branch: br });
+      } catch (e: any) { sendJson(res, 500, { error: String(e?.message ?? e) }); }
+    });
+  }
 
   const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
 
@@ -1760,7 +1796,7 @@ const server = http.createServer((req, res) => {
     const tpl = loadCompactTemplate(), sys = loadCompactSystemPrompt();
     return sendJson(res, 200, {
       home: BRANCHPORT_HOME,
-      template: { source: tpl.source, file: COMPACT_TEMPLATE_FILE, sha1: tpl.sha1, error: tpl.error ?? null, warnings: tpl.warnings ?? [], text: tpl.text },
+      template: { source: tpl.source, file: COMPACT_TEMPLATE_FILE, sha1: tpl.sha1, error: tpl.error ?? null, warnings: tpl.warnings ?? [], text: tpl.text, builtin: DEFAULT_COMPACT_TEMPLATE },
       systemPrompt: { source: sys.source, file: COMPACT_SYSTEM_FILE, sha1: sys.sha1, text: sys.text },
     });
   }
