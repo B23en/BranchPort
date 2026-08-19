@@ -859,7 +859,8 @@
         <div><dt><kbd>shift</kbd> + 클릭</dt><dd>두 턴 사이 경로를 선택합니다(압축의 입력)</dd></div>
         <div><dt><kbd>Esc</kbd></dt><dd>겹친 순서대로 닫기 — 도움말 → 압축 결과창 → 열린 카드 → 펼친 구간</dd></div>
         <div><dt><kbd>?</kbd></dt><dd>이 도움말 열기</dd></div>
-        <div><dt>드래그 / 휠</dt><dd>화면 이동 / 확대·축소</dd></div>
+        <div><dt>드래그 · 휠 · <kbd>shift</kbd>+휠</dt><dd>화면 이동 (휠은 상하, shift+휠은 좌우 스크롤)</dd></div>
+        <div><dt><kbd>ctrl</kbd>+휠</dt><dd>확대·축소 (트랙패드 핀치도 같음)</dd></div>
       </dl>
       <p class="hnote">검색창이나 갈래 입력창에 커서가 있을 때는 단축키가 잠시 쉽니다.</p>
 
@@ -2615,12 +2616,39 @@ let camScale = 1, camTx = 0, camTy = 0;
 // outside the initial view.
 const MIN_FIT_SCALE = 0.42, MIN_ZOOM = 0.12, MAX_ZOOM = 2.4;
 
-function applyTransform(tx, ty, scale, instant) {
+function setCam(tx, ty, scale, instant) {
   camTx = tx; camTy = ty; camScale = scale;
   viewport.classList.toggle("instant", !!instant);
   viewport.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
   if (instant) void viewport.offsetHeight;
   viewport.classList.remove("instant");
+}
+// 외부에서 카메라를 잡으면(드래그·포커스·전체 보기) 진행 중인 휠 글라이드는 그 자리에서 멈춘다
+function applyTransform(tx, ty, scale, instant) {
+  stopGlide();
+  setCam(tx, ty, scale, instant);
+}
+// ── 휠 글라이드: 목표 카메라를 두고 매 프레임 지수 보간으로 따라간다 ──
+// 틱마다 즉시 점프시키면 스크롤·줌이 뚝뚝 끊긴다. 연속 틱은 목표에 누적되고 화면은
+// 프레임당 GLIDE_K 비율만큼 다가가므로(60fps 기준 ~150ms 안착) 관성 없이도 매끄럽다.
+// 배율은 로그 공간에서 보간해 확대·축소 체감 속도가 일정하다.
+const GLIDE_K = 0.22;
+const REDUCED_MOTION = matchMedia("(prefers-reduced-motion: reduce)");
+let glideRaf = 0, glideTarget = null;
+function stopGlide() { if (glideRaf) cancelAnimationFrame(glideRaf); glideRaf = 0; glideTarget = null; }
+function glideTo(tx, ty, scale) {
+  if (REDUCED_MOTION.matches) { setCam(tx, ty, scale, true); return; }
+  glideTarget = { tx, ty, scale };
+  if (glideRaf) return;
+  const step = () => {
+    const t = glideTarget;
+    const ntx = camTx + (t.tx - camTx) * GLIDE_K, nty = camTy + (t.ty - camTy) * GLIDE_K;
+    const ns = Math.exp(Math.log(camScale) + (Math.log(t.scale) - Math.log(camScale)) * GLIDE_K);
+    const done = Math.abs(t.tx - ntx) < 0.3 && Math.abs(t.ty - nty) < 0.3 && Math.abs(Math.log(t.scale / ns)) < 0.002;
+    setCam(done ? t.tx : ntx, done ? t.ty : nty, done ? t.scale : ns, true);
+    if (done) { glideRaf = 0; glideTarget = null; } else glideRaf = requestAnimationFrame(step);
+  };
+  glideRaf = requestAnimationFrame(step);
 }
 function fitAll(instant) {
   const r = stage.getBoundingClientRect();
@@ -2669,7 +2697,7 @@ function homeView() {
   fitAll();
 }
 
-// manual pan (drag) + wheel/trackpad zoom, so a tree that doesn't fully fit
+// manual pan (drag/wheel) + ctrl+wheel/pinch zoom, so a tree that doesn't fully fit
 // the "전체 보기" scale is still fully reachable
 let panState = null, justDragged = false;
 stage.addEventListener("pointerdown", (e) => {
@@ -2695,12 +2723,28 @@ window.addEventListener("pointerup", () => {
 stage.addEventListener("wheel", (e) => {
   if (expandedId) return;
   e.preventDefault();
+  const px = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? stage.clientHeight : 1; // 줄·페이지 단위 → 픽셀
+  // 브라우저 표준 휠 문법을 그대로 따른다 — 일반 휠 = 상하 스크롤, shift+휠 = 좌우 스크롤,
+  // ctrl+휠(트랙패드 핀치도 ctrlKey로 온다) = 확대·축소.
+  // 세션 뷰는 가로로, 주제 배치는 세로로도 길어서 줌 없이 훑을 길이 둘 다 필요하다.
+  // 연속 틱은 "현재"가 아니라 "목표" 카메라에 누적한다 — 안 그러면 글라이드 중 들어온
+  // 틱이 아직 못 간 거리를 잘라먹어 빠르게 굴릴수록 덜 움직인다
+  const T = glideTarget ?? { tx: camTx, ty: camTy, scale: camScale };
+  if (!e.ctrlKey && !e.metaKey) {
+    // Chrome/Windows는 shift+휠을 deltaX로, Firefox는 deltaY+shiftKey로 보내므로 둘 다 받는다
+    const dx = (e.shiftKey ? (e.deltaX || e.deltaY) : e.deltaX) * px;
+    const dy = (e.shiftKey ? 0 : e.deltaY) * px;
+    glideTo(T.tx - dx, T.ty - dy, T.scale); // 휠 아래(+) = 내용이 위로 = 아래로 스크롤
+    atHome = false;
+    document.getElementById("home-btn").classList.add("show");
+    return;
+  }
   const r = stage.getBoundingClientRect();
   const cx = e.clientX - r.left, cy = e.clientY - r.top;
-  const factor = Math.exp(-e.deltaY * 0.0012);
-  const newScale = clamp(camScale * factor, MIN_ZOOM, MAX_ZOOM);
-  const mapX = (cx - camTx) / camScale, mapY = (cy - camTy) / camScale;
-  applyTransform(cx - mapX * newScale, cy - mapY * newScale, newScale, true);
+  const factor = Math.exp(-e.deltaY * px * 0.0012);
+  const newScale = clamp(T.scale * factor, MIN_ZOOM, MAX_ZOOM);
+  const mapX = (cx - T.tx) / T.scale, mapY = (cy - T.ty) / T.scale;
+  glideTo(cx - mapX * newScale, cy - mapY * newScale, newScale);
   atHome = false;
   document.getElementById("home-btn").classList.add("show");
 }, { passive: false });
