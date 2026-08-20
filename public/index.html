@@ -22,6 +22,7 @@
     --hl:rgba(255,214,0,.42);
     /* diff 뷰어 전용 — 코드 활동 카드 안 +/- 라인 색 (두 테마 모두 GitHub류 대비 기준) */
     --diff-add:#1a7f37; --diff-del:#cf222e; --diff-add-bg:rgba(26,127,55,.13); --diff-del-bg:rgba(207,34,46,.12);
+      --on-phase:#ffffff;
     color-scheme:light;
   }
   /* 테마는 세 상태다: 저장된 선택이 없으면 OS를 따르고(=아래 media 블록),
@@ -38,6 +39,7 @@
       --glow:rgba(57,135,229,.4);
       --hl:rgba(255,214,0,.26);
       --diff-add:#3fb950; --diff-del:#f85149; --diff-add-bg:rgba(63,185,80,.16); --diff-del-bg:rgba(248,81,73,.16);
+      --on-phase:#ffffff;
       color-scheme:dark;
     
     }
@@ -52,8 +54,76 @@
       --glow:rgba(57,135,229,.4);
       --hl:rgba(255,214,0,.26);
       --diff-add:#3fb950; --diff-del:#f85149; --diff-add-bg:rgba(63,185,80,.16); --diff-del-bg:rgba(248,81,73,.16);
+      --on-phase:#ffffff;
       color-scheme:dark;
-    
+
+  }
+  /* ── 선택 테마(VS Code처럼 이름 있는 팔레트) — 토큰만 갈아끼우면 전체가 따라온다.
+     각 팔레트의 국면 4색은 원 팔레트의 악센트에서 서로 구분되는 4색을 골랐다. ── */
+  :root[data-theme="solar"]{
+      --bg:#f1ead3; --surface:#fdf6e3; --ink:#073642; --ink2:#586e75; --muted:#96a0a0;
+      --line:#e6dfc8; --axis:#c0bba6;
+      --edit:#cb4b16; --exec:#268bd2; --explore:#859900; --chat:#6c71c4;
+      --accent:#073642; --accent-fg:#fdf6e3;
+      --err:#dc322f; --sel:rgba(38,139,210,.12); --chip:rgba(7,54,66,.06);
+      --shadow:0 1px 2px rgba(88,110,117,.08), 0 12px 32px rgba(88,110,117,.10);
+      --glow:rgba(38,139,210,.35);
+      --hl:rgba(181,137,0,.30);
+      --diff-add:#859900; --diff-del:#dc322f; --diff-add-bg:rgba(133,153,0,.14); --diff-del-bg:rgba(220,50,47,.12);
+      --on-phase:#ffffff;
+      color-scheme:light;
+  }
+  :root[data-theme="nord"]{
+      --bg:#242933; --surface:#2e3440; --ink:#eceff4; --ink2:#d0d6e0; --muted:#8791a3;
+      --line:#3b4252; --axis:#4c566a;
+      --edit:#d08770; --exec:#81a1c1; --explore:#a3be8c; --chat:#b48ead;
+      --accent:#eceff4; --accent-fg:#2e3440;
+      --err:#bf616a; --sel:rgba(129,161,193,.16); --chip:rgba(236,239,244,.06);
+      --shadow:0 1px 3px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.3);
+      --glow:rgba(129,161,193,.4);
+      --hl:rgba(235,203,139,.26);
+      --diff-add:#a3be8c; --diff-del:#bf616a; --diff-add-bg:rgba(163,190,140,.16); --diff-del-bg:rgba(191,97,106,.16);
+      --on-phase:#ffffff;
+      color-scheme:dark;
+  }
+  :root[data-theme="dracula"]{
+      --bg:#1e1f29; --surface:#282a36; --ink:#f8f8f2; --ink2:#d8d8e2; --muted:#8b93b5;
+      --line:#363948; --axis:#44475a;
+      --edit:#ffb86c; --exec:#8be9fd; --explore:#50fa7b; --chat:#ff79c6;
+      --accent:#f8f8f2; --accent-fg:#282a36;
+      --err:#ff5555; --sel:rgba(139,233,253,.14); --chip:rgba(248,248,242,.06);
+      --shadow:0 1px 3px rgba(0,0,0,.45), 0 12px 32px rgba(0,0,0,.35);
+      --glow:rgba(189,147,249,.4);
+      --hl:rgba(241,250,140,.24);
+      --diff-add:#50fa7b; --diff-del:#ff5555; --diff-add-bg:rgba(80,250,123,.14); --diff-del-bg:rgba(255,85,85,.15);
+      --on-phase:#21222c;
+      color-scheme:dark;
+  }
+  :root[data-theme="github"]{
+      --bg:#f6f8fa; --surface:#ffffff; --ink:#1f2328; --ink2:#57606a; --muted:#848d97;
+      --line:#d8dee4; --axis:#afb8c1;
+      --edit:#bc4c00; --exec:#0969da; --explore:#1a7f37; --chat:#8250df;
+      --accent:#24292f; --accent-fg:#ffffff;
+      --err:#cf222e; --sel:rgba(9,105,218,.10); --chip:rgba(31,35,40,.05);
+      --shadow:0 1px 2px rgba(31,35,40,.06), 0 12px 32px rgba(31,35,40,.08);
+      --glow:rgba(9,105,218,.35);
+      --hl:rgba(255,214,0,.40);
+      --diff-add:#1a7f37; --diff-del:#cf222e; --diff-add-bg:rgba(26,127,55,.13); --diff-del-bg:rgba(207,34,46,.12);
+      --on-phase:#ffffff;
+      color-scheme:light;
+  }
+  :root[data-theme="onelight"]{
+      --bg:#ececed; --surface:#fafafa; --ink:#383a42; --ink2:#696c77; --muted:#a0a1a7;
+      --line:#dbdbdc; --axis:#c2c2c4;
+      --edit:#986801; --exec:#4078f2; --explore:#50a14f; --chat:#a626a4;
+      --accent:#383a42; --accent-fg:#fafafa;
+      --err:#e45649; --sel:rgba(64,120,242,.10); --chip:rgba(56,58,66,.06);
+      --shadow:0 1px 2px rgba(56,58,66,.06), 0 12px 32px rgba(56,58,66,.08);
+      --glow:rgba(64,120,242,.35);
+      --hl:rgba(193,132,1,.28);
+      --diff-add:#50a14f; --diff-del:#e45649; --diff-add-bg:rgba(80,161,79,.13); --diff-del-bg:rgba(228,86,73,.12);
+      --on-phase:#ffffff;
+      color-scheme:light;
   }
   *{box-sizing:border-box}
   /* 모션 최소화 설정 사용자: 시간만 0으로 줄이고 끝 상태(forwards)는 남긴다 —
@@ -104,7 +174,7 @@
     transition:background .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;}
   header select:hover, header #search-box:hover, header #topic-btn:hover,
   header #settings-btn:hover, header #sess-trigger:hover, header #proj-trigger:hover{background:var(--chip); color:var(--ink);}
-  header select:focus-visible, header #search-box:focus,
+  header select:focus-visible,
   header #settings-btn:focus-visible{outline:none; border-color:var(--exec);
     box-shadow:0 0 0 3px var(--glow);}
   /* 아이콘 전용이라 원형 — 지도의 역 표식과 같은 조형 */
@@ -130,34 +200,36 @@
   #sess-wrap{position:relative; display:inline-flex;}
   select#session-select, select#project-select{display:none;}
   #proj-wrap{position:relative; display:inline-flex;}
-  #proj-trigger{display:inline-flex; align-items:center; gap:7px; max-width:250px;}
-  #proj-trigger #proj-label{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  /* 폴더·세션은 같은 너비 — 검색창이 중앙에 오는 좌우 대칭 구도의 왼팔 */
+  #proj-trigger{display:inline-flex; align-items:center; gap:7px; width:150px;}
+  #proj-trigger #proj-label{flex:1; min-width:0; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   #proj-trigger svg{width:9px; height:6px; flex:none; opacity:.6;}
   #proj-pop{display:none; position:absolute; top:calc(100% + 8px); left:0; min-width:280px; max-width:400px;
     max-height:min(480px, 70vh); overflow-y:auto; z-index:65;
     background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:6px;
     box-shadow:0 12px 32px rgba(15,13,8,.15), 0 2px 6px rgba(15,13,8,.06);}
   #proj-pop.open{display:block; animation:fadeIn .14s ease;}
-  #sess-trigger{display:inline-flex; align-items:center; gap:7px; max-width:260px;}
-  #sess-trigger #sess-label{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  #sess-trigger{display:inline-flex; align-items:center; gap:7px; width:150px;}
+  #sess-trigger #sess-label{flex:1; min-width:0; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   #sess-trigger svg{width:9px; height:6px; flex:none; opacity:.6;}
   #sess-pop{display:none; position:absolute; top:calc(100% + 8px); left:0; min-width:300px; max-width:380px;
     max-height:min(480px, 70vh); overflow-y:auto; z-index:65;
     background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:6px;
     box-shadow:0 12px 32px rgba(15,13,8,.15), 0 2px 6px rgba(15,13,8,.06);}
   #sess-pop.open{display:block; animation:fadeIn .14s ease;}
-  #sess-pop .sg, #proj-pop .sg{font-size:10px; letter-spacing:.12em; font-weight:750; color:var(--muted);
+  /* 패널 내부 공용(.spop) — 세션·프로젝트·설정의 테마 지정까지 같은 목록 언어를 쓴다 */
+  .spop .sg{font-size:10px; letter-spacing:.12em; font-weight:750; color:var(--muted);
     padding:8px 9px 4px; text-transform:uppercase;}
-  #sess-pop .sg:not(:first-child), #proj-pop .sg:not(:first-child){margin-top:2px; border-top:1px solid color-mix(in srgb, var(--line) 75%, transparent); padding-top:9px;}
-  #sess-pop .si, #proj-pop .si{display:flex; align-items:center; gap:8px; width:100%; text-align:left;
+  .spop .sg:not(:first-child){margin-top:2px; border-top:1px solid color-mix(in srgb, var(--line) 75%, transparent); padding-top:9px;}
+  .spop .si{display:flex; align-items:center; gap:8px; width:100%; text-align:left;
     border:0; background:none; border-radius:8px; padding:6px 9px; font-size:12.5px; color:var(--ink2);
     cursor:pointer; transition:background .12s ease, color .12s ease;}
-  #sess-pop .si:hover, #proj-pop .si:hover{background:var(--chip); color:var(--ink);}
-  #sess-pop .si .dot, #proj-pop .si .dot{width:8px; height:8px; border-radius:50%; flex:none;
+  .spop .si:hover{background:var(--chip); color:var(--ink);}
+  .spop .si .dot{width:8px; height:8px; border-radius:50%; flex:none;
     border:2px solid var(--axis); background:var(--surface);}
-  #sess-pop .si.cur, #proj-pop .si.cur{color:var(--ink); font-weight:650;}
-  #sess-pop .si.cur .dot, #proj-pop .si.cur .dot{border-color:var(--exec); background:var(--exec);}
-  #sess-pop .si .t, #proj-pop .si .t{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .spop .si.cur{color:var(--ink); font-weight:650;}
+  .spop .si.cur .dot{border-color:var(--exec); background:var(--exec);}
+  .spop .si .t{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   #settings-box h4{margin:0 0 8px; font-size:11px; letter-spacing:.08em; text-transform:uppercase;
     color:var(--muted); font-weight:750;}
   #settings-box h4 + h4, #settings-box .set-sec + h4{margin-top:14px; padding-top:12px;
@@ -170,8 +242,77 @@
     transition:background .15s ease, color .15s ease, box-shadow .15s ease;}
   .seg button[aria-checked="true"]{background:var(--surface); color:var(--ink);
     box-shadow:0 1px 2px rgba(20,18,12,.1), 0 0 0 1px var(--line);}
-  #settings-box label.chk{display:flex; gap:8px; align-items:flex-start; cursor:pointer; font-size:12.5px;}
-  #settings-box label.chk input{margin-top:3px; accent-color:var(--exec);}
+  #settings-box .chk{display:flex; gap:9px; align-items:flex-start;
+    font-size:12.5px; color:var(--ink2);}
+  /* 항목 사이 숨 — 스위치가 붙어 있으면 어느 글이 어느 스위치 것인지 흐려진다 */
+  #settings-box .chk + .chk{margin-top:9px;}
+  /* 괄호 낀 한국어 구가 중간에서 꺾이지 않게 — 제목 구절은 한 덩어리로 */
+  #settings-box .chk .ct{word-break:keep-all; padding-top:1px;}
+  #settings-box .chk .nb{white-space:nowrap;}
+  #settings-box .chk .set-note{display:block;}
+  /* 체크박스 → 스위치: 알약 트랙 + 미끄러지는 손잡이 — 기본 체크박스는 사인 시스템에서
+     혼자 OS 위젯이었다. 켜짐은 크롬 악센트(잉크 단색)로, 노선색과 경쟁하지 않는다 */
+  #settings-box .chk input{appearance:none; -webkit-appearance:none; width:32px; height:19px;
+    flex:none; margin:1px 0 0; border-radius:99px; background:var(--chip); border:1px solid var(--line);
+    position:relative; cursor:pointer; transition:background .18s ease, border-color .18s ease;}
+  #settings-box .chk input::after{content:""; position:absolute; top:2px; left:2px;
+    width:13px; height:13px; border-radius:50%; background:var(--surface); border:1px solid var(--line);
+    box-shadow:0 1px 2px rgba(0,0,0,.18);
+    transition:transform .18s cubic-bezier(.22,.8,.28,1), background .18s ease, border-color .18s ease;}
+  #settings-box .chk input:checked{background:var(--accent); border-color:var(--accent);}
+  #settings-box .chk input:checked::after{transform:translateX(13px); background:var(--accent-fg); border-color:transparent;}
+  #settings-box .chk input:focus-visible{outline:2px solid var(--exec); outline-offset:2px;}
+  /* 저장·기본값 — 설정은 [저장]을 눌러야 다음에도 유지된다(그 전까지는 미리보기) */
+  .set-foot{display:flex; gap:8px; margin-top:18px; padding-top:14px;
+    border-top:1px solid color-mix(in srgb, var(--line) 75%, transparent);}
+  .set-foot #set-reset{margin-right:auto;}
+  /* ── 자체 다이얼로그: 설정 모달과 같은 언어(중앙 카드 + 블러 배경), 그 위에 뜨므로 z 80 ── */
+  #dlg{position:fixed; inset:0; z-index:80; display:none; align-items:center; justify-content:center;
+    padding:26px; background:rgba(15,16,19,.38); backdrop-filter:blur(7px) saturate(1.2);
+    -webkit-backdrop-filter:blur(7px) saturate(1.2);}
+  #dlg.open{display:flex; animation:fadeIn .14s ease;}
+  #dlg-box{width:min(400px,100%); background:var(--surface); border:1px solid var(--line);
+    border-radius:16px; padding:20px 20px 16px; color:var(--ink2); font-size:13px; line-height:1.65;
+    box-shadow:0 24px 64px rgba(15,13,8,.22), 0 4px 12px rgba(15,13,8,.08);
+    animation:modalIn .18s cubic-bezier(.2,.8,.3,1);}
+  #dlg-msg{white-space:pre-wrap; word-break:keep-all; overflow-wrap:anywhere; color:var(--ink);}
+  #dlg-input{display:block; width:100%; margin-top:12px; font:inherit; font-size:13px;
+    padding:8px 11px; border-radius:10px; border:1px solid var(--line);
+    background:var(--surface); color:var(--ink);}
+  #dlg-btns{display:flex; gap:8px; justify-content:flex-end; margin-top:16px;}
+  .btn.danger{background:var(--err); color:#fff;}
+  /* 테마 선택: 팔레트 스와치 그리드 — 지면색 위에 국면 4색 역(점)이 놓인 미니 노선도 */
+  #set-theme{display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:6px;}
+  #set-theme button{display:flex; flex-direction:column; align-items:stretch; gap:6px; padding:7px 7px 6px;
+    border:1px solid var(--line); border-radius:10px; background:none; font:inherit; font-size:11.5px;
+    font-weight:600; color:var(--ink2); cursor:pointer; text-align:center;
+    transition:border-color .15s ease, background .15s ease, color .15s ease, box-shadow .15s ease;}
+  #set-theme button:hover{background:var(--chip); color:var(--ink);}
+  #set-theme button[aria-checked="true"]{border-color:var(--accent); color:var(--ink);
+    box-shadow:0 0 0 1px var(--accent);}
+  .tsw{height:30px; border-radius:7px; border:1px solid rgba(128,128,128,.25);
+    display:flex; align-items:center; justify-content:center; gap:4px;}
+  .tsw i{width:7px; height:7px; border-radius:50%; display:block;}
+  .tsw-sys{background:linear-gradient(110deg, #fafafa 0 50%, #0f1013 50% 100%);}
+  /* 빠른 전환 대상 지정 — 우하단 버튼이 "그 사람의 밝게/어둡게"로 가게 */
+  #set-quickpair{display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-top:10px;
+    font-size:12px; color:var(--ink2);}
+  #set-quickpair .qp-t{font-weight:650; color:var(--ink2);}
+  #set-quickpair .qp-item{display:inline-flex; align-items:center; gap:6px;}
+  /* 테마 지정 셀렉트도 프록시 패널 — OS 팝업은 사인 시스템에서 혼자 이질적 */
+  select#set-quick-light, select#set-quick-dark{display:none;}
+  .sq-wrap{position:relative; display:inline-flex;}
+  .strig{display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 9px;
+    font:inherit; font-size:12px; font-weight:550; color:var(--ink);
+    background:var(--surface); border:1px solid var(--line); border-radius:8px; cursor:pointer;
+    transition:background .15s ease, border-color .15s ease;}
+  .strig:hover{background:var(--chip);}
+  .strig svg{width:9px; height:6px; flex:none; opacity:.6;}
+  #qlight-pop, #qdark-pop{display:none; position:absolute; top:calc(100% + 6px); left:0;
+    min-width:130px; z-index:80; background:var(--surface); border:1px solid var(--line);
+    border-radius:10px; padding:5px;
+    box-shadow:0 12px 32px rgba(15,13,8,.15), 0 2px 6px rgba(15,13,8,.06);}
+  #qlight-pop.open, #qdark-pop.open{display:block; animation:fadeIn .14s ease;}
   #settings-box .set-note{font-size:11.5px; color:var(--muted); margin-top:6px; line-height:1.6;}
   #settings-box .btn{padding:5px 12px; font-size:12px;}
   #settings-box .rng{display:flex; justify-content:space-between; align-items:baseline;
@@ -189,6 +330,11 @@
     display:inline-flex; align-items:center; justify-content:center;}
   #set-branches .bi button:hover{background:var(--surface); color:var(--ink);}
   #set-branches .bi button.del:hover{background:var(--err); color:#fff;}
+  /* 이름 버튼: 아이콘 버튼 규칙(24px 정사각)을 되돌리고 링크처럼 — 누르면 그 갈래 화면으로 */
+  #set-branches .bi button.bt{width:auto; height:auto; padding:0; border-radius:0;
+    justify-content:flex-start; font:inherit; font-size:12px; color:var(--ink); text-align:left;}
+  #set-branches .bi button.bt:hover{background:none; color:var(--exec);
+    text-decoration:underline; text-underline-offset:2px;}
   #set-branches .bi-none{color:var(--muted); font-size:12px; padding:2px;}
   #settings-box code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px;
     background:var(--chip); border-radius:4px; padding:1px 5px;}
@@ -224,7 +370,7 @@
   header select optgroup{background:var(--surface); color:var(--ink2); font-weight:600;}
   select#project-select{max-width:240px;}
   select#session-select{max-width:250px;}
-  .meta{font-size:12px; color:var(--muted); margin-left:auto; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .meta{font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap;}
   .meta b{color:var(--ink2); font-weight:650;}
   .meta-err{color:#fff; background:var(--err); border-radius:99px; padding:1px 8px; font-size:11px; font-weight:700;}
 
@@ -423,7 +569,9 @@
   .d-turn.ai .d-turn-label::before{background:var(--axis);}
   .d-msg{font-size:13.75px; line-height:1.68; padding:11px 15px; border-radius:16px; word-break:keep-all; overflow-wrap:anywhere;
     box-shadow:0 1px 2px rgba(0,0,0,.07);}
-  .d-msg.user{background:var(--pc); color:#fff; border-bottom-left-radius:4px;}
+  /* 글자색은 --on-phase — 국면색이 밝은 테마(드라큘라 하늘색 등)에서는 흰 글자가
+     묻히므로 테마 토큰이 잉크색으로 뒤집는다. 배경(국면색)은 그대로 */
+  .d-msg.user{background:var(--pc); color:var(--on-phase); border-bottom-left-radius:4px;}
   .d-msg.ai{background:var(--chip); color:var(--ink); border-bottom-right-radius:4px;}
   .d-msg > *:first-child{margin-top:0;}
   .d-msg > *:last-child{margin-bottom:0;}
@@ -527,20 +675,20 @@
     background:linear-gradient(90deg, hsl(203 38% 44%), hsl(172 38% 44%), hsl(152 38% 44%));}
   #topic-btn:hover{color:var(--ink);}
   #topic-btn.on{background:var(--accent); color:var(--accent-fg);}
-  #topic-btn.on::before{background:rgba(255,255,255,.85);}
+  /* 켜짐 스와치도 톤온톤 3색 유지 — 흰 고정색은 다크 테마(악센트가 밝은색)에서
+     흰 알약 위 흰 조각이 되어 사라졌다. 중간 명도 3색은 어느 악센트 위에서든 보인다 */
   #topic-btn:disabled{opacity:.55; cursor:wait;}
   .capsule.topic{border-style:solid; border-width:2.5px;
     box-shadow:0 2px 10px rgba(0,0,0,.06); }
   .capsule.topic .cap-t{font-weight:750;}
-  .topic-band{position:absolute; border-radius:16px; z-index:0; pointer-events:none;
-    border:1px solid var(--tb, var(--line));}
+  /* 행 머리글 = 종점 사인: 번호 원반 + 활자만. 컨테이너(알약·틴트·그림자)를 걷어낸
+     플랫 사인 — 노선의 정체는 색 입힌 이음선과 번호 원반이 이미 말한다 */
   .topic-rowhdr{position:absolute; transform:translateY(-50%); display:inline-flex; align-items:center;
-    gap:7px; max-width:150px; padding:5px 12px 5px 6px; cursor:pointer; z-index:2;
-    background:var(--surface); border:1px solid var(--line); border-radius:99px;
-    box-shadow:var(--shadow); font-size:12px; font-weight:700; color:var(--ink);
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-    transition:transform .15s ease, box-shadow .15s ease;}
-  .topic-rowhdr:hover{transform:translateY(-50%) scale(1.04);}
+    gap:8px; max-width:160px; cursor:pointer; z-index:2;
+    font-size:12.5px; font-weight:750; color:var(--ink); letter-spacing:-.01em;
+    white-space:nowrap;}
+  .topic-rowhdr .tn{overflow:hidden; text-overflow:ellipsis;}
+  .topic-rowhdr:hover .tn{text-decoration:underline; text-underline-offset:3px;}
   .topic-rowhdr .ln{width:20px; height:20px; border-radius:50%; flex:none; display:inline-flex;
     align-items:center; justify-content:center; color:#fff; font-size:11px; font-weight:800;
     font-variant-numeric:tabular-nums;}
@@ -551,10 +699,35 @@
     font-size:9.5px; line-height:15px; padding:0 5px; color:var(--ink); opacity:.85;}
   #topicstrip .tseg:hover{opacity:1; outline:1.5px solid var(--pc);}
   #search-wrap{position:relative;}
-  #search-box{width:170px; background:var(--chip) !important; color:var(--ink) !important; transition:width .2s cubic-bezier(.22,.8,.28,1), border-color .15s ease, box-shadow .15s ease;}
-  #search-box:focus{width:240px;}
+  /* 캡슐 조형 + 부드러운 확장. header #search-box로 쓰는 이유: 공용 컨트롤 규칙이
+     같은 특이도(header+id)로 radius 9px·자체 transition을 갖고 있어서, #search-box만으로는
+     져서 캡슐도 안 되고 width 트랜지션이 통째로 사라져 뙇 하고 늘어났다 */
+  header #search-box{width:170px; --sw-open:240px; border-radius:99px; padding:0 15px;
+    background:var(--chip) !important; color:var(--ink) !important;
+    transition:width .6s cubic-bezier(.25,.9,.3,1), border-color .2s ease, box-shadow .2s ease, background .2s ease;}
+  /* 포커스 중이거나 결과 목록이 떠 있는 동안 확장 유지 — 크롬 옴니박스처럼 결과가
+     열려 있는데 입력칸만 줄어들면 창과 목록이 따로 논다 */
+  header #search-box:focus,
+  #search-wrap:has(#search-results:not(:empty)) #search-box{width:var(--sw-open);}
   #search-box::placeholder{color:var(--muted);}
-  #search-results{position:absolute; top:calc(100% + 8px); left:0; min-width:340px; max-width:460px; z-index:60;
+  /* 검색 활성: 그 테마의 국면 4색이 테두리를 한 바퀴 두른다 — 헤더 노선 스트립과 같은 어휘.
+     배경 2겹 기법(padding-box 면 + border-box 그라데이션)이라 라운드 모서리를 따라 돈다 */
+  header #search-box:focus{outline:none; border-width:1.5px; border-color:transparent;
+    background:linear-gradient(var(--surface), var(--surface)) padding-box,
+      /* 좌→우 선형 4색 — conic·하드스톱도 시도했지만 처음의 이 부드러운 흐름이 낫다는 결론 */
+      linear-gradient(90deg, var(--edit), var(--exec), var(--explore), var(--chat)) border-box !important;
+    box-shadow:0 4px 16px rgba(0,0,0,.10);}
+  /* 주제부터 오른팔 — 검색창 오른쪽 무리(주제·통계·설정)를 우측으로 민다 */
+  header #topic-btn{margin-left:auto;}
+  /* 넓은 화면: 검색창이 헤더 정중앙에 앉고, 누르면 좌우로 대칭으로 자란다
+     (absolute + translateX(-50%) 중심 고정이라 양옆으로 늘어난다) */
+  @media (min-width:1001px){
+    #search-wrap{position:absolute; left:50%; transform:translateX(-50%);}
+    header #search-box{width:220px; --sw-open:380px;}
+  }
+  /* 크롬 옴니박스식 — 검색창 바로 아래, 창 중심에 맞춰 아래로 길어진다 */
+  #search-results{position:absolute; top:calc(100% + 6px); left:50%; transform:translateX(-50%);
+    width:max(100%, 340px); max-width:min(480px, 92vw); z-index:60;
     background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:6px;
     box-shadow:0 12px 32px rgba(15,13,8,.15), 0 2px 6px rgba(15,13,8,.06);
     max-height:340px; overflow-y:auto;}
@@ -768,7 +941,8 @@
   .btn.primary:disabled{opacity:.55; cursor:wait;}
   .btn.ghost{background:var(--chip); color:var(--ink2);}
 
-  #home-btn{position:fixed; right:20px; bottom:20px; z-index:20; width:42px; height:42px; border-radius:50%;
+  /* 좌하단 카메라 무리: 시점 정렬(홈) + 그 위 확대/축소 캡슐 */
+  #home-btn{position:fixed; left:20px; bottom:20px; z-index:20; width:42px; height:42px; border-radius:50%;
     border:1px solid var(--line); background:var(--surface); color:var(--ink2);
     display:flex; align-items:center; justify-content:center;
     box-shadow:var(--shadow); opacity:0; pointer-events:none; transition:opacity .25s ease, transform .2s ease;}
@@ -777,13 +951,21 @@
   #home-btn:hover{transform:scale(1.07);}
 
   /* 도움말: 시점 버튼 위에 같은 조형으로 쌓는다. 전체 보기 버튼과 달리 항상 떠 있다 */
-  #help-btn{position:fixed; right:20px; bottom:70px; z-index:20; width:42px; height:42px;
+  #zoom-ctl{position:fixed; left:20px; bottom:70px; z-index:20; display:flex; flex-direction:column;
+    background:var(--surface); border:1px solid var(--line); border-radius:99px;
+    box-shadow:var(--shadow); overflow:hidden;}
+  #zoom-ctl button{width:42px; height:40px; border:0; background:none; color:var(--ink2);
+    font-size:18px; font-weight:600; cursor:pointer; display:flex; align-items:center;
+    justify-content:center; transition:background .15s ease, color .15s ease;}
+  #zoom-ctl button:hover{background:var(--chip); color:var(--ink);}
+  #zoom-ctl button + button{border-top:1px solid var(--line);}
+  #help-btn{position:fixed; right:20px; bottom:20px; z-index:20; width:42px; height:42px;
     border-radius:50%; border:1px solid var(--line); background:var(--surface); color:var(--ink2);
     font-size:17px; font-weight:700; box-shadow:var(--shadow); cursor:pointer;
     transition:transform .2s ease, color .2s ease, border-color .2s ease;}
   #help-btn:hover{transform:scale(1.07); color:var(--ink); border-color:var(--axis);}
   #help-btn:focus-visible{outline:none; border-color:var(--exec); box-shadow:0 0 0 3px var(--glow);}
-  #theme-quick{position:fixed; right:20px; bottom:120px; z-index:20; width:42px; height:42px;
+  #theme-quick{position:fixed; right:20px; bottom:70px; z-index:20; width:42px; height:42px;
     border-radius:50%; border:1px solid var(--line); background:var(--surface); color:var(--ink2);
     box-shadow:var(--shadow); cursor:pointer; display:flex; align-items:center; justify-content:center;
     transition:transform .2s ease, color .2s ease, border-color .2s ease;}
@@ -946,18 +1128,14 @@
   @media (max-width:920px){
     header{gap:6px; padding:0 12px;}
     .meta{display:none;}                 /* 통계가 첫 번째로 양보 */
-    #search-box{width:120px;}
-    #search-box:focus{width:180px;}
-    #sess-trigger{max-width:180px;}
-    #proj-trigger{max-width:150px;}
+    header #search-box{width:120px; --sw-open:180px;}
+    #sess-trigger, #proj-trigger{width:130px;}
   }
   @media (max-width:620px){
     header{gap:4px; padding:0 8px;}
     header h1{margin-right:2px;}
-    #search-box{width:96px;}
-    #search-box:focus{width:150px;}
-    #sess-trigger{max-width:130px;}
-    #proj-trigger{max-width:110px;}
+    header #search-box{width:96px; --sw-open:150px;}
+    #sess-trigger, #proj-trigger{width:110px;}
     /* 드롭다운 패널: 트리거에 매달면 오른쪽으로 삐져나간다 — 헤더 아래 전폭으로.
        (헤더의 backdrop-filter가 fixed의 기준이라 좌표는 헤더 기준 = 화면 기준과 같다) */
     #sess-pop, #proj-pop{position:fixed; left:10px; right:10px; top:calc(var(--header-h,57px) + 6px);
@@ -977,10 +1155,11 @@
     #mbox{max-height:94vh;}
     #help{padding:10px;}
     #help-box{padding:18px 16px 20px;}
-    /* 우하단 플로팅 무리: 한 뼘 안쪽으로 */
-    #home-btn{right:12px; bottom:12px;}
-    #help-btn{right:12px; bottom:62px;}
-    #theme-quick{right:12px; bottom:112px;}
+    /* 플로팅 무리: 한 뼘 안쪽으로 — 왼쪽 카메라, 오른쪽 도움말·테마 */
+    #home-btn{left:12px; bottom:12px;}
+    #zoom-ctl{left:12px; bottom:62px;}
+    #help-btn{right:12px; bottom:12px;}
+    #theme-quick{right:12px; bottom:62px;}
   }
 </style>
 <script>
@@ -988,7 +1167,8 @@
   // 한 프레임 동안 반대 테마가 보인다(흰 화면 깜빡임).
   try {
     var t = localStorage.getItem("bp-theme");
-    if (t === "dark" || t === "light") document.documentElement.dataset.theme = t;
+    if (["light", "dark", "solar", "github", "onelight", "nord", "dracula"].indexOf(t) >= 0)
+      document.documentElement.dataset.theme = t;
   } catch (e) { /* localStorage 차단 환경 — OS 설정을 그대로 따른다 */ }
 </script>
 </head>
@@ -1015,18 +1195,18 @@
     <span id="proj-wrap">
       <select id="project-select"><option>프로젝트 불러오는 중…</option></select>
       <button id="proj-trigger" aria-haspopup="listbox" aria-expanded="false"><span id="proj-label">프로젝트</span><svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-      <div id="proj-pop" role="listbox" aria-label="프로젝트 선택"></div>
+      <div id="proj-pop" class="spop" role="listbox" aria-label="프로젝트 선택"></div>
     </span>
     <span id="sess-wrap">
       <select id="session-select"></select>
       <button id="sess-trigger" aria-haspopup="listbox" aria-expanded="false"><span id="sess-label">세션</span><svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-      <div id="sess-pop" role="listbox" aria-label="세션 선택"></div>
+      <div id="sess-pop" class="spop" role="listbox" aria-label="세션 선택"></div>
     </span>
-    <button id="topic-btn" title="이 세션을 주제별 행으로 재배치 (재방문은 병합, 다시 누르면 원래대로)">주제</button>
     <span id="search-wrap">
       <input id="search-box" placeholder="과거 턴 검색 (Enter)" autocomplete="off">
       <div id="search-results"></div>
     </span>
+    <button id="topic-btn" title="이 세션을 주제별 행으로 재배치 (재방문은 병합, 다시 누르면 원래대로)">주제</button>
     <span class="meta" id="meta"></span>
     <span id="settings-wrap">
       <button id="settings-btn" title="설정" aria-label="설정" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -1041,6 +1221,10 @@
   <div id="empty">이 프로젝트의 세션 기록을 찾지 못했습니다.<br><span style="font-size:12px;color:var(--muted)">위의 프로젝트 목록에서 다른 항목을 고르거나, Claude Code로 이 프로젝트 폴더에서 대화한 적이 있는지 확인해 주세요.</span></div>
   <div id="loading"></div>
   <button id="home-btn" title="전체 보기 (스페이스바)" aria-label="전체 보기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
+  <div id="zoom-ctl" role="group" aria-label="확대/축소">
+    <button id="zoom-in" title="확대" aria-label="확대">＋</button>
+    <button id="zoom-out" title="축소" aria-label="축소">−</button>
+  </div>
   <button id="help-btn" title="도움말 — 단축키와 화면 읽는 법">?</button>
   <button id="theme-quick" title="밝게/어둡게 전환" aria-label="테마 빠른 전환"></button>
 
@@ -1050,9 +1234,42 @@
       <h2>설정</h2>
 
         <h4>테마</h4>
-        <div class="set-sec"><div class="seg" id="set-theme" role="radiogroup" aria-label="테마">
-          <button role="radio" data-v="system" aria-checked="false">시스템</button><button role="radio" data-v="light" aria-checked="false">라이트</button><button role="radio" data-v="dark" aria-checked="false">다크</button>
-        </div></div>
+        <div class="set-sec">
+          <div id="set-theme" role="radiogroup" aria-label="테마">
+            <button role="radio" data-v="system" aria-checked="false"><span class="tsw tsw-sys"></span>시스템</button>
+            <button role="radio" data-v="light" aria-checked="false"><span class="tsw" style="background:#ffffff"><i style="background:#eb6834"></i><i style="background:#2a78d6"></i><i style="background:#1baf7a"></i><i style="background:#9a9587"></i></span>페이퍼</button>
+            <button role="radio" data-v="solar" aria-checked="false"><span class="tsw" style="background:#fdf6e3"><i style="background:#cb4b16"></i><i style="background:#268bd2"></i><i style="background:#859900"></i><i style="background:#6c71c4"></i></span>솔라라이즈드</button>
+            <button role="radio" data-v="github" aria-checked="false"><span class="tsw" style="background:#f6f8fa"><i style="background:#bc4c00"></i><i style="background:#0969da"></i><i style="background:#1a7f37"></i><i style="background:#8250df"></i></span>깃허브</button>
+            <button role="radio" data-v="onelight" aria-checked="false"><span class="tsw" style="background:#fafafa"><i style="background:#986801"></i><i style="background:#4078f2"></i><i style="background:#50a14f"></i><i style="background:#a626a4"></i></span>원 라이트</button>
+            <button role="radio" data-v="dark" aria-checked="false"><span class="tsw" style="background:#16171b"><i style="background:#d95926"></i><i style="background:#3987e5"></i><i style="background:#199e70"></i><i style="background:#7b776b"></i></span>나이트</button>
+            <button role="radio" data-v="nord" aria-checked="false"><span class="tsw" style="background:#2e3440"><i style="background:#d08770"></i><i style="background:#81a1c1"></i><i style="background:#a3be8c"></i><i style="background:#b48ead"></i></span>노르드</button>
+            <button role="radio" data-v="dracula" aria-checked="false"><span class="tsw" style="background:#282a36"><i style="background:#ffb86c"></i><i style="background:#8be9fd"></i><i style="background:#50fa7b"></i><i style="background:#ff79c6"></i></span>드라큘라</button>
+          </div>
+          <div class="set-note">시스템은 OS 설정을 따라 페이퍼/나이트로 바뀝니다</div>
+          <div id="set-quickpair">
+            <span class="qp-t">빠른 전환 버튼이 오갈 테마</span>
+            <span class="qp-item">밝게
+              <span class="sq-wrap">
+                <select id="set-quick-light">
+                  <option value="light">페이퍼</option><option value="solar">솔라라이즈드</option>
+                  <option value="github">깃허브</option><option value="onelight">원 라이트</option>
+                </select>
+                <button id="qlight-trigger" class="strig" aria-haspopup="listbox" aria-expanded="false" aria-label="빠른 전환 밝은 테마"><span id="qlight-label">페이퍼</span><svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                <div id="qlight-pop" class="spop" role="listbox" aria-label="빠른 전환 밝은 테마"></div>
+              </span>
+            </span>
+            <span class="qp-item">어둡게
+              <span class="sq-wrap">
+                <select id="set-quick-dark">
+                  <option value="dark">나이트</option><option value="nord">노르드</option>
+                  <option value="dracula">드라큘라</option>
+                </select>
+                <button id="qdark-trigger" class="strig" aria-haspopup="listbox" aria-expanded="false" aria-label="빠른 전환 어두운 테마"><span id="qdark-label">나이트</span><svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                <div id="qdark-pop" class="spop" role="listbox" aria-label="빠른 전환 어두운 테마"></div>
+              </span>
+            </span>
+          </div>
+        </div>
         <h4>압축 프롬프트</h4>
         <div class="set-sec">
           <button class="btn primary" id="tpl-edit-open">프롬프트 열어서 수정</button>
@@ -1064,12 +1281,17 @@
           <label class="rng" for="set-zoom">노드를 클릭했을 때 확대 배율 <b id="set-zoom-val"></b></label>
           <input type="range" id="set-zoom" min="0.6" max="1.4" step="0.05" aria-label="노드 포커스 확대 배율">
           <div class="set-note">기본 0.85 — 낮추면 주변 맥락이 넓게, 높이면 카드가 크게 보입니다</div>
+          <label class="rng" for="set-homezoom" style="margin-top:12px">전체 보기(스페이스바·시점 정렬) 확대 배율 <b id="set-homezoom-val"></b></label>
+          <input type="range" id="set-homezoom" min="0.6" max="1.4" step="0.05" aria-label="전체 보기 확대 배율">
+          <div class="set-note">기본 1.00 = 전체가 화면에 딱 맞게 — 높이면 더 크게(가장자리 일부는 화면 밖), 낮추면 여백을 두고 작게</div>
         </div>
         <h4>단축키</h4>
         <div class="set-sec">
-          <label class="chk"><input type="checkbox" id="set-key-arrows" checked> 방향키로 턴 이동</label>
-          <label class="chk"><input type="checkbox" id="set-key-space" checked> 스페이스바로 전체 보기</label>
-          <label class="chk"><input type="checkbox" id="set-quicktheme" checked> 우측 하단 빠른 테마 버튼 표시</label>
+          <!-- label이 아니라 div — 글자를 눌렀는데 스위치가 뒤집히는 게 오조작처럼 느껴진다는
+               피드백. 토글은 스위치 자체로만 한다 -->
+          <div class="chk"><input type="checkbox" id="set-key-arrows" checked aria-label="방향키로 턴 이동"> <span class="ct">방향키로 턴 이동</span></div>
+          <div class="chk"><input type="checkbox" id="set-key-space" checked aria-label="스페이스바로 전체 보기"> <span class="ct">스페이스바로 전체 보기</span></div>
+          <div class="chk"><input type="checkbox" id="set-quicktheme" checked aria-label="우측 하단 빠른 테마 버튼 표시"> <span class="ct">우측 하단 빠른 테마 버튼 표시</span></div>
         </div>
         <h4>갈래 관리</h4>
         <div class="set-sec">
@@ -1077,10 +1299,28 @@
         </div>
         <h4>압축 옵션</h4>
         <div class="set-sec">
-          <label class="chk"><input type="checkbox" id="set-glossary" checked> 용어 부록(범위 밖 정의) 포함
-            <span class="set-note" style="margin:0">끄면 압축이 빨라지고 비용이 절반쯤 줄지만, 범위 앞에서 정의된 용어가 빠질 수 있습니다</span></label>
+          <div class="chk"><input type="checkbox" id="set-glossary" checked aria-label="용어 부록 포함">
+            <span class="ct"><span class="nb">용어 부록(범위 밖 정의) 포함</span>
+            <span class="set-note" style="margin:0">끄면 압축이 빨라지고 비용이 절반쯤 줄지만, 범위 앞에서 정의된 용어가 빠질 수 있습니다</span></span></div>
         </div>
-      
+
+        <div class="set-foot">
+          <button class="btn ghost" id="set-reset" title="모든 설정을 기본값으로 되돌립니다 — [저장]을 눌러야 유지됩니다">기본값</button>
+          <button class="btn primary" id="set-save">저장</button>
+        </div>
+
+    </div>
+  </div>
+
+  <!-- 자체 다이얼로그 — OS confirm/alert/prompt 대신 사인 시스템의 카드로 묻는다 -->
+  <div id="dlg" role="dialog" aria-modal="true" aria-labelledby="dlg-msg">
+    <div id="dlg-box">
+      <div id="dlg-msg"></div>
+      <input id="dlg-input" type="text" aria-label="입력">
+      <div id="dlg-btns">
+        <button class="btn ghost" id="dlg-cancel">취소</button>
+        <button class="btn primary" id="dlg-ok">확인</button>
+      </div>
     </div>
   </div>
 
@@ -1437,6 +1677,44 @@ function hideBusy() {
   // 완료 전환(handoff) 중이면 openModalFromBusy가 끝나고 스스로 정리한다 — 여기서 끄면 전환이 뚝 끊긴다
   if (!b.classList.contains("handoff")) b.classList.remove("on");
 }
+
+// ── 자체 다이얼로그: OS confirm/alert/prompt 대신 사인 시스템의 카드로 묻는다.
+// Promise를 돌려주므로 호출부는 await(또는 .then)로 답을 받는다 — 네이티브와 달리
+// 스레드를 멈추지 않는다는 것만 다르고 의미는 같다.
+const dlgEl = document.getElementById("dlg");
+let dlgResolve = null, dlgMode = "alert";
+function openDlg({ msg, mode = "alert", value = "", ok = "확인", danger = false }) {
+  return new Promise(resolve => {
+    dlgResolve = resolve; dlgMode = mode;
+    document.getElementById("dlg-msg").textContent = msg;
+    const inp = document.getElementById("dlg-input");
+    inp.style.display = mode === "prompt" ? "" : "none";
+    inp.value = value;
+    document.getElementById("dlg-cancel").style.display = mode === "alert" ? "none" : "";
+    const okBtn = document.getElementById("dlg-ok");
+    okBtn.textContent = ok;
+    okBtn.classList.toggle("danger", danger);
+    dlgEl.classList.add("open");
+    if (mode === "prompt") { inp.focus(); inp.select(); } else okBtn.focus();
+  });
+}
+function closeDlg(val) {
+  dlgEl.classList.remove("open");
+  const r = dlgResolve; dlgResolve = null;
+  if (r) r(val);
+}
+const dlgCancel = () => closeDlg(dlgMode === "prompt" ? null : false);
+const bpAlert = (msg) => openDlg({ msg, mode: "alert" });
+const bpConfirm = (msg, opts) => openDlg({ msg, mode: "confirm", ...(opts || {}) }).then(v => v === true);
+const bpPrompt = (msg, value) => openDlg({ msg, mode: "prompt", value: value ?? "" });
+document.getElementById("dlg-ok").addEventListener("click", () =>
+  closeDlg(dlgMode === "prompt" ? document.getElementById("dlg-input").value : true));
+document.getElementById("dlg-cancel").addEventListener("click", dlgCancel);
+dlgEl.addEventListener("click", (e) => { if (e.target === dlgEl) dlgCancel(); });
+document.getElementById("dlg-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); document.getElementById("dlg-ok").click(); }
+  if (e.key === "Escape") { e.stopPropagation(); dlgCancel(); }
+});
 
 let TURNS = [], byId = {}, parentOf = {}, LABELS = {}, HUMAN_SESS = new Set();
 // LLM 제목·요약. 라벨이 아직 없으면 원문 절단을 "임시 표시" 스타일(흐림·기울임)로
@@ -2152,7 +2430,7 @@ function renderSession() {
   // 주제 배치: 주제마다 자기 행(row) — 위→아래로 주제, 행 안에서는 시간순 유지
   const TOPIC_MODE = els.length > 0 && els[0].row !== undefined;
   // 행 높이 150 → 116: 8행이면 1,200px라 전체 보기 배율이 과하게 줄어 노드가 안 읽혔다
-  const ROWH = 116, ROW_HEAD_W = 150;
+  const ROWH = 116, ROW_HEAD_W = 170;
   // 행의 세로 범위는 노드 기준 대칭이 아니다 — 노드는 cy 위로 15px뿐인데
   // 제목 라벨이 아래로 두 줄 엇갈려 붙어(홀짝 16px) cy+49까지 내려간다.
   // 대칭으로 잡으면 아래쪽만 모자라 라벨이 밴드·점선 블록 밖으로 흘러나온다.
@@ -2216,6 +2494,10 @@ function renderSession() {
     const skipSide = els[i - 1].type === "skip" || els[i].type === "skip"
       || fragJump || gapTurns.length > 0;
     p.setAttribute("class", "link" + (skipSide ? " skipline" : ""));
+    // 주제 행에서는 이음선이 곧 그 노선 — 행 색으로 칠한다(지하철 노선도의 기본 문법).
+    // 실선/점선(생략) 구분은 그대로 두고 색만 입힌다.
+    if (els[i].row !== undefined)
+      p.style.stroke = `hsl(${TOPIC_HUES[els[i].row % TOPIC_HUES.length]} 38% 44%)`;
     p.dataset.from = elId(els[i - 1]); p.dataset.to = elId(els[i]);
     svg.appendChild(p);
     const t0 = els[i].type === "turn" ? els[i].t : (els[i].turns?.[0] ?? els[i].t0);
@@ -2305,25 +2587,13 @@ function renderSession() {
       if (!rowEls.length) return;
       const cy = rowEls[0].cy;
       const hue = TOPIC_HUES[ri % TOPIC_HUES.length];
-      const band = document.createElement("div");
-      band.className = "topic-band";
-      band.style.top = (cy - ROW_UP) + "px";
-      band.style.height = (ROW_UP + ROW_DOWN) + "px";
-      // 밴드는 그 행이 실제로 차지하는 구간만 덮는다 — 전체 폭을 덮으면 2턴짜리
-      // 주제도 화면 끝까지 색이 깔려 행 길이가 안 읽히고 색만 번잡해진다
-      const right = Math.max(...rowEls.map(e => e.cx + e.halfW)) + 20;
-      const bandL = PADX + ROW_HEAD_W + backW - 26;
-      band.style.left = bandL + "px";
-      band.style.width = Math.max(0, right - bandL) + "px";
-      // 승강장 구역: 면 대신 윤곽 — 옅은 틴트 배경 + 같은 색조 테두리로 구역이 "잡힌다"
-      band.style.background = TOPIC_TINT(hue, 0.05);
-      band.style.setProperty("--tb", `hsl(${hue} 30% 46% / .22)`);
-      map.appendChild(band);
-      // 행 머리글 = "n호선" 사인 플레이트: 번호가 든 원 + 주제명
+      // 면 없이 선으로 — 틴트 패널·색 테두리는 지도가 아니라 대시보드 카드처럼 읽혔다.
+      // 행의 정체는 ①행 색으로 칠한 이음선(위에서) ②노선 번호 원반 ③이름 활자, 셋이면 선다.
+      // 행 머리글 = 종점 사인: 번호 원반 + 맨 활자. 알약·그림자 없이 노선 높이(cy)에 앉는다.
       const hd = document.createElement("div");
       hd.className = "topic-rowhdr";
-      hd.innerHTML = `<span class="ln" style="background:${TOPIC_MARK(hue)}">${ri + 1}</span><span style="overflow:hidden;text-overflow:ellipsis">${esc(rowMeta.name)}</span>${rowMeta.fragN > 1 ? ` <span class="th-n">⟲${rowMeta.fragN}</span>` : ""}`;
-      hd.style.left = (PADX - 4) + "px";
+      hd.innerHTML = `<span class="ln" style="background:${TOPIC_MARK(hue)}">${ri + 1}</span><span class="tn">${esc(rowMeta.name)}</span>${rowMeta.fragN > 1 ? ` <span class="th-n">⟲${rowMeta.fragN}</span>` : ""}`;
+      hd.style.left = PADX + "px";
       hd.style.top = cy + "px";
       hd.title = `${rowMeta.name} · ${rowMeta.turnN}턴${rowMeta.fragN > 1 ? ` · 재방문 ${rowMeta.fragN}회 병합` : ""} — 클릭하면 이동`;
       const firstEl = rowEls[0];
@@ -2624,11 +2894,27 @@ function paintTopicStrip(sess) {
 const setBtn = document.getElementById("settings-btn");
 const setPop = document.getElementById("settings-pop");
 const setOpen = () => setPop.classList.contains("open");
+// 설정은 [저장]을 눌러야 지속된다 — 컨트롤 조작은 화면에 즉시 반영(미리보기)되지만
+// localStorage 기록은 저장 시점에 모아서 한다. 스냅샷은 연 순간의 값 — 더티 판정과
+// "저장 안 하고 나가기" 복원의 기준.
+let SET_SNAPSHOT = null;
 function toggleSettings(open) {
   const v = open ?? !setOpen();
+  if (!v && setOpen() && SET_SNAPSHOT && setDirty()) {
+    // 자체 다이얼로그는 비동기 — 답을 받은 뒤에 닫는다
+    bpConfirm("저장하지 않은 설정이 있습니다.\n나가면 변경 전으로 되돌아갑니다 — 저장하지 않고 나갈까요?",
+      { ok: "저장 안 하고 나가기", danger: true }).then(yes => {
+      if (!yes) return;
+      applySettings(SET_SNAPSHOT);
+      setPop.classList.remove("open");
+      setBtn.setAttribute("aria-expanded", "false");
+    });
+    return;
+  }
+  if (!v) closeSelectPanels(); // 모달 안 테마 지정 패널이 열린 채 숨겨지지 않게
   setPop.classList.toggle("open", v);
   setBtn.setAttribute("aria-expanded", String(v));
-  if (v) { hideTooltip(); renderBranchList(); }
+  if (v) { SET_SNAPSHOT = collectSettings(); hideTooltip(); renderBranchList(); }
 }
 setBtn.addEventListener("click", (e) => { e.stopPropagation(); toggleSettings(); });
 // 중앙 모달 — 오버레이(어두운 배경) 클릭·× 로 닫는다
@@ -2638,24 +2924,24 @@ document.getElementById("settings-x").addEventListener("click", () => toggleSett
 // 테마 3상태 — "시스템"은 저장값을 지워 OS를 따르게 한다. 토글(2상태)로는
 // "따라가는 중"을 표현할 수 없어 세그먼트로 바꿨다. head의 선적용 스크립트와 키 공유.
 const themeSeg = document.getElementById("set-theme");
-function currentTheme() {
-  try { const v = localStorage.getItem("bp-theme"); return v === "dark" || v === "light" ? v : "system"; }
-  catch (e) { return "system"; }
-}
+// 이름 있는 테마 레지스트리 — CSS의 :root[data-theme=…] 블록과 1:1. mode는 빠른
+// 전환(밝게/어둡게)이 어느 계열로 묶을지 정한다.
+const THEMES = {
+  light: { mode: "light" }, solar: { mode: "light" }, github: { mode: "light" }, onelight: { mode: "light" },
+  dark: { mode: "dark" }, nord: { mode: "dark" }, dracula: { mode: "dark" },
+};
 function paintThemeSeg() {
-  const cur = currentTheme();
+  // 저장값이 아니라 지금 화면의 테마를 읽는다 — 저장 모델 도입 후 테마 변경은
+  // 미리보기(dataset)라서, localStorage를 읽으면 하이라이트가 옛 선택에 고정된다
+  const cur = document.documentElement.dataset.theme ?? "system";
   themeSeg.querySelectorAll("button").forEach(b => b.setAttribute("aria-checked", String(b.dataset.v === cur)));
 }
 themeSeg.addEventListener("click", (e) => {
   const b = e.target.closest("button[data-v]"); if (!b) return;
   const v = b.dataset.v;
-  if (v === "system") {
-    delete document.documentElement.dataset.theme;
-    try { localStorage.removeItem("bp-theme"); } catch (e2) { /* 저장 불가 */ }
-  } else {
-    document.documentElement.dataset.theme = v;
-    try { localStorage.setItem("bp-theme", v); } catch (e2) { /* 이번 세션만 적용 */ }
-  }
+  // 미리보기만 — localStorage 기록은 [저장]에서 한다
+  if (v === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = v;
   paintThemeSeg();
   paintThemeQuick();
 });
@@ -2666,14 +2952,29 @@ paintThemeSeg();
 const themeQuick = document.getElementById("theme-quick");
 const TQ_SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.4v2.2M12 19.4v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.4 12h2.2M19.4 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/></svg>';
 const TQ_MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 13.4A8.2 8.2 0 0 1 10.6 4a8.4 8.4 0 1 0 9.4 9.4z"/></svg>';
-const isDarkNow = () => (document.documentElement.dataset.theme
-  || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark";
+const isDarkNow = () => {
+  const t = document.documentElement.dataset.theme;
+  return t ? THEMES[t]?.mode === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+};
 function paintThemeQuick() {
   themeQuick.innerHTML = isDarkNow() ? TQ_SUN : TQ_MOON;
   themeQuick.title = isDarkNow() ? "라이트 모드로 전환" : "다크 모드로 전환";
 }
+// 빠른 전환이 오갈 밝은/어두운 테마 — 설정에서 명시적으로 지정한다
+const quickLightSel = document.getElementById("set-quick-light");
+const quickDarkSel = document.getElementById("set-quick-dark");
+try {
+  const l = localStorage.getItem("bp-theme-light"), d = localStorage.getItem("bp-theme-dark");
+  if (THEMES[l]?.mode === "light") quickLightSel.value = l;
+  if (THEMES[d]?.mode === "dark") quickDarkSel.value = d;
+} catch (e) { /* 기본값(페이퍼/나이트) 유지 */ }
+// 주의: 프록시 패널 부착(attachSelectPanel)은 여기서 하지 않는다 — 이 블록은 파일상
+// ALL_SELECT_PANELS(const) 선언보다 앞이라 TDZ에 걸린다. 부착은 select-proxy 구역에서.
 themeQuick.addEventListener("click", () => {
-  const next = isDarkNow() ? "light" : "dark";
+  const mode = isDarkNow() ? "light" : "dark";
+  // 설정에서 지정한 그 계열의 테마로 — 드라큘라를 지정한 사람에게 "다크"는 드라큘라다
+  const pick = (mode === "dark" ? quickDarkSel : quickLightSel).value;
+  const next = THEMES[pick]?.mode === mode ? pick : mode;
   document.documentElement.dataset.theme = next;
   try { localStorage.setItem("bp-theme", next); } catch (e) { /* 이번 세션만 */ }
   paintThemeSeg(); paintThemeQuick();
@@ -2685,22 +2986,17 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
 paintThemeQuick();
 // 표시 여부는 설정에서 — 화면 구석 버튼이 거슬리는 사람은 끄고 설정의 세그먼트만 쓴다
 const quickThemeChk = document.getElementById("set-quicktheme");
-const quickThemeOn = () => { try { return localStorage.getItem("bp-quicktheme") !== "off"; } catch (e) { return true; } };
+// 부팅 때 한 번 저장값에서 읽고, 이후 진실은 체크박스 자신 — 저장은 [저장]에서
+try { quickThemeChk.checked = localStorage.getItem("bp-quicktheme") !== "off"; } catch (e) { quickThemeChk.checked = true; }
+const quickThemeOn = () => quickThemeChk.checked;
 function applyQuickThemeVis() { themeQuick.style.display = quickThemeOn() ? "" : "none"; }
-quickThemeChk.checked = quickThemeOn();
-quickThemeChk.addEventListener("change", () => {
-  try { localStorage.setItem("bp-quicktheme", quickThemeChk.checked ? "on" : "off"); } catch (e) { /* 세션 한정 */ }
-  applyQuickThemeVis();
-});
+quickThemeChk.addEventListener("change", applyQuickThemeVis);
 applyQuickThemeVis();
 
 // 압축 옵션: 용어 부록 포함 여부 — 압축 요청에 glossary:false로 전달된다
 const glossaryChk = document.getElementById("set-glossary");
-const glossaryOn = () => { try { return localStorage.getItem("bp-glossary") !== "off"; } catch (e) { return true; } };
-glossaryChk.checked = glossaryOn();
-glossaryChk.addEventListener("change", () => {
-  try { localStorage.setItem("bp-glossary", glossaryChk.checked ? "on" : "off"); } catch (e) { /* 세션 한정 */ }
-});
+try { glossaryChk.checked = localStorage.getItem("bp-glossary") !== "off"; } catch (e) { glossaryChk.checked = true; }
+const glossaryOn = () => glossaryChk.checked; // 압축 요청이 매번 읽는다 — 저장은 [저장]에서
 
 // 노드 포커스 배율 — 설정에서 조절한다(기본 0.85). 값은 focusOn이 매번 읽는다.
 let EXPAND_SCALE = (() => { try { const v = parseFloat(localStorage.getItem("bp-zoom")); return v >= 0.6 && v <= 1.4 ? v : 0.85; } catch (e) { return 0.85; } })();
@@ -2711,22 +3007,84 @@ function paintZoom() { zoomVal.textContent = "×" + EXPAND_SCALE.toFixed(2); zoo
 zoomRng.addEventListener("input", () => {
   EXPAND_SCALE = parseFloat(zoomRng.value);
   paintZoom();
-  try { localStorage.setItem("bp-zoom", String(EXPAND_SCALE)); } catch (e) { /* 세션 한정 */ }
-  // 카드가 열려 있으면 새 배율을 바로 보여준다 — 저장만 되고 변화가 없으면 조절감이 없다
+  // 카드가 열려 있으면 새 배율을 바로 보여준다 — 반응만 있고 변화가 없으면 조절감이 없다.
+  // localStorage 기록은 [저장]에서.
   if (expandedId) focusOn(expandedId);
 });
 paintZoom();
 
-// 단축키: 끄기 좋아하는 사람을 위한 토글 — keydown 핸들러가 매번 읽는다
-const KEYS_DEFAULT = { arrows: true, space: true };
-const keyPref = (k) => { try { return localStorage.getItem("bp-key-" + k) !== "off"; } catch (e) { return true; } };
+// 전체 보기(스페이스바·시점 정렬) 배율 — fitAll의 "딱 맞는" 배율에 곱해진다(기본 1.0)
+let HOME_SCALE = (() => { try { const v = parseFloat(localStorage.getItem("bp-homezoom")); return v >= 0.6 && v <= 1.4 ? v : 1; } catch (e) { return 1; } })();
+const homeRng = document.getElementById("set-homezoom");
+const homeVal = document.getElementById("set-homezoom-val");
+function paintHomeZoom() { homeVal.textContent = "×" + HOME_SCALE.toFixed(2); homeRng.value = String(HOME_SCALE); }
+homeRng.addEventListener("input", () => {
+  HOME_SCALE = parseFloat(homeRng.value);
+  paintHomeZoom();
+  if (!expandedId) fitAll(true); // 즉시 미리보기 — 설정 모달 뒤 지도가 새 배율로 맞춰진다
+});
+paintHomeZoom();
+
+// 단축키: 끄기 좋아하는 사람을 위한 토글 — keydown 핸들러가 매번 읽는다.
+// 부팅 때 저장값을 체크박스에 싣고, 이후 진실은 체크박스 자신(즉시 반영) — 저장은 [저장]에서
 for (const k of ["arrows", "space"]) {
   const el = document.getElementById("set-key-" + k);
-  el.checked = keyPref(k);
-  el.addEventListener("change", () => {
-    try { localStorage.setItem("bp-key-" + k, el.checked ? "on" : "off"); } catch (e) { /* 세션 한정 */ }
-  });
+  try { el.checked = localStorage.getItem("bp-key-" + k) !== "off"; } catch (e) { el.checked = true; }
 }
+const keyPref = (k) => document.getElementById("set-key-" + k).checked;
+
+// ── 설정 저장 모델: 미리보기 → [저장]으로 확정 · [기본값]으로 초기화 ──
+const SET_DEFAULTS = { theme: "", zoom: 0.85, homeZoom: 1, arrows: true, space: true, quick: true, glossary: true,
+  quickLight: "light", quickDark: "dark" };
+function collectSettings() {
+  return {
+    theme: document.documentElement.dataset.theme ?? "",
+    zoom: EXPAND_SCALE, homeZoom: HOME_SCALE,
+    arrows: keyPref("arrows"), space: keyPref("space"),
+    quick: quickThemeChk.checked, glossary: glossaryChk.checked,
+    quickLight: quickLightSel.value, quickDark: quickDarkSel.value,
+  };
+}
+function setDirty() { return JSON.stringify(collectSettings()) !== JSON.stringify(SET_SNAPSHOT); }
+// 값 묶음을 화면·컨트롤에 한 번에 입힌다 — [기본값]과 "저장 안 하고 나가기" 복원이 같이 쓴다
+function applySettings(v) {
+  if (v.theme) document.documentElement.dataset.theme = v.theme;
+  else delete document.documentElement.dataset.theme;
+  paintThemeSeg(); paintThemeQuick();
+  EXPAND_SCALE = v.zoom; paintZoom(); if (expandedId) focusOn(expandedId);
+  HOME_SCALE = v.homeZoom; paintHomeZoom(); if (atHome && !expandedId) fitAll(true);
+  document.getElementById("set-key-arrows").checked = v.arrows;
+  document.getElementById("set-key-space").checked = v.space;
+  quickThemeChk.checked = v.quick; applyQuickThemeVis();
+  glossaryChk.checked = v.glossary;
+  quickLightSel.value = v.quickLight; quickDarkSel.value = v.quickDark;
+  // 프록시 트리거 라벨은 change로만 갱신된다 — 프로그램적 value 대입은 이벤트가 없다
+  quickLightSel.dispatchEvent(new Event("change"));
+  quickDarkSel.dispatchEvent(new Event("change"));
+}
+function saveSettings() {
+  const v = collectSettings();
+  try {
+    if (v.theme) localStorage.setItem("bp-theme", v.theme);
+    else localStorage.removeItem("bp-theme");
+    // 빠른 전환 대상 — 자동 기억이 아니라 설정에서 지정한 값
+    localStorage.setItem("bp-theme-light", v.quickLight);
+    localStorage.setItem("bp-theme-dark", v.quickDark);
+    localStorage.setItem("bp-zoom", String(v.zoom));
+    localStorage.setItem("bp-homezoom", String(v.homeZoom));
+    localStorage.setItem("bp-key-arrows", v.arrows ? "on" : "off");
+    localStorage.setItem("bp-key-space", v.space ? "on" : "off");
+    localStorage.setItem("bp-quicktheme", v.quick ? "on" : "off");
+    localStorage.setItem("bp-glossary", v.glossary ? "on" : "off");
+  } catch (e) { /* 저장 불가 환경 — 이번 세션만 적용 */ }
+  SET_SNAPSHOT = v;
+  const b = document.getElementById("set-save");
+  b.textContent = "저장됨 ✓";
+  clearTimeout(saveSettings._t);
+  saveSettings._t = setTimeout(() => { b.textContent = "저장"; }, 1200);
+}
+document.getElementById("set-save").addEventListener("click", saveSettings);
+document.getElementById("set-reset").addEventListener("click", () => applySettings(SET_DEFAULTS));
 
 // 갈래 관리: 현재 프로젝트의 갈래를 나열 — 이름 변경·삭제
 async function renderBranchList() {
@@ -2737,18 +3095,25 @@ async function renderBranchList() {
   box.replaceChildren(...BRANCHES.map(b => {
     const row = document.createElement("div");
     row.className = "bi";
-    row.innerHTML = `<span class="bt">⑂ ${esc(b.title)}</span><span class="bn">${Math.floor(b.messages.length / 2)}문답</span>`;
+    // 이름은 버튼 — 누르면 설정을 닫고 그 갈래 화면으로 들어가 대화 내용을 보여준다
+    const open = document.createElement("button");
+    open.className = "bt"; open.title = "이 갈래 화면으로 이동";
+    open.textContent = `⑂ ${b.title}`;
+    open.addEventListener("click", () => { toggleSettings(false); enterBranchView(b.id); });
+    const bn = document.createElement("span");
+    bn.className = "bn"; bn.textContent = `${Math.floor(b.messages.length / 2)}문답`;
+    row.append(open, bn);
     const ren = document.createElement("button");
     ren.title = "이름 변경"; ren.textContent = "✎";
     ren.addEventListener("click", async () => {
-      const t = prompt("갈래 이름", b.title);
+      const t = await bpPrompt("갈래 이름", b.title);
       if (t === null || !t.trim() || t.trim() === b.title) return;
       try {
         const r = await api("/api/branch-rename", { project: CURRENT_PROJECT, id: b.id, title: t.trim() });
         if (r.error) throw new Error(r.error);
         await fetchBranches(CURRENT_PROJECT);
         rebuildSessionSelect(); render(); renderBranchList();
-      } catch (e) { alert("이름 변경 실패: " + e.message); }
+      } catch (e) { bpAlert("이름 변경 실패: " + e.message); }
     });
     const del = document.createElement("button");
     del.className = "del"; del.title = "삭제"; del.textContent = "×";
@@ -2819,6 +3184,7 @@ document.getElementById("tpl-save").addEventListener("click", async () => {
 // ── 셀렉트 프록시: 숨긴 네이티브 셀렉트를 값 저장소로 쓰는 커스텀 패널 ──
 // 기존 코드는 전부 select의 value·options·change 이벤트로 동작한다(rebuildSessionSelect,
 // loadProjects 포함). 그 계약을 건드리지 않으려고 UI만 새로 그리고 선택은 select에 위임한다.
+const ALL_SELECT_PANELS = []; // attachSelectPanel 인스턴스 등록부 — "한 번에 하나만 열림"용
 function attachSelectPanel(selId, trigId, popId, labelId, fallback) {
   const sel = document.getElementById(selId);
   const trig = document.getElementById(trigId);
@@ -2857,6 +3223,8 @@ function attachSelectPanel(selId, trigId, popId, labelId, fallback) {
   };
   const toggle = (open) => {
     const v = open ?? !isOpen();
+    // 한 번에 하나만 — 폴더·세션 패널이 같이 열리면 겹친다. 열 때 다른 열린 패널을 닫는다
+    if (v) ALL_SELECT_PANELS.forEach(p => { if (p !== api && p.isOpen()) p.toggle(false); });
     if (v) renderPop();
     pop.classList.toggle("open", v);
     trig.setAttribute("aria-expanded", String(v));
@@ -2869,12 +3237,19 @@ function attachSelectPanel(selId, trigId, popId, labelId, fallback) {
   new MutationObserver(() => { labelSync(); if (isOpen()) renderPop(); })
     .observe(sel, { childList: true, subtree: true, attributes: true });
   labelSync();
-  return { isOpen, toggle };
+  const api = { isOpen, toggle };
+  ALL_SELECT_PANELS.push(api);
+  return api;
 }
 const sessPanel = attachSelectPanel("session-select", "sess-trigger", "sess-pop", "sess-label", "세션");
 const projPanel = attachSelectPanel("project-select", "proj-trigger", "proj-pop", "proj-label", "프로젝트");
-const sessOpenQ = () => sessPanel.isOpen() || projPanel.isOpen();
-function closeSelectPanels() { if (sessPanel.isOpen()) sessPanel.toggle(false); if (projPanel.isOpen()) projPanel.toggle(false); }
+// 설정의 빠른 전환 테마 지정도 같은 프록시 — 값은 위(설정 블록)에서 이미 실려 있어
+// attach 끝의 labelSync가 맞는 라벨을 읽는다
+attachSelectPanel("set-quick-light", "qlight-trigger", "qlight-pop", "qlight-label", "페이퍼");
+attachSelectPanel("set-quick-dark", "qdark-trigger", "qdark-pop", "qdark-label", "나이트");
+// 레지스트리 기반 — 설정의 테마 지정 패널 등 뒤에 추가되는 패널도 자동 포함
+const sessOpenQ = () => ALL_SELECT_PANELS.some(p => p.isOpen());
+function closeSelectPanels() { ALL_SELECT_PANELS.forEach(p => { if (p.isOpen()) p.toggle(false); }); }
 
 // ── 도움말 ──
 const helpEl = document.getElementById("help");
@@ -2962,7 +3337,7 @@ topicBtn.addEventListener("click", async () => {
     requestAnimationFrame(() => requestAnimationFrame(fitAll));
     return;
   }
-  if (!SESSION_SCOPE || BRANCH_SCOPE) { alert("세션 뷰에서만 쓸 수 있어요 — 셀렉터에서 세션을 고른 뒤 눌러주세요."); return; }
+  if (!SESSION_SCOPE || BRANCH_SCOPE) { bpAlert("세션 뷰에서만 쓸 수 있어요 — 셀렉터에서 세션을 고른 뒤 눌러주세요."); return; }
   // 껐다 다시 켜는 경우: 턴 목록이 그대로면 이미 받아둔 구간을 즉시 되살린다.
   // 예전엔 무조건 서버를 다시 불러서 "20초 안팎" 카드가 다시 뜨고(캐시가 있어도),
   // 경계는 실행마다 조금씩 달라져 껐다 켤 때마다 배치가 바뀌어 보였다.
@@ -2989,7 +3364,7 @@ topicBtn.addEventListener("click", async () => {
     expandedId = null; clearSel();
     renderSession(); // 맵 자체가 주제 캡슐 배치로 재편성된다
     requestAnimationFrame(() => requestAnimationFrame(fitAll));
-  } catch (e) { alert("주제 분석 실패: " + e.message); }
+  } catch (e) { bpAlert("주제 분석 실패: " + e.message); }
   finally { topicBtn.disabled = false; hideBusy(); }
 });
 
@@ -3172,7 +3547,8 @@ function glideTo(tx, ty, scale) {
 function fitAll(instant) {
   const r = stage.getBoundingClientRect();
   const rawFit = Math.min((r.width - 90) / CONTENT_W, (r.height - 90) / CONTENT_H);
-  const scale = clamp(rawFit, MIN_FIT_SCALE, 1.3);
+  // HOME_SCALE(설정: 전체 보기 배율)은 "딱 맞는" 배율에 대한 곱 — 1.0이 기존 동작
+  const scale = clamp(clamp(rawFit, MIN_FIT_SCALE, 1.3) * HOME_SCALE, MIN_ZOOM, MAX_ZOOM);
   const tx = (r.width - CONTENT_W * scale) / 2;
   const ty = (r.height - CONTENT_H * scale) / 2;
   applyTransform(tx, ty, scale, instant);
@@ -3221,6 +3597,9 @@ function homeView() {
 // the "전체 보기" scale is still fully reachable
 let panState = null, justDragged = false;
 stage.addEventListener("pointerdown", (e) => {
+  // 주 버튼(좌클릭·터치)만 패닝 — 우클릭은 컨텍스트 메뉴의 몫이다. 안 가리면 메뉴가
+  // 뜬 채로 화면잡기도 함께 시작돼 두 동작이 겹친다
+  if (e.button !== 0) return;
   // 클릭 대상 위에서는 패닝을 시작하지 않는다 — 시작하면 드래그 후 놓을 때 그 요소의
   // 클릭까지 함께 발동해(justDragged를 안 보므로) 구간이 펼쳐지거나 카메라가 튄다
   if (expandedId || e.target.closest(".node,.capsule,.portal,.cap-collapse,.skip,.topic-rowhdr")) return;
@@ -3268,6 +3647,20 @@ stage.addEventListener("wheel", (e) => {
   atHome = false;
   document.getElementById("home-btn").classList.add("show");
 }, { passive: false });
+
+// 좌하단 +/− 버튼 — ctrl+휠 줌과 같은 문법(목표 카메라에 누적, 글라이드), 기준점은 화면 중앙
+function zoomBy(factor) {
+  if (expandedId) return; // 카드가 열려 있으면 휠 줌과 동일하게 잠근다
+  const T = glideTarget ?? { tx: camTx, ty: camTy, scale: camScale };
+  const newScale = clamp(T.scale * factor, MIN_ZOOM, MAX_ZOOM);
+  const cx = stage.clientWidth / 2, cy = stage.clientHeight / 2;
+  const mapX = (cx - T.tx) / T.scale, mapY = (cy - T.ty) / T.scale;
+  glideTo(cx - mapX * newScale, cy - mapY * newScale, newScale);
+  atHome = false;
+  document.getElementById("home-btn").classList.add("show");
+}
+document.getElementById("zoom-in").addEventListener("click", () => zoomBy(1.3));
+document.getElementById("zoom-out").addEventListener("click", () => zoomBy(1 / 1.3));
 
 // ── selection / expansion ──
 function selectNode(id) {
@@ -3471,7 +3864,7 @@ async function deleteBranch(id) {
   if (!br) return;
   const qn = Math.floor(br.messages.length / 2);
   const warn = qn ? `\n주고받은 질문 ${qn}개가 함께 사라지며 되돌릴 수 없습니다.` : "";
-  if (!confirm(`갈래 "${br.title}"를 삭제할까요?${warn}`)) return;
+  if (!(await bpConfirm(`갈래 "${br.title}"를 삭제할까요?${warn}`, { ok: "삭제", danger: true }))) return;
   try {
     const j = await api("/api/branch-delete", { project: CURRENT_PROJECT, id });
     if (j.error) throw new Error(j.error);
@@ -3480,7 +3873,7 @@ async function deleteBranch(id) {
     closeExpanded();          // 카드에 남은 옛 칩 목록을 그대로 두지 않는다
     rebuildSessionSelect();   // 셀렉터의 "⑂ 갈래" 그룹에서도 제거
     render();
-  } catch (e) { alert("갈래 삭제 실패: " + e.message); }
+  } catch (e) { bpAlert("갈래 삭제 실패: " + e.message); }
 }
 async function createBranch(turnId) {
   try {
@@ -3489,7 +3882,7 @@ async function createBranch(turnId) {
     if (br.error) throw new Error(br.error);
     BRANCHES.push(br);
     enterBranchView(br.id);
-  } catch (e) { alert("갈래 생성 실패: " + e.message); }
+  } catch (e) { bpAlert("갈래 생성 실패: " + e.message); }
 }
 
 // ── 갈래 워프 뷰: 갈래를 별도 세션처럼 노드 선으로 렌더 — 포탈과 같은 이동 문법 ──
@@ -3659,7 +4052,7 @@ async function sendBranchWarp() {
       const inp = document.getElementById("bb-q");
       if (inp) inp.value = q; // 낙관 롤백 — 입력 복원
     }
-    alert("갈래 대화 실패: " + e.message);
+    bpAlert("갈래 대화 실패: " + e.message);
   } finally {
     BR_INFLIGHT.delete(brId);
     hideBusy(); // 어떤 경로로 끝나든 오버레이는 반드시 걷는다
@@ -3860,11 +4253,13 @@ window.addEventListener("keydown", (e) => {
   const typing = typingInField();
   if (e.key === "Shift" && !shiftHeld && !typing) { shiftHeld = true; updateSel(); }
   if (e.key === "Escape" && !typing) {
-    // 바깥 겹침부터 차례로 벗긴다: 라이트박스 → 도움말 → 모달 → 열린 카드 → 펼쳐둔 캡슐
-    if (document.getElementById("lightbox").classList.contains("open")) closeLightbox();
+    // 바깥 겹침부터 차례로 벗긴다: 다이얼로그 → 라이트박스 → 도움말 → 모달 → 열린 카드 → 펼쳐둔 캡슐
+    if (dlgEl.classList.contains("open")) dlgCancel();
+    else if (document.getElementById("lightbox").classList.contains("open")) closeLightbox();
     else if (tplOpen()) closeTplEditor();
-    else if (setOpen()) toggleSettings(false);
+    // 셀렉트 패널이 설정 모달보다 먼저 — 설정 안의 테마 지정 패널이 열려 있으면 그것부터
     else if (sessOpenQ()) closeSelectPanels();
+    else if (setOpen()) toggleSettings(false);
     else if (helpEl.classList.contains("open")) closeHelp();
     else if (reqPopOpen()) setReqPop(false);
     else if (modal.classList.contains("open")) modal.classList.remove("open");
@@ -3938,7 +4333,7 @@ document.getElementById("sb-go").addEventListener("click", async (ev) => {
     showTab("md");
     clearSel(); // 완료되면 압축 여부를 묻던 선택 바는 걷고 결과 창만 남긴다
     openModalFromBusy();
-  } catch (e) { hideBusy(); alert("압축 실패: " + e.message); }
+  } catch (e) { hideBusy(); bpAlert("압축 실패: " + e.message); }
   finally { hideBusy(); btn.disabled = false; btn.textContent = "압축 패키지 생성"; }
 });
 function showTab(k) {
@@ -3997,7 +4392,7 @@ document.getElementById("m-branch").addEventListener("click", async () => {
     BRANCHES.push(br);
     modal.classList.remove("open");
     enterBranchView(br.id); // 바로 갈래 워프 뷰로 진입
-  } catch (e) { alert("갈래 생성 실패: " + e.message); }
+  } catch (e) { bpAlert("갈래 생성 실패: " + e.message); }
   btn.disabled = false;
 });
 document.getElementById("m-dl-md").addEventListener("click", () => download("md"));
