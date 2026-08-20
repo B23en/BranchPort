@@ -193,6 +193,13 @@
     background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:20px 22px 22px;
     box-shadow:0 24px 64px rgba(15,13,8,.22), 0 4px 12px rgba(15,13,8,.08);
     font-size:12.5px; color:var(--ink2); line-height:1.6; animation:modalIn .2s cubic-bezier(.2,.8,.3,1);}
+  /* 스크롤바: 모달의 16px 라운드와 어울리게 — 둥근 썸 + 트랙을 모서리 안쪽으로 들임 */
+  #settings-box::-webkit-scrollbar{width:10px;}
+  #settings-box::-webkit-scrollbar-track{background:transparent; margin:16px 0;}
+  #settings-box::-webkit-scrollbar-thumb{background:color-mix(in srgb, var(--axis) 60%, transparent);
+    border-radius:99px; border:3px solid transparent; background-clip:padding-box;}
+  #settings-box::-webkit-scrollbar-thumb:hover{background:var(--axis);
+    border:3px solid transparent; background-clip:padding-box;}
   #settings-box h2{font-size:16px; margin:0 30px 12px 0; color:var(--ink);}
 
   /* 세션 선택: 네이티브 셀렉트는 값 저장소로만 남기고(숨김) 아래로 열리는 패널을 그린다.
@@ -336,6 +343,11 @@
   #set-branches .bi button.bt:hover{background:none; color:var(--exec);
     text-decoration:underline; text-underline-offset:2px;}
   #set-branches .bi-none{color:var(--muted); font-size:12px; padding:2px;}
+  /* 프로젝트 그룹 소제목 — 드롭다운 패널의 .sg와 같은 언어 */
+  #set-branches .bg-h{font-size:10px; letter-spacing:.12em; font-weight:750; color:var(--muted);
+    text-transform:uppercase; padding:8px 2px 3px;}
+  #set-branches .bg-h:not(:first-child){margin-top:5px; padding-top:10px;
+    border-top:1px solid color-mix(in srgb, var(--line) 75%, transparent);}
   #settings-box code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px;
     background:var(--chip); border-radius:4px; padding:1px 5px;}
   /* 프롬프트 편집기 — 설정에서 열리는 전체 화면 모달. 검증 실패 저장은 서버가 거부하므로
@@ -436,8 +448,20 @@
     background:color-mix(in srgb, var(--chip) 55%, transparent); z-index:1; pointer-events:none;}
   .node-label.hide-self{opacity:0 !important;}
   /* 안내 문구는 지도 위에 겹쳐 뜬다 — 클릭·드래그를 먹으면 그 자리의 노드가 눌리지 않는다 */
-  #loading{position:fixed; top:70px; left:170px; font-size:13px; color:var(--muted); z-index:11;
-    pointer-events:none;}
+  /* 상태 안내(불러오는 중 · 제목 생성 중 n/m) — 맨글자 대신 "안내 방송" 칩:
+     숨쉬는 역 표식 + 활자. 헤더 아래 중앙, 빈 문자열이면 통째로 사라진다 */
+  #loading{position:fixed; top:calc(var(--header-h,57px) + 13px); left:50%; transform:translateX(-50%);
+    z-index:11; pointer-events:none; display:flex; align-items:center; gap:8px;
+    font-size:12.5px; font-weight:600; color:var(--ink2); font-variant-numeric:tabular-nums;
+    max-width:min(560px, 80vw); text-align:center;
+    background:color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter:blur(14px) saturate(1.4); -webkit-backdrop-filter:blur(14px) saturate(1.4);
+    border:1px solid var(--line); border-radius:99px; padding:7px 14px 7px 11px;
+    box-shadow:var(--shadow);}
+  #loading:empty{display:none;}
+  #loading::before{content:""; width:9px; height:9px; border-radius:50%; flex:none;
+    background:var(--surface); border:2.5px solid var(--exec);
+    animation:breathe 1.4s ease-in-out infinite;}
   #empty{position:fixed; inset:0; display:none; align-items:center; justify-content:center;
     color:var(--muted); font-size:13.5px; text-align:center; line-height:1.8; pointer-events:none;}
 
@@ -552,6 +576,8 @@
 
   .d-fork{color:#9b7fd4; font-size:12px; font-weight:700; margin-bottom:3px;}
   .d-title{font-size:16.5px; font-weight:700; line-height:1.42; margin-bottom:6px;}
+  /* 제목이 아직 없을 때(생성 중) — 노드 라벨의 임시 표시와 같은 언어: 흐림 + 기울임 */
+  .d-title.prov{color:var(--muted); font-style:italic; font-weight:500;}
   .d-gist{font-size:13px; color:var(--ink2); line-height:1.55; margin-bottom:6px;}
   .d-meta{font-size:12px; color:var(--muted); margin-bottom:12px;}
   .d-chips{display:flex; gap:7px; flex-wrap:wrap; margin-bottom:14px;}
@@ -702,7 +728,7 @@
   /* 캡슐 조형 + 부드러운 확장. header #search-box로 쓰는 이유: 공용 컨트롤 규칙이
      같은 특이도(header+id)로 radius 9px·자체 transition을 갖고 있어서, #search-box만으로는
      져서 캡슐도 안 되고 width 트랜지션이 통째로 사라져 뙇 하고 늘어났다 */
-  header #search-box{width:170px; --sw-open:240px; border-radius:99px; padding:0 15px;
+  header #search-box{width:170px; --sw-open:300px; border-radius:99px; padding:0 15px;
     background:var(--chip) !important; color:var(--ink) !important;
     transition:width .6s cubic-bezier(.25,.9,.3,1), border-color .2s ease, box-shadow .2s ease, background .2s ease;}
   /* 포커스 중이거나 결과 목록이 떠 있는 동안 확장 유지 — 크롬 옴니박스처럼 결과가
@@ -725,13 +751,32 @@
     #search-wrap{position:absolute; left:50%; transform:translateX(-50%);}
     header #search-box{width:220px; --sw-open:380px;}
   }
-  /* 크롬 옴니박스식 — 검색창 바로 아래, 창 중심에 맞춰 아래로 길어진다 */
-  #search-results{position:absolute; top:calc(100% + 6px); left:50%; transform:translateX(-50%);
-    width:max(100%, 340px); max-width:min(480px, 92vw); z-index:60;
-    background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:6px;
-    box-shadow:0 12px 32px rgba(15,13,8,.15), 0 2px 6px rgba(15,13,8,.06);
-    max-height:340px; overflow-y:auto;}
+  /* 결과가 열리면 캡슐이 아래로 길어진 "한 몸" — 입력칸은 아래 모서리를 펴고(윗반쪽),
+     결과 목록은 같은 폭·같은 테두리로 바로 이어 붙는다(아랫반쪽). 사이 구분선은
+     입력칸의 border-bottom이 맡는다 */
+  #search-wrap:has(#search-results:not(:empty)) #search-box{
+    border-radius:17px 17px 0 0;
+    background:var(--surface) !important;
+    border-color:var(--line);
+    border-width:1px; /* 포커스(1.5px 그라데이션)보다 우선 — 결과부(1px)와 폭을 맞춰 이음새 단차 제거 */
+    box-shadow:0 2px 6px rgba(15,13,8,.05);}
+  /* 열린 검색은 헤더 안 최상층 — 4색 노선 스트립·다른 형제가 드롭다운 위를 긋지 못하게 */
+  #search-wrap{z-index:40;}
+  #search-results{position:absolute; top:100%; left:50%; transform:translateX(-50%);
+    width:100%; z-index:60; box-sizing:border-box;
+    background:var(--surface); border:1px solid var(--line); border-top:0;
+    border-radius:0 0 16px 16px; padding:6px;
+    box-shadow:0 16px 36px rgba(15,13,8,.16), 0 3px 8px rgba(15,13,8,.06);
+    max-height:min(340px, 60vh); overflow-y:auto;
+    animation:srDrop .18s ease;}
+  #search-results::-webkit-scrollbar{width:10px;}
+  #search-results::-webkit-scrollbar-track{background:transparent; margin:8px 0 16px;}
+  #search-results::-webkit-scrollbar-thumb{background:color-mix(in srgb, var(--axis) 60%, transparent);
+    border-radius:99px; border:3px solid transparent; background-clip:padding-box;}
+  #search-results::-webkit-scrollbar-thumb:hover{background:var(--axis);
+    border:3px solid transparent; background-clip:padding-box;}
   #search-results:empty{display:none;}
+  @keyframes srDrop{from{opacity:0; transform:translate(-50%,-6px)} to{opacity:1; transform:translate(-50%,0)}}
   /* 세션 패널(.si)과 같은 항목 문법 — 구분선 리스트 대신 둥근 호버 면 */
   #search-results .sr{padding:7px 10px; cursor:pointer; border-radius:8px; font-size:12.5px;
     transition:background .12s ease;}
@@ -1128,13 +1173,13 @@
   @media (max-width:920px){
     header{gap:6px; padding:0 12px;}
     .meta{display:none;}                 /* 통계가 첫 번째로 양보 */
-    header #search-box{width:120px; --sw-open:180px;}
+    header #search-box{width:120px; --sw-open:260px;}
     #sess-trigger, #proj-trigger{width:130px;}
   }
   @media (max-width:620px){
     header{gap:4px; padding:0 8px;}
     header h1{margin-right:2px;}
-    header #search-box{width:96px; --sw-open:150px;}
+    header #search-box{width:96px; --sw-open:220px;}
     #sess-trigger, #proj-trigger{width:110px;}
     /* 드롭다운 패널: 트리거에 매달면 오른쪽으로 삐져나간다 — 헤더 아래 전폭으로.
        (헤더의 backdrop-filter가 fixed의 기준이라 좌표는 헤더 기준 = 화면 기준과 같다) */
@@ -3087,40 +3132,82 @@ document.getElementById("set-save").addEventListener("click", saveSettings);
 document.getElementById("set-reset").addEventListener("click", () => applySettings(SET_DEFAULTS));
 
 // 갈래 관리: 현재 프로젝트의 갈래를 나열 — 이름 변경·삭제
+// 갈래 관리: 모든 프로젝트의 갈래를 한 목록에 — 어디서 설정을 열어도 전부 보인다.
+// 프로젝트별로 묶고 현재 프로젝트를 맨 위에. 다른 프로젝트의 갈래는 열 때 프로젝트를 갈아탄다.
 async function renderBranchList() {
   const box = document.getElementById("set-branches");
-  if (!CURRENT_PROJECT) { box.innerHTML = `<div class="bi-none">프로젝트를 먼저 열어주세요</div>`; return; }
-  await fetchBranches(CURRENT_PROJECT);
-  if (!BRANCHES.length) { box.innerHTML = `<div class="bi-none">아직 만든 갈래가 없습니다 — 턴 카드의 "＋ 새 갈래"로 만듭니다</div>`; return; }
-  box.replaceChildren(...BRANCHES.map(b => {
-    const row = document.createElement("div");
-    row.className = "bi";
-    // 이름은 버튼 — 누르면 설정을 닫고 그 갈래 화면으로 들어가 대화 내용을 보여준다
-    const open = document.createElement("button");
-    open.className = "bt"; open.title = "이 갈래 화면으로 이동";
-    open.textContent = `⑂ ${b.title}`;
-    open.addEventListener("click", () => { toggleSettings(false); enterBranchView(b.id); });
-    const bn = document.createElement("span");
-    bn.className = "bn"; bn.textContent = `${Math.floor(b.messages.length / 2)}문답`;
-    row.append(open, bn);
-    const ren = document.createElement("button");
-    ren.title = "이름 변경"; ren.textContent = "✎";
-    ren.addEventListener("click", async () => {
-      const t = await bpPrompt("갈래 이름", b.title);
-      if (t === null || !t.trim() || t.trim() === b.title) return;
-      try {
-        const r = await api("/api/branch-rename", { project: CURRENT_PROJECT, id: b.id, title: t.trim() });
-        if (r.error) throw new Error(r.error);
-        await fetchBranches(CURRENT_PROJECT);
-        rebuildSessionSelect(); render(); renderBranchList();
-      } catch (e) { bpAlert("이름 변경 실패: " + e.message); }
-    });
-    const del = document.createElement("button");
-    del.className = "del"; del.title = "삭제"; del.textContent = "×";
-    del.addEventListener("click", async () => { await deleteBranch(b.id); renderBranchList(); });
-    row.append(ren, del);
-    return row;
-  }));
+  const projects = [...document.getElementById("project-select").options]
+    .filter(o => o.value).map(o => ({ dir: o.value, name: o.textContent.replace(/ \(\d+\)$/, "") }));
+  if (!projects.length) { box.innerHTML = `<div class="bi-none">프로젝트를 먼저 열어주세요</div>`; return; }
+  projects.sort((a, b) => (b.dir === CURRENT_PROJECT) - (a.dir === CURRENT_PROJECT));
+  const lists = await Promise.all(projects.map(pr =>
+    fetch(`/api/branches?project=${encodeURIComponent(pr.dir)}`).then(r => r.json())
+      .then(j => ({ pr, branches: j.branches || [] })).catch(() => ({ pr, branches: [] }))));
+  const frag = document.createDocumentFragment();
+  let total = 0;
+  for (const { pr, branches } of lists) {
+    if (!branches.length) continue;
+    total += branches.length;
+    const g = document.createElement("div");
+    g.className = "bg-h";
+    g.textContent = pr.name + (pr.dir === CURRENT_PROJECT ? " · 현재" : "");
+    frag.appendChild(g);
+    for (const b of branches) frag.appendChild(branchRow(pr.dir, b));
+  }
+  if (!total) { box.innerHTML = `<div class="bi-none">아직 만든 갈래가 없습니다 — 턴 카드의 "＋ 새 갈래"로 만듭니다</div>`; return; }
+  box.replaceChildren(frag);
+}
+function branchRow(projDir, b) {
+  const mine = projDir === CURRENT_PROJECT; // 현재 프로젝트면 화면 상태(칩·셀렉터)도 함께 갱신
+  const row = document.createElement("div");
+  row.className = "bi";
+  // 이름은 버튼 — 누르면 설정을 닫고 그 갈래 화면으로 (다른 프로젝트면 갈아탄 뒤)
+  const open = document.createElement("button");
+  open.className = "bt"; open.title = mine ? "이 갈래 화면으로 이동" : "프로젝트를 전환해 이 갈래 화면으로 이동";
+  open.textContent = `⑂ ${b.title}`;
+  open.addEventListener("click", () => { toggleSettings(false); openBranchAnywhere(projDir, b.id); });
+  const bn = document.createElement("span");
+  bn.className = "bn"; bn.textContent = `${Math.floor(b.messages.length / 2)}문답`;
+  row.append(open, bn);
+  const ren = document.createElement("button");
+  ren.title = "이름 변경"; ren.textContent = "✎";
+  ren.addEventListener("click", async () => {
+    const t = await bpPrompt("갈래 이름", b.title);
+    if (t === null || !t.trim() || t.trim() === b.title) return;
+    try {
+      const r = await api("/api/branch-rename", { project: projDir, id: b.id, title: t.trim() });
+      if (r.error) throw new Error(r.error);
+      if (mine) { await fetchBranches(CURRENT_PROJECT); rebuildSessionSelect(); render(); }
+      renderBranchList();
+    } catch (e) { bpAlert("이름 변경 실패: " + e.message); }
+  });
+  const del = document.createElement("button");
+  del.className = "del"; del.title = "삭제"; del.textContent = "×";
+  del.addEventListener("click", async () => {
+    if (mine) { await deleteBranch(b.id); renderBranchList(); return; }
+    // 다른 프로젝트: API만 부른다 — 그 프로젝트 화면 상태는 열 때 새로 읽으므로 건드릴 게 없다
+    const qn = Math.floor(b.messages.length / 2);
+    const warn = qn ? `\n주고받은 질문 ${qn}개가 함께 사라지며 되돌릴 수 없습니다.` : "";
+    if (!(await bpConfirm(`갈래 "${b.title}"를 삭제할까요?${warn}`, { ok: "삭제", danger: true }))) return;
+    try {
+      const j = await api("/api/branch-delete", { project: projDir, id: b.id });
+      if (j.error) throw new Error(j.error);
+      renderBranchList();
+    } catch (e) { bpAlert("갈래 삭제 실패: " + e.message); }
+  });
+  row.append(ren, del);
+  return row;
+}
+// 다른 프로젝트의 갈래 열기 — 프로젝트를 갈아탄 뒤(loadTurns가 fetchBranches까지 한다)
+// 갈래 데이터가 실릴 때까지 기다렸다가 들어간다. 6초(40×150ms) 안에 못 실리면 조용히 포기.
+function openBranchAnywhere(projDir, id, tries = 40) {
+  if (CURRENT_PROJECT === projDir && BRANCHES.some(x => x.id === id)) { enterBranchView(id); return; }
+  if (CURRENT_PROJECT !== projDir) {
+    const sel = document.getElementById("project-select");
+    sel.value = projDir;
+    sel.dispatchEvent(new Event("change"));
+  }
+  if (tries > 0) setTimeout(() => openBranchAnywhere(projDir, id, tries - 1), 150);
 }
 
 // ── 프롬프트 편집기: 설정에서 열어 현재 템플릿을 직접 고친다 ──
@@ -3598,8 +3685,9 @@ function homeView() {
 let panState = null, justDragged = false;
 stage.addEventListener("pointerdown", (e) => {
   // 주 버튼(좌클릭·터치)만 패닝 — 우클릭은 컨텍스트 메뉴의 몫이다. 안 가리면 메뉴가
-  // 뜬 채로 화면잡기도 함께 시작돼 두 동작이 겹친다
-  if (e.button !== 0) return;
+  // 뜬 채로 화면잡기도 함께 시작돼 두 동작이 겹친다.
+  // ctrl+좌클릭도 제외 — macOS에서는 우클릭과 동의어인데 button은 0으로 들어온다
+  if (e.button !== 0 || e.ctrlKey) return;
   // 클릭 대상 위에서는 패닝을 시작하지 않는다 — 시작하면 드래그 후 놓을 때 그 요소의
   // 클릭까지 함께 발동해(justDragged를 안 보므로) 구간이 펼쳐지거나 카메라가 튄다
   if (expandedId || e.target.closest(".node,.capsule,.portal,.cap-collapse,.skip,.topic-rowhdr")) return;
@@ -3616,6 +3704,11 @@ window.addEventListener("pointermove", (e) => {
 });
 window.addEventListener("pointerup", () => {
   if (panState?.moved) { justDragged = true; setTimeout(() => { justDragged = false; }, 50); }
+  panState = null;
+  stage.classList.remove("panning");
+});
+// 컨텍스트 메뉴가 뜨면 pointerup이 안 올 수 있다 — 잡혀 있던 패닝을 그 자리에서 푼다
+stage.addEventListener("contextmenu", () => {
   panState = null;
   stage.classList.remove("panning");
 });
@@ -3730,7 +3823,7 @@ function detailHtml(t) {
     : `<div class="d-empty">없음</div>`;
   return `
     ${t.isForkRoot ? `<div class="d-fork">포크 · ${esc(t.forkName ?? "")}</div>` : ""}
-    <div class="d-title">${esc(lb?.t ?? (LABELING && !t._pseudo ? "제목 생성 중…" : t.headline))}</div>
+    <div class="d-title${!lb?.t && LABELING && !t._pseudo ? " prov" : ""}">${esc(lb?.t ?? (LABELING && !t._pseudo ? "제목 생성 중…" : t.headline))}</div>
     <div class="d-gist">${lb?.g ? esc(lb.g) : (LABELING && !t._pseudo ? "핵심 요약을 생성하고 있습니다 — 잠시 후 자동 표시됩니다." : "")}</div>
     <div class="d-meta">${t.timestamp ? new Date(t.timestamp).toLocaleString("ko-KR") : ""}</div>
     <div class="d-chips">${chips.map(c => `<span class="chip">${esc(c)}</span>`).join("")}${t.hasError ? `<span class="chip err">⚠ 에러 포함</span>` : ""}</div>
