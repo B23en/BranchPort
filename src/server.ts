@@ -10,11 +10,12 @@ import { buildTurnForest } from './turns';
 import { renderTranscript, truncatePackage, indexNodes } from './transcript';
 import { renderCompactPrompt, parseSummary, normalizeRequest, COMPACT_SYSTEM_PROMPT, DEFAULT_COMPACT_TEMPLATE, validateTemplate } from './prompt';
 import { loadCompactTemplate, loadCompactSystemPrompt, exportCompactDefaults, COMPACT_TEMPLATE_FILE, COMPACT_SYSTEM_FILE, BRANCHPORT_HOME } from './config';
-import { splitAncestorSegments, findAncestorEvidence, buildGlossaryPrompt, parseGlossary, GlossaryItem, AncestorSegment, identTokens } from './glossary';
+import { splitAncestorSegments, findAncestorEvidence, buildGlossaryPrompt, parseGlossary, GlossaryItem, GlossaryCache, splitGlossaryCache, mergeGlossaryCache, loadGlossaryCache, saveGlossaryCache, AncestorSegment, identTokens } from './glossary';
 import { buildSearchIndex, searchIndex, persistIndex, relatedToRange, SearchIndex, SearchHit } from './search';
 import { Turn } from './types';
 import { groundingCheck } from './grounding';
 import { ensureVectors, semanticRank } from './embed';
+import { compactRetrievalCandidates } from './compact-retrieval';
 
 const PORT = Number(process.env.PORT) || 4300;
 
@@ -282,6 +283,13 @@ function loadLabels(project: string): Record<string, Label> {
 function saveLabels(project: string, labels: Record<string, Label>) {
   fs.mkdirSync(LABEL_ROOT, { recursive: true });
   fs.writeFileSync(labelFile(project), JSON.stringify(labels, null, 1));
+}
+
+// 공유메모리(용어부록 캐시) — labels/ 계열(LLM 산출물, 이미 gitignore됨)에 프로젝트당
+// 1파일. 로드/저장 자체는 glossary.ts의 순수 fs 함수(loadGlossaryCache/saveGlossaryCache)
+// 재사용 — 서버 기동 없이 단위테스트 가능하게 분리해뒀다(test/glossary-cache.test.js).
+function glossaryCacheFile(project: string): string {
+  return path.join(LABEL_ROOT, path.basename(project) + '.glossary.json');
 }
 
 // 프로젝트당 라벨링 1회만 동시 실행 — UI 폴링이 겹쳐 불러도 중복 호출 방지
@@ -919,6 +927,71 @@ function handleBranchCreate(req: http.IncomingMessage, res: http.ServerResponse)
   });
 }
 
+// 갈래(branch-chat) 공용 리트리버 — 질문 관련 과거 원문 발췌 상위 3건.
+// 노드 갈래(조상 한정)와 압축 갈래(범위 이전 한정) 둘 다 여기로 수렴한다(8/21 리팩터 —
+// 후보군(allow)만 다르고 검색·확신 게이트·발췌 규칙은 완전히 같아서 중복이었다).
+async function retrieveRelatedExcerpts(
+  project: string, q: string, posIdents: string[], allow: Set<string>,
+  all: Turn[], byId: Map<string, Turn>, labels: Record<string, { t: string; g: string }>,
+  budget: number, logTag: string,
+): Promise<string[]> {
+  if (!allow.size) return [];
+  try {
+    const bIdx = cachedSearchIndex(project, all, labels);
+    const kwHits = searchIndex(bIdx, q, 10, allow);
+    // 확신도 게이트 — 키워드가 뾰족하면 그대로 신뢰, 아니면 후보군 전체로 풀을 넓혀
+    // (풀 절단 절벽 제거) 시맨틱과 RRF 융합.
+    let hits: HybridHit[];
+    if (pointiness(kwHits) >= CONFIDENCE_TAU) {
+      hits = kwHits.slice(0, 3);
+    } else {
+      const kwHitsWide = searchIndex(bIdx, q, allow.size, allow);
+      let semHits: { id: string; score: number }[] | null = null;
+      try { semHits = await semanticRank(project, q, all, allow); }
+      catch (e: any) { console.error(`[${logTag} 시맨틱 검색 실패 — 키워드로 폴백]`, e?.message); }
+      if (semHits && semHits.length) {
+        const fused = rrfFuse(kwHitsWide, semHits.slice(0, 30));
+        const kwById = new Map(kwHitsWide.map(h => [h.id, h]));
+        hits = [...fused.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([id, score]): HybridHit => {
+            const existing = kwById.get(id);
+            if (existing) return { ...existing, score };
+            const e = bIdx.entries.get(id)!;
+            return {
+              id, ts: e.t.timestamp, sessionId: e.t.sessionId,
+              title: e.title, gist: e.gist, files: e.files,
+              score, via: 'semantic',
+            };
+          });
+      } else {
+        hits = kwHits.slice(0, 3);
+      }
+    }
+    let exBudget = budget;
+    const lines: string[] = [];
+    for (const h of hits) {
+      if (exBudget < 300) break;
+      const a = byId.get(h.id); if (!a) continue;
+      const raw = a.prompt + '\n' + a.answer;
+      let pos = -1, bestDf = Infinity; // 발췌 위치 = 가장 희귀한 질의 식별자 등장 지점 (압축 T2와 동일 원리)
+      for (const k of posIdents) {
+        const p = raw.indexOf(k); if (p < 0) continue;
+        const df = bIdx.tokIdx.get(k)?.size ?? 1;
+        if (df < bestDf) { bestDf = df; pos = p; }
+      }
+      const start = pos >= 0 ? Math.max(0, pos - 120) : 0;
+      const snip = sanitize(raw.slice(start, start + Math.min(1400, exBudget)).replace(/\s+/g, ' ')).trim();
+      if (!snip) continue;
+      exBudget -= snip.length;
+      lines.push(`- [${(h.ts ?? '').slice(5, 16)} · ${h.title || a.headline}] ${start > 0 ? '…' : ''}${snip}`);
+    }
+    if (lines.length) console.log(`[${logTag} 발췌] ${lines.length}건 주입 (질의: ${q.slice(0, 60)})`);
+    return lines;
+  } catch (e: any) { console.error(`[${logTag} 발췌 실패 — 생략]`, e?.message); return []; }
+}
+
 function handleBranchChat(req: http.IncomingMessage, res: http.ServerResponse) {
   readBody(req, res, 100_000, async ({ project, id, question }) => {
     try {
@@ -929,15 +1002,44 @@ function handleBranchChat(req: http.IncomingMessage, res: http.ServerResponse) {
 
       let ctx: string;
       if (br.kind === 'compact') {
+        let full: string;
         try {
-          const full = fs.readFileSync(path.join(PKG_ROOT, path.basename(project), br.pkgFile + '.md'), 'utf8');
-          // 20,000: 실측 패키지 크기가 6,263~19,444자로 절반 가까이가 14,000을 넘어
-          // 중략됐다(19,444자는 28% 소실). 패키지 안 내용은 전부 범위 안이라 상한을
-          // 올려도 시점 격리 위험이 0이다.
-          ctx = truncatePackage(full, 20_000);
+          full = fs.readFileSync(path.join(PKG_ROOT, path.basename(project), br.pkgFile + '.md'), 'utf8');
         } catch {
           return sendJson(res, 404, { error: '압축 패키지 파일을 찾을 수 없습니다: ' + br.pkgFile + '.md' });
         }
+        // 20,000: 실측 패키지 크기가 6,263~19,444자로 절반 가까이가 14,000을 넘어
+        // 중략됐다(19,444자는 28% 소실). 패키지 안 내용은 전부 범위 안이라 상한을
+        // 올려도 시점 격리 위험이 0이다.
+        ctx = truncatePackage(full, 20_000);
+
+        // 압축 범위 "이전"(조상·이전 세션) 원문 발췌 — 노드 갈래는 질문마다 조상을
+        // 검색하는데 압축 갈래는 truncatePackage 정적 승계뿐이었다(8/13 실측: 소비
+        // 시점 검색이 정적 동봉보다 손실 복원에서 뚜렷이 앞섬). anchors[]로 압축
+        // 범위의 시점 상한을 알 수 있으니, 그 이전이면서 범위 밖인 턴만 후보로 검색한다.
+        try {
+          const jsonRaw = fs.readFileSync(path.join(PKG_ROOT, path.basename(project), br.pkgFile + '.json'), 'utf8');
+          const pkgJson = JSON.parse(jsonRaw);
+          const anchors: { id: string; ts: string | null; headline: string }[] = Array.isArray(pkgJson?.anchors) ? pkgJson.anchors : [];
+          if (anchors.length) {
+            const forest = await cachedForest(project);
+            const turnForest = buildTurnForest(forest.roots, forest.compactBoundaries, forest.queuedPrompts);
+            const all = flattenTurns(turnForest);
+            const byId = new Map(all.map(t => [t.id, t]));
+            const labels = loadLabels(project);
+            const allow = compactRetrievalCandidates(anchors, all);
+            if (allow.size) {
+              const S = pkgJson.summary ?? {};
+              // 질의 구성: 사용자 질문 + 패키지 요약의 목표/현재 초점 식별자 — 노드 갈래가
+              // 분기점 턴에서 식별자를 뽑는 것과 같은 원리, 대상만 패키지 메타로 바뀐다.
+              const identSeed = [S.goal, S.state?.current_focus].filter(Boolean).join(' ');
+              const pkgIdents = [...identTokens(identSeed).keys()].slice(0, 6);
+              const q = (String(question) + ' ' + identSeed + ' ' + pkgIdents.join(' ')).slice(0, 120);
+              const lines = await retrieveRelatedExcerpts(project, q, pkgIdents, allow, all, byId, labels, 4000, '압축 갈래');
+              if (lines.length) ctx += `\n\n[질문 관련 과거 원문 발췌 — 전부 압축 범위 이전의 것]\n${lines.join('\n')}`;
+            }
+          }
+        } catch (e: any) { console.error('[압축 갈래 발췌 실패 — 생략]', e?.message); }
       } else {
         const forest = await cachedForest(project);
         const turnForest = buildTurnForest(forest.roots, forest.compactBoundaries, forest.queuedPrompts);
@@ -968,62 +1070,8 @@ function handleBranchChat(req: http.IncomingMessage, res: http.ServerResponse) {
           const bpIdents = [...identTokens(((lb?.t ?? '') + ' ' + t.prompt.slice(0, 600) + ' ' + t.answer.slice(0, 600))).keys()].slice(0, 6);
           const q = (String(question) + ' ' + (lb?.t ?? '') + ' ' + bpIdents.join(' ')).slice(0, 120);
           const allow = new Set(ancestors.filter(a => a.prompt !== '(계속)' && (a.prompt + a.answer).length > 400).map(a => a.id));
-          if (allow.size) {
-            const bIdx = cachedSearchIndex(project, all, labels);
-            const kwHits = searchIndex(bIdx, q, 10, allow);
-            // /api/search와 같은 확신도 게이트 — 키워드가 뾰족하면 그대로 신뢰, 아니면
-            // 조상 범위(allow) 전체로 풀을 넓혀(풀 절단 절벽 제거) 시맨틱과 RRF 융합.
-            let hits: HybridHit[];
-            if (pointiness(kwHits) >= CONFIDENCE_TAU) {
-              hits = kwHits.slice(0, 3);
-            } else {
-              const kwHitsWide = searchIndex(bIdx, q, allow.size, allow);
-              let semHits: { id: string; score: number }[] | null = null;
-              try { semHits = await semanticRank(project, q, all, allow); }
-              catch (e: any) { console.error('[갈래 조상 시맨틱 검색 실패 — 키워드로 폴백]', e?.message); }
-              if (semHits && semHits.length) {
-                const fused = rrfFuse(kwHitsWide, semHits.slice(0, 30));
-                const kwById = new Map(kwHitsWide.map(h => [h.id, h]));
-                hits = [...fused.entries()]
-                  .sort((a, b) => b[1] - a[1])
-                  .slice(0, 3)
-                  .map(([id, score]): HybridHit => {
-                    const existing = kwById.get(id);
-                    if (existing) return { ...existing, score };
-                    const e = bIdx.entries.get(id)!;
-                    return {
-                      id, ts: e.t.timestamp, sessionId: e.t.sessionId,
-                      title: e.title, gist: e.gist, files: e.files,
-                      score, via: 'semantic',
-                    };
-                  });
-              } else {
-                hits = kwHits.slice(0, 3);
-              }
-            }
-            let exBudget = 4000; // 총예산 — compact 갈래가 이미 쓰는 14k ctx 상한 안에서
-            const lines: string[] = [];
-            for (const h of hits) {
-              if (exBudget < 300) break;
-              const a = byId.get(h.id); if (!a) continue;
-              const raw = a.prompt + '\n' + a.answer;
-              let pos = -1, bestDf = Infinity; // 발췌 위치 = 가장 희귀한 질의 식별자 등장 지점 (압축 T2와 동일 원리)
-              for (const k of bpIdents) {
-                const p = raw.indexOf(k); if (p < 0) continue;
-                const df = bIdx.tokIdx.get(k)?.size ?? 1;
-                if (df < bestDf) { bestDf = df; pos = p; }
-              }
-              const start = pos >= 0 ? Math.max(0, pos - 120) : 0;
-              const snip = sanitize(raw.slice(start, start + Math.min(1400, exBudget)).replace(/\s+/g, ' ')).trim();
-              if (!snip) continue;
-              exBudget -= snip.length;
-              lines.push(`- [${(h.ts ?? '').slice(5, 16)} · ${h.title || a.headline}] ${start > 0 ? '…' : ''}${snip}`);
-            }
-            if (lines.length) {
-              console.log(`[갈래 조상 발췌] ${lines.length}건 주입 (질의: ${q.slice(0, 60)})`);
-              ancExcerpts = `\n\n[질문과 관련된 조상 턴 원문 발췌 — 전부 분기 시점 이전의 것]\n${lines.join('\n')}`;
-            }
-          }
+          const lines = await retrieveRelatedExcerpts(project, q, bpIdents, allow, all, byId, labels, 4000, '갈래 조상');
+          if (lines.length) ancExcerpts = `\n\n[질문과 관련된 조상 턴 원문 발췌 — 전부 분기 시점 이전의 것]\n${lines.join('\n')}`;
         } catch (e: any) { console.error('[갈래 조상 발췌 실패 — 생략]', e?.message); }
         ctx = `[분기 지점 이전의 흐름 — 턴별 제목과 요약]\n${prior || '(첫 턴이라 이전 없음)'}${ancExcerpts}\n\n[분기 지점: ${lb?.t ?? t.headline} — 아래는 이 턴의 원문]\n사용자: ${t.prompt.slice(0, 3000)}\nAI: ${t.answer.slice(0, 2000) || '(도구 작업만)'}\n작업: ${t.tools.map(x => x.name).join(', ')}`;
       }
@@ -1184,21 +1232,34 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
         glossaryEvidence = findAncestorEvidence(transcript, segs);
       } catch (e: any) { console.error('[용어 부록 후보 수집 실패 — 생략]', e?.message); }
     }
-    let glossaryItems: GlossaryItem[] = [];
     let glossaryMetrics: ClaudeMetrics | null = null;
+    // 공유메모리(용어부록 캐시): 프로젝트당 누적되는 정의 캐시 대조 — 히트는 LLM 없이
+    // 즉시 GlossaryItem으로 쓰고, 미스만 buildGlossaryPrompt에 넘긴다. 압축 1회 비용의
+    // 절반이 용어부록(LLM 2회 중 1회)이고 실측 재사용률이 42.7%라(아키텍처 검토 8/17),
+    // 반복 압축에서 부록 비용이 0에 수렴하는 효과를 노린다. 무효화 없음 — glossary.ts
+    // 참고.
+    const glossaryCache = glossaryEvidence.length ? loadGlossaryCache(glossaryCacheFile(project)) : {};
+    const { hits: glossaryHits, misses: glossaryMisses } = splitGlossaryCache(glossaryEvidence, glossaryCache);
+    let glossaryItems: GlossaryItem[] = glossaryHits;
+    if (glossaryEvidence.length) {
+      console.log(`[용어 부록] 캐시 히트 ${glossaryHits.length} / 미스 ${glossaryMisses.length} — 프롬프트 항목 ${glossaryMisses.length}건`);
+    }
 
     // 관련 범위 밖 원문 동봉 — 범위와 파일·식별자로 연결된 턴을 리트리버로 회수.
     // T1 = 전건 한 줄+앵커(존재층), T2 = 상위 2건 원문 발췌(예산 1,500자, verbatim) —
     // /expand가 없는 이동형 패키지에서도 사실이 살아남게 한다. 실측 근거: QA 오답의
     // 실체가 전부 "정보 탈락"이고, 한 줄 요약에는 수치·식별자가 안 담긴다 (§11 판정).
     interface RelatedTurn { id: string; ts: string | null; title: string; gist: string; score: number; snippet?: string; }
+    // 실험용 스위치: BP_NO_RETRIEVAL=1 이면 리트리버 동봉(구조 연결·열린 스레드)을 통째로
+    // 끈다. QA 보존율 A/B에서 "리트리버가 없을 때"를 재현하기 위한 것 — 기본값은 켜짐.
+    const retrievalOff = process.env.BP_NO_RETRIEVAL === '1';
     let related: RelatedTurn[] = [];
     try {
       if (!relIdx) throw new Error('검색 인덱스 없음');
       // 6→4: 실측 7건 중 4건에서 상위 6칸 중 4~6칸이 완전 동점이었다(동점 순서는
       // Map 삽입 순일 뿐 의미 없음). 변별은 상위 1~3건에서 끝나고 나머지는 자리만
       // 차지하며 열린 스레드 슬롯과 중복 경쟁까지 유발한다.
-      const hits = relatedToRange(relIdx, rangeSet, 4);
+      const hits = retrievalOff ? [] : relatedToRange(relIdx, rangeSet, 4);
       // 발췌 위치는 앞머리가 아니라 "범위와 공유하는 식별자가 처음 등장하는 지점" 주변 —
       // 앞머리 절단은 수치·에러 식별자가 담긴다는 보장이 없다 (T2의 존재 이유가 그 보존이므로)
       const rangeIdents = new Set<string>();
@@ -1261,7 +1322,7 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
         // (여러 개를 고르기엔 임베딩 단독 판단의 확신이 낮다).
         let threadRelated: { q: string; id: string; ts: string | null; title: string; gist: string; score: number; via: 'direct' | 'graph' | 'semantic' }[] = [];
         try {
-          if (relIdx) {
+          if (relIdx && !retrievalOff) {
             const qs = [...(Array.isArray(S.open_threads) ? S.open_threads : []),
                         ...(Array.isArray(S.state?.todo) ? S.state.todo : [])].slice(0, 4);
             const seen = new Set<string>(related.map(r => r.id));
@@ -1458,25 +1519,32 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
     // 실패해도 compact는 진행한다 (부록은 보강 계층이지 필수 아님).
     // glossaryModel: 부록 전용 모델 오버라이드 — 정의 추출은 기계적 성격이라 저비용 모델
     // 라우팅 후보(비용 실측: 부록이 compact 본체와 맞먹는 $0.15/세션). 미지정 시 compact와 동일.
-    const runGlossary = (attempt: number) => askClaude(buildGlossaryPrompt(glossaryEvidence), {
+    const runGlossary = (attempt: number) => askClaude(buildGlossaryPrompt(glossaryMisses), {
       model: typeof glossaryModel === 'string' ? glossaryModel : typeof model === 'string' ? model : undefined,
       systemPrompt: COMPACT_SYSTEM_PROMPT, json: true, noTools: true, timeoutMs: 180_000,
     }, (gout, gerr, _gcode, gm) => {
-      glossaryItems = parseGlossary(gout, glossaryEvidence);
+      const newItems = parseGlossary(gout, glossaryMisses);
+      glossaryItems = [...glossaryHits, ...newItems];
       glossaryMetrics = gm;
-      // 후보가 있는데 항목 0이고 출력이 명시적 빈 배열도 아니면 절단·형식 붕괴 추정 —
-      // compact 본체의 파싱 실패 재시도와 같은 관례로 1회 재시도. 명시적 []는
+      // 후보(미스)가 있는데 항목 0이고 출력이 명시적 빈 배열도 아니면 절단·형식 붕괴
+      // 추정 — compact 본체의 파싱 실패 재시도와 같은 관례로 1회 재시도. 명시적 []는
       // "스니펫에 정의 없음 → 전부 스킵"이라는 정당한 판단이므로 존중한다.
       // (실측: oor-terms v3에서 후보 36 → 항목 0 이상 사례 1건 — 조사 문서 §7.2)
-      if (!glossaryItems.length && !/\[\s*\]/.test(gout) && attempt === 1) {
+      if (!newItems.length && !/\[\s*\]/.test(gout) && attempt === 1) {
         console.warn('[용어 부록] 항목 0 + 빈 배열 아님 (절단 추정) — 1회 재시도');
         return runGlossary(2);
       }
-      if (!glossaryItems.length && gerr) console.warn('[용어 부록] 생성 실패 — 부록 없이 진행:', gerr.slice(0, 150));
-      else console.log(`[용어 부록] 후보 ${glossaryEvidence.length} → 항목 ${glossaryItems.length}${attempt > 1 ? ' (재시도)' : ''}${gm?.costUsd != null ? ' · $' + gm.costUsd.toFixed(4) : ''}`);
+      if (!newItems.length && gerr) console.warn('[용어 부록] 생성 실패 — 부록 없이 진행:', gerr.slice(0, 150));
+      else {
+        console.log(`[용어 부록] 후보 ${glossaryEvidence.length} → 항목 ${glossaryItems.length}${attempt > 1 ? ' (재시도)' : ''}${gm?.costUsd != null ? ' · $' + gm.costUsd.toFixed(4) : ''}`);
+        // 새로 생성된 정의만 캐시에 추가(무효화 없음) — labels 캐시와 같은 저장 패턴.
+        try { saveGlossaryCache(glossaryCacheFile(project), mergeGlossaryCache(glossaryCache, glossaryMisses, newItems)); }
+        catch (e: any) { console.error('[용어 부록 캐시 저장 실패 — 무시하고 계속]', e?.message); }
+      }
       runCompact(1);
     });
-    if (glossaryEvidence.length) runGlossary(1);
+    // 미스 0건이면(전량 캐시 히트, 또는 후보 자체가 없음) LLM 호출을 생략하고 바로 진행.
+    if (glossaryMisses.length) runGlossary(1);
     else runCompact(1);
     } catch (e: any) { sendJson(res, 500, { error: e?.message ?? String(e) }); }
   });
