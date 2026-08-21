@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { Turn } from './types';
 
 // 용어 부록(범위 밖 정의) — 압축 범위 안에서 참조되지만 정의는 범위 이전(조상 턴)에만
@@ -114,6 +117,78 @@ Rules:
 
 Terms and snippets:
 ${JSON.stringify(evidence.map(e => ({ term: e.term, snippet: e.snippet })), null, 1)}`;
+}
+
+// ── 공유메모리(용어부록 캐시) ────────────────────────────────────────────
+// 압축 1회 = LLM 2회(본체+용어부록)이고 용어부록이 비용의 절반이다. 같은 프로젝트에서
+// 압축을 반복하면 같은 용어가 반복 정의되므로(실측 재사용률 42.7%, 아키텍처 검토
+// 8/17), 정의를 프로젝트별로 캐시해 히트한 용어는 LLM 프롬프트에서 빼고 미스만
+// 생성한다. 무효화 없음(추가만) — 손상 파일은 loadVecStore와 같은 관용 로드로 빈
+// 캐시 취급한다(호출부 책임, 이 파일은 순수 함수만 둔다).
+//
+// 키 = 용어 + '|' + 정의턴id. 용어만으론 근거(어느 조상 턴에서 정의됐는지) 변화를
+// 못 잡고, 턴만으론 한 턴에서 정의되는 다중 용어를 못 담는다. findAncestorEvidence가
+// 고르는 정의 턴은 조상 최초 등장 턴이고 로그는 append-only라 이 키는 안정적이다.
+export interface GlossaryCacheEntry { def: string; ts: string | null; snippetKey: string }
+export type GlossaryCache = Record<string, GlossaryCacheEntry>;
+
+export function glossaryCacheKey(term: string, turnId: string): string {
+  return term + '|' + turnId;
+}
+
+// vec store의 lk 지문 패턴과 동일(embed.ts labelKey, embed.ts:164 참고) — sha1 →
+// base64 → 앞 12자. 같은 키인데 스니펫 지문이 다르면(근거가 바뀐 드문 경우) 미스로
+// 취급해 재생성한다.
+export function snippetFingerprint(snippet: string): string {
+  return createHash('sha1').update(snippet).digest('base64').slice(0, 12);
+}
+
+export interface GlossaryCacheSplit { hits: GlossaryItem[]; misses: GlossaryEvidence[] }
+
+// 후보 증거를 캐시와 대조해 즉시 쓸 수 있는 항목(hits)과 LLM에 넘길 항목(misses)으로
+// 나눈다. 캐시가 비어 있으면(신규 프로젝트) 전량 미스 — 기존 동작과 동일.
+export function splitGlossaryCache(evidence: GlossaryEvidence[], cache: GlossaryCache): GlossaryCacheSplit {
+  const hits: GlossaryItem[] = [];
+  const misses: GlossaryEvidence[] = [];
+  for (const e of evidence) {
+    const entry = cache[glossaryCacheKey(e.term, e.turnId)];
+    if (entry && entry.snippetKey === snippetFingerprint(e.snippet)) {
+      hits.push({ term: e.term, def: entry.def, turnId: e.turnId, ts: entry.ts });
+    } else {
+      misses.push(e);
+    }
+  }
+  return { hits, misses };
+}
+
+// 새로 생성된 항목을 캐시에 추가만 한다(기존 키 덮어쓰기는 같은 값 재확정일 뿐이라
+// 무해) — 무효화 로직 없음, 이 함수는 항상 순수하게 새 캐시 객체를 반환한다.
+export function mergeGlossaryCache(cache: GlossaryCache, evidence: GlossaryEvidence[], items: GlossaryItem[]): GlossaryCache {
+  const byTerm = new Map(evidence.map(e => [e.term, e]));
+  const next = { ...cache };
+  for (const item of items) {
+    const ev = byTerm.get(item.term);
+    if (!ev) continue; // 방어적: 이 라운드에서 물어보지 않은 term은 캐시하지 않는다
+    next[glossaryCacheKey(item.term, item.turnId ?? ev.turnId)] = {
+      def: item.def, ts: item.ts ?? ev.ts, snippetKey: snippetFingerprint(ev.snippet),
+    };
+  }
+  return next;
+}
+
+// fs I/O — 파일 경로는 호출부(server.ts)가 프로젝트별로 구성해 넘긴다(labelFile과 같은
+// 배치: labels/<프로젝트basename>.glossary.json). loadVecStore·loadLabels와 같은 관용
+// 로드 — 파일이 없거나 JSON이 손상돼도 예외를 던지지 않고 빈 캐시로 시작한다.
+export function loadGlossaryCache(filePath: string): GlossaryCache {
+  try {
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw;
+  } catch { /* 없거나 손상 — 빈 캐시로 시작 */ }
+  return {};
+}
+export function saveGlossaryCache(filePath: string, cache: GlossaryCache): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(cache, null, 1));
 }
 
 export function parseGlossary(raw: string, evidence: GlossaryEvidence[]): GlossaryItem[] {
