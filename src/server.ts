@@ -155,6 +155,7 @@ function serveStatic(reqPath: string, res: http.ServerResponse) {
     const ext = path.extname(filePath);
     res.writeHead(200, {
       'Content-Type': MIME[ext] ?? 'application/octet-stream',
+      'Cache-Control': 'no-cache', // 로컬 도구 — 갱신된 index.html이 휴리스틱 캐시에 가려지지 않게
       'Cross-Origin-Resource-Policy': 'same-origin',
       'X-Content-Type-Options': 'nosniff',
     });
@@ -264,6 +265,8 @@ function askClaude(prompt: string, opts: AskOptions, onDone: (out: string, err: 
   child.stdin.on('error', () => {});
   child.stdin.write(prompt);
   child.stdin.end();
+  // 취소 핸들 — 사용자가 압축을 중단하면 자식 프로세스를 죽이고 onDone에 '취소됨'으로 알린다.
+  return { cancel: () => { if (done) return; child.kill(); finish('', '취소됨', null); } };
 }
 
 const SECRET_RE = [
@@ -1131,18 +1134,27 @@ ${hist ? '\n[이 브랜치에서 나눈 대화]\n' + hist : ''}
 // 압축 진행률 허브 — 클라이언트가 body.progressId를 보내면 그 id로 단계·%를 기록하고,
 // GET /api/compact/progress?id= (SSE)가 구독한다. id가 없으면 종전처럼 조용히 돈다.
 const PROGRESS = new ProgressHub();
+// 진행 중인 압축의 취소 핸들(progressId → 현재 돌고 있는 claude 자식). POST /api/compact/cancel이 쓴다.
+const COMPACT_JOBS = new Map<string, { cancel: () => void; cancelled: boolean }>();
 
 function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
   readBody(req, res, 20_000, async ({ project, turnIds, model, request, glossary, glossaryModel, progressId }) => {
     const pid = isValidProgressId(progressId) ? progressId : null;
     const prog = (patch: Parameters<ProgressHub['update']>[1], opts?: Parameters<ProgressHub['update']>[2]) => { if (pid) PROGRESS.update(pid, patch, opts); };
     if (pid) PROGRESS.start(pid);
+    // 취소: 핸들은 LLM 호출마다 갈아끼우고(용어부록 → 본 압축), cancelled 플래그로 onDone이
+    // "실패"가 아니라 "취소됨"으로 응답하게 한다. 취소 후엔 어떤 결과도 저장하지 않는다.
+    const job = { cancel: () => {}, cancelled: false };
+    if (pid) COMPACT_JOBS.set(pid, job);
+    const track = (h: { cancel: () => void } | undefined) => { if (h) job.cancel = h.cancel; };
     // 응답을 내보내는 모든 경로에서 진행 상태도 함께 닫는다 — SSE 구독자가 끝을 알게.
     const sendJsonP = (status: number, data: any) => {
+      if (pid) COMPACT_JOBS.delete(pid);
       if (status === 200) prog({ stage: 'done', pct: 100, detail: '완료' });
       else prog({ stage: 'error', pct: 0, detail: String(data?.error ?? '실패').slice(0, 200) }, { allowBackward: true });
       sendJson(res, status, data);
     };
+    const sendCancelled = () => { console.log('[compact] 사용자 취소'); sendJsonP(409, { error: '취소됨', cancelled: true }); };
     try { // 파싱 중 파일 로테이션 등 비동기 예외가 프로세스를 죽이지 않게 — 다른 핸들러와 동일
     if (!project || !Array.isArray(turnIds) || !turnIds.length) {
       return sendJsonP(400, { error: 'project와 turnIds가 필요합니다' });
@@ -1336,7 +1348,7 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
     const runCompact = (attempt: number) => {
       prog({ stage: 'compact', pct: computePct('compact'), attempt, outputChars: 0, thinkingChars: 0,
              detail: attempt > 1 ? '본 압축 — 응답 절단으로 재시도 중' : '본 압축 — 모델 응답 대기' }, { allowBackward: attempt > 1 });
-      return askClaude(prompt, {
+      return track(askClaude(prompt, {
       model: typeof model === 'string' ? model : undefined,
       systemPrompt: sysPrompt.text, json: true, noTools: true, timeoutMs: 420_000,
       onProgress: pid ? (p) => prog({
@@ -1348,6 +1360,7 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
       }) : undefined,
     }, async (out, err, code, metrics) => {
       try {
+        if (job.cancelled) return sendCancelled();
         const S = parseSummary(out);
         if (!S) {
           if (attempt === 1 && code !== null && out.trim()) {
@@ -1564,16 +1577,17 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
         console.error('[compact 조립 실패]', e?.message);
         sendJsonP(500, { error: '패키지 조립 실패: ' + String(e?.message ?? e) });
       }
-    });
+    }));
     };
     // 부록 생성은 요약과 독립이지만 md 조립이 결과를 쓰므로 먼저 실행.
     // 실패해도 compact는 진행한다 (부록은 보강 계층이지 필수 아님).
     // glossaryModel: 부록 전용 모델 오버라이드 — 정의 추출은 기계적 성격이라 저비용 모델
     // 라우팅 후보(비용 실측: 부록이 compact 본체와 맞먹는 $0.15/세션). 미지정 시 compact와 동일.
-    const runGlossary = (attempt: number) => askClaude(buildGlossaryPrompt(glossaryMisses), {
+    const runGlossary = (attempt: number) => track(askClaude(buildGlossaryPrompt(glossaryMisses), {
       model: typeof glossaryModel === 'string' ? glossaryModel : typeof model === 'string' ? model : undefined,
       systemPrompt: COMPACT_SYSTEM_PROMPT, json: true, noTools: true, timeoutMs: 180_000,
     }, (gout, gerr, _gcode, gm) => {
+      if (job.cancelled) return sendCancelled();
       const newItems = parseGlossary(gout, glossaryMisses);
       glossaryItems = [...glossaryHits, ...newItems];
       glossaryMetrics = gm;
@@ -1593,13 +1607,27 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
         catch (e: any) { console.error('[용어 부록 캐시 저장 실패 — 무시하고 계속]', e?.message); }
       }
       runCompact(1);
-    });
+    }));
     // 미스 0건이면(전량 캐시 히트, 또는 후보 자체가 없음) LLM 호출을 생략하고 바로 진행.
     if (glossaryMisses.length) {
       prog({ stage: 'glossary', pct: computePct('glossary'), detail: `용어 부록 — 새 용어 ${glossaryMisses.length}건 정의 생성` });
       runGlossary(1);
     } else runCompact(1);
     } catch (e: any) { sendJsonP(500, { error: e?.message ?? String(e) }); }
+  });
+}
+
+// 압축 취소 — 진행 중인 claude 자식을 죽이고 해당 요청은 409 {cancelled:true}로 끝난다.
+// 아직 LLM 단계 전(범위 해석 중)이면 플래그만 세워 다음 onDone에서 멈춘다.
+function handleCompactCancel(req: http.IncomingMessage, res: http.ServerResponse) {
+  readBody(req, res, 2_000, ({ progressId }) => {
+    if (!isValidProgressId(progressId)) return sendJson(res, 400, { error: 'progressId가 필요합니다' });
+    const job = COMPACT_JOBS.get(progressId);
+    if (!job) return sendJson(res, 404, { error: '진행 중인 압축이 없습니다' });
+    job.cancelled = true;
+    PROGRESS.update(progressId, { stage: 'error', pct: 0, detail: '취소됨' }, { allowBackward: true });
+    try { job.cancel(); } catch {}
+    sendJson(res, 200, { ok: true });
   });
 }
 
@@ -1798,6 +1826,7 @@ const server = http.createServer((req, res) => {
 
   if (req.method === 'POST' && req.url === '/api/compact') return handleCompact(req, res);
   if (req.method === 'POST' && req.url === '/api/compact/estimate') return handleEstimate(req, res);
+  if (req.method === 'POST' && req.url === '/api/compact/cancel') return handleCompactCancel(req, res);
   if (req.method === 'POST' && req.url === '/api/compact/template/export') {
     // 기본 템플릿·시스템 프롬프트를 사용자 파일로 내보내기 — 커스텀의 시작점. 있는 파일은 덮어쓰지 않는다.
     try { return sendJson(res, 200, { home: BRANCHPORT_HOME, ...exportCompactDefaults() }); }
