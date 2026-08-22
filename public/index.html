@@ -1143,6 +1143,16 @@
     animation:breathe 1.4s ease-in-out infinite;}
   #busy-msg{font-size:13.5px; font-weight:700; color:var(--ink);}
   #busy-sub{font-size:11.5px; color:var(--muted);}
+  /* 진행률 — 압축처럼 단계·생성량을 아는 작업만 켠다(#busy.prog). 막대는 캡슐 길게 누르기의
+     진행 막대와 같은 어휘(선 위를 차오르는 운행 구간)로, 숫자는 오른쪽에 고정폭으로. */
+  #busy-prog{display:none; width:100%; min-width:220px; align-items:center; gap:10px; margin-top:2px;}
+  #busy.prog #busy-prog{display:flex;}
+  #busy-bar{flex:1; height:4px; border-radius:2px; overflow:hidden;
+    background:color-mix(in srgb, var(--line) 70%, transparent);}
+  #busy-bar > i{display:block; height:100%; width:0; border-radius:2px; background:var(--exec);
+    transition:width .45s cubic-bezier(.3,.7,.3,1);}
+  #busy-pct{font-size:11.5px; font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums;
+    min-width:3.2em; text-align:right;}
 
   /* ── splash: shown the instant the page paints (pure CSS, no JS delay),
      faded out once the first project's tree has actually rendered ── */
@@ -1539,6 +1549,7 @@
     </svg>
     <div id="busy-msg"></div>
     <div id="busy-sub"></div>
+    <div id="busy-prog" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="busy-bar"><i></i></div><span id="busy-pct">0%</span></div>
   </div>
   <div id="tooltip"></div>
 
@@ -1715,13 +1726,46 @@ refreshTemplateStatus();
 function showBusy(msg, sub) {
   document.getElementById("busy-msg").textContent = msg;
   document.getElementById("busy-sub").textContent = sub ?? "";
-  document.getElementById("busy").classList.add("on");
+  const b = document.getElementById("busy");
+  b.classList.remove("prog"); setBusyProgress(0);
+  b.classList.add("on");
 }
 function hideBusy() {
   const b = document.getElementById("busy");
   // 완료 전환(handoff) 중이면 openModalFromBusy가 끝나고 스스로 정리한다 — 여기서 끄면 전환이 뚝 끊긴다
   if (!b.classList.contains("handoff")) b.classList.remove("on");
 }
+// 진행률 표시 — 압축처럼 서버가 단계·%를 알려주는 작업에서만 막대를 켠다.
+// pct는 0~100, sub를 주면 부제도 함께 바꾼다(단계 설명).
+function setBusyProgress(pct, sub) {
+  const p = Math.max(0, Math.min(100, Math.round(pct)));
+  document.getElementById("busy-bar").firstElementChild.style.width = p + "%";
+  document.getElementById("busy-pct").textContent = p + "%";
+  document.getElementById("busy-prog").setAttribute("aria-valuenow", String(p));
+  if (sub != null) document.getElementById("busy-sub").textContent = sub;
+}
+// 압축 진행률 구독(SSE). 서버가 같은 id로 기록하는 단계·%를 받아 busy 카드에 반영한다.
+// 반환한 함수로 닫는다. 연결 실패는 치명적이지 않다 — 막대만 안 움직이고 결과는 POST로 온다.
+function watchCompactProgress(id) {
+  let es = null;
+  try {
+    es = new EventSource(`/api/compact/progress?id=${encodeURIComponent(id)}`);
+    document.getElementById("busy").classList.add("prog");
+    es.onmessage = (ev) => {
+      let s; try { s = JSON.parse(ev.data); } catch { return; }
+      if (!s || typeof s.pct !== "number") return;
+      if (s.stage === "error") { es.close(); return; } // 실패 문구는 POST 응답의 alert가 맡는다
+      setBusyProgress(s.pct, s.detail || undefined);
+      if (s.stage === "done") es.close();
+    };
+    es.onerror = () => { /* 재접속은 브라우저가 알아서 — 끝난 작업이면 서버가 곧 닫는다 */ };
+  } catch { /* EventSource 미지원·차단 — 막대 없이 진행 */ }
+  return () => { try { es && es.close(); } catch {} };
+}
+const newProgressId = () => {
+  const a = new Uint8Array(12); crypto.getRandomValues(a);
+  return Array.from(a, b => b.toString(16).padStart(2, "0")).join("");
+};
 
 // ── 자체 다이얼로그: OS confirm/alert/prompt 대신 사인 시스템의 카드로 묻는다.
 // Promise를 돌려주므로 호출부는 await(또는 .then)로 답을 받는다 — 네이티브와 달리
@@ -4410,9 +4454,13 @@ document.getElementById("sb-go").addEventListener("click", async (ev) => {
   compactWarnedKey = null;
   btn.disabled = true; btn.textContent = "생성 중… (최대 7분)";
   showBusy("압축 패키지 생성 중…", `${ids.length}턴 원문 압축 — 최대 7분`);
+  // 진행률: POST와 같은 id로 SSE를 먼저 열어 두면 서버가 기록하는 단계·%가 막대에 차오른다
+  const progressId = newProgressId();
+  const stopWatch = watchCompactProgress(progressId);
   try {
-    const j = await api("/api/compact", { project: CURRENT_PROJECT, turnIds: ids, request: document.getElementById("sb-request").value.trim() || undefined, glossary: glossaryOn() ? undefined : false });
+    const j = await api("/api/compact", { project: CURRENT_PROJECT, turnIds: ids, progressId, request: document.getElementById("sb-request").value.trim() || undefined, glossary: glossaryOn() ? undefined : false });
     if (j.error) throw new Error(j.error);
+    setBusyProgress(100, "완료");
     PKG = j;
     // 완료 즉시 선택을 해제하므로, 갈래 버튼이 쓸 앵커(범위 마지막 턴)는 여기서 붙잡아 둔다
     PKG._anchorId = ids[ids.length - 1];
@@ -4427,7 +4475,7 @@ document.getElementById("sb-go").addEventListener("click", async (ev) => {
     clearSel(); // 완료되면 압축 여부를 묻던 선택 바는 걷고 결과 창만 남긴다
     openModalFromBusy();
   } catch (e) { hideBusy(); bpAlert("압축 실패: " + e.message); }
-  finally { hideBusy(); btn.disabled = false; btn.textContent = "압축 패키지 생성"; }
+  finally { stopWatch(); hideBusy(); btn.disabled = false; btn.textContent = "압축 패키지 생성"; }
 });
 function showTab(k) {
   document.getElementById("tab-md").classList.toggle("on", k === "md");

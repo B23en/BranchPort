@@ -16,6 +16,7 @@ import { Turn } from './types';
 import { groundingCheck } from './grounding';
 import { ensureVectors, semanticRank } from './embed';
 import { compactRetrievalCandidates } from './compact-retrieval';
+import { ProgressHub, LineSplitter, parseStreamLine, computePct, expectedOutputChars, isValidProgressId } from './progress';
 
 const PORT = Number(process.env.PORT) || 4300;
 
@@ -198,17 +199,34 @@ interface AskOptions {
   json?: boolean;         // --output-format json 래퍼 — 계측값(usage·비용) 파싱
   noTools?: boolean;      // 도구 금지 작업이면 도구 정의를 프롬프트에서 제거해 입력 토큰 절약
   timeoutMs?: number;     // 기본 180초
+  // 생성 중 진행 신호 — 지정하면 json 대신 stream-json(+partial messages)으로 받아
+  // 가시 출력·사고 글자수를 누적 보고한다. 호출 횟수·토큰·비용은 json 모드와 동일하고
+  // (같은 호출, 출력 형식만 다름), 마지막 result 이벤트가 json 래퍼와 같은 필드를 실어
+  // onDone의 계측 파싱을 그대로 탄다. json:true일 때만 의미가 있다.
+  onProgress?: (p: { outputChars: number; thinkingChars: number }) => void;
 }
 
 function askClaude(prompt: string, opts: AskOptions, onDone: (out: string, err: string, code: number | null, metrics: ClaudeMetrics | null) => void) {
   const args = ['-p'];
-  if (opts.json) args.push('--output-format', 'json');
+  const streaming = !!(opts.json && opts.onProgress);
+  if (streaming) args.push('--output-format', 'stream-json', '--verbose', '--include-partial-messages');
+  else if (opts.json) args.push('--output-format', 'json');
   if (opts.systemPrompt) args.push('--system-prompt', opts.systemPrompt);
   if (opts.noTools) args.push('--tools', '');
   if (opts.schema) args.push('--json-schema', JSON.stringify(opts.schema));
   if (opts.model && ALLOWED_MODELS.has(opts.model)) args.push('--model', opts.model);
   const child = spawn('claude', args, { cwd: os.tmpdir() });
   let out = '', err = '', done = false;
+  // 스트리밍: 줄마다 해석해 진행 글자수를 보고하고, result 줄만 out에 남긴다(= json 래퍼와 동형).
+  // result가 끝내 안 오면(절단·타임아웃) out이 비어 기존 "응답 없음" 경로를 탄다.
+  const splitter = streaming ? new LineSplitter() : null;
+  let outputChars = 0, thinkingChars = 0, resultLine = '';
+  const onLine = (line: string) => {
+    const ev = parseStreamLine(line);
+    if (ev.kind === 'text') { outputChars += ev.chars; opts.onProgress!({ outputChars, thinkingChars }); }
+    else if (ev.kind === 'thinking') { thinkingChars += ev.chars; opts.onProgress!({ outputChars, thinkingChars }); }
+    else if (ev.kind === 'result') resultLine = ev.raw;
+  };
   const finish = (o: string, e: string, c: number | null) => {
     if (done) return;
     done = true;
@@ -236,9 +254,13 @@ function askClaude(prompt: string, opts: AskOptions, onDone: (out: string, err: 
   };
   const timer = setTimeout(() => child.kill(), opts.timeoutMs ?? 180_000);
   child.on('error', (e) => { clearTimeout(timer); finish('', 'claude 실행 불가: ' + String((e as any)?.message ?? e), null); });
-  child.stdout.on('data', (d) => (out += d));
+  child.stdout.on('data', (d) => { if (splitter) splitter.push(String(d), onLine); else out += d; });
   child.stderr.on('data', (d) => (err += d));
-  child.on('close', (code) => { clearTimeout(timer); finish(out, err, code); });
+  child.on('close', (code) => {
+    clearTimeout(timer);
+    if (splitter) { splitter.flush(onLine); out = resultLine; }
+    finish(out, err, code);
+  });
   child.stdin.on('error', () => {});
   child.stdin.write(prompt);
   child.stdin.end();
@@ -1106,14 +1128,28 @@ ${hist ? '\n[이 브랜치에서 나눈 대화]\n' + hist : ''}
 }
 
 
+// 압축 진행률 허브 — 클라이언트가 body.progressId를 보내면 그 id로 단계·%를 기록하고,
+// GET /api/compact/progress?id= (SSE)가 구독한다. id가 없으면 종전처럼 조용히 돈다.
+const PROGRESS = new ProgressHub();
+
 function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
-  readBody(req, res, 20_000, async ({ project, turnIds, model, request, glossary, glossaryModel }) => {
+  readBody(req, res, 20_000, async ({ project, turnIds, model, request, glossary, glossaryModel, progressId }) => {
+    const pid = isValidProgressId(progressId) ? progressId : null;
+    const prog = (patch: Parameters<ProgressHub['update']>[1], opts?: Parameters<ProgressHub['update']>[2]) => { if (pid) PROGRESS.update(pid, patch, opts); };
+    if (pid) PROGRESS.start(pid);
+    // 응답을 내보내는 모든 경로에서 진행 상태도 함께 닫는다 — SSE 구독자가 끝을 알게.
+    const sendJsonP = (status: number, data: any) => {
+      if (status === 200) prog({ stage: 'done', pct: 100, detail: '완료' });
+      else prog({ stage: 'error', pct: 0, detail: String(data?.error ?? '실패').slice(0, 200) }, { allowBackward: true });
+      sendJson(res, status, data);
+    };
     try { // 파싱 중 파일 로테이션 등 비동기 예외가 프로세스를 죽이지 않게 — 다른 핸들러와 동일
     if (!project || !Array.isArray(turnIds) || !turnIds.length) {
-      return sendJson(res, 400, { error: 'project와 turnIds가 필요합니다' });
+      return sendJsonP(400, { error: 'project와 turnIds가 필요합니다' });
     }
+    prog({ stage: 'prepare', pct: computePct('prepare'), detail: '범위 해석' });
     const { forest, range, byId, parents } = await resolveRange(project, turnIds);
-    if (!range.length) return sendJson(res, 400, { error: '선택한 턴을 찾을 수 없습니다' });
+    if (!range.length) return sendJsonP(400, { error: '선택한 턴을 찾을 수 없습니다' });
 
     const labels = loadLabels(project);
     const title = (t: Turn) => labels[t.hash]?.t ?? t.headline;
@@ -1294,9 +1330,22 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
 
     // 스윕 실측: 드물게(106회 중 3회) 응답 JSON이 중간에서 끊긴다 — 일시적 절단이라
     // 재실행이면 통과하므로, 모델이 실행됐는데 파싱만 실패한 경우 1회 자동 재시도한다.
-    const runCompact = (attempt: number) => askClaude(prompt, {
+    // 진행률: 예상 출력 글자수(과거 패키지 회귀, progress.ts)에 대어 생성 글자수를 %로.
+    // 재시도(attempt 2)는 막대가 30으로 되돌아가는 걸 허용하고 detail에 표시한다.
+    const expectedChars = expectedOutputChars(transcript.length);
+    const runCompact = (attempt: number) => {
+      prog({ stage: 'compact', pct: computePct('compact'), attempt, outputChars: 0, thinkingChars: 0,
+             detail: attempt > 1 ? '본 압축 — 응답 절단으로 재시도 중' : '본 압축 — 모델 응답 대기' }, { allowBackward: attempt > 1 });
+      return askClaude(prompt, {
       model: typeof model === 'string' ? model : undefined,
       systemPrompt: sysPrompt.text, json: true, noTools: true, timeoutMs: 420_000,
+      onProgress: pid ? (p) => prog({
+        stage: 'compact', attempt, outputChars: p.outputChars, thinkingChars: p.thinkingChars,
+        pct: computePct('compact', { outputChars: p.outputChars, thinkingChars: p.thinkingChars, expectedChars }),
+        detail: p.outputChars > 0
+          ? `본 압축 — ${p.outputChars.toLocaleString()}자 생성 (예상 ${expectedChars.toLocaleString()}자)`
+          : `본 압축 — 모델이 구상 중 (${p.thinkingChars.toLocaleString()}자)`,
+      }) : undefined,
     }, async (out, err, code, metrics) => {
       try {
         const S = parseSummary(out);
@@ -1309,8 +1358,9 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
             ? (code === null ? '시간 초과 또는 claude 실행 불가: ' + err.slice(0, 200) : 'claude 실행 실패: ' + err.slice(0, 200))
             : '응답이 JSON 형식이 아님: ' + out.slice(0, 200);
           console.error(`[compact 실패] ${why}`);
-          return sendJson(res, 502, { error: why });
+          return sendJsonP(502, { error: why });
         }
+        prog({ stage: 'assemble', pct: computePct('assemble'), detail: '패키지 조립 — 관련 원문·근거 확인' });
         // 열린 스레드 리트리벌: 압축 LLM이 "미해결"로 지목한 항목(open_threads·todo)을
         // 질의로 삼아 범위 밖 원문을 찾는다 — "부족한 것을 LLM이 판단하고 리트리버가
         // 채우는" 구조를 추가 호출 0회로 구현 (판단은 이미 요약 안에 있다).
@@ -1509,12 +1559,13 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
         const base = `pkg-${Date.now()}`;
         fs.writeFileSync(path.join(pkgDir, base + '.md'), md);
         fs.writeFileSync(path.join(pkgDir, base + '.json'), JSON.stringify(jsonPkg, null, 1));
-        sendJson(res, 200, { md, json: jsonPkg, pkgFile: base, savedTo: path.join('packages', project, base + '.md') });
+        sendJsonP(200, { md, json: jsonPkg, pkgFile: base, savedTo: path.join('packages', project, base + '.md') });
       } catch (e: any) {
         console.error('[compact 조립 실패]', e?.message);
-        sendJson(res, 500, { error: '패키지 조립 실패: ' + String(e?.message ?? e) });
+        sendJsonP(500, { error: '패키지 조립 실패: ' + String(e?.message ?? e) });
       }
     });
+    };
     // 부록 생성은 요약과 독립이지만 md 조립이 결과를 쓰므로 먼저 실행.
     // 실패해도 compact는 진행한다 (부록은 보강 계층이지 필수 아님).
     // glossaryModel: 부록 전용 모델 오버라이드 — 정의 추출은 기계적 성격이라 저비용 모델
@@ -1544,10 +1595,33 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
       runCompact(1);
     });
     // 미스 0건이면(전량 캐시 히트, 또는 후보 자체가 없음) LLM 호출을 생략하고 바로 진행.
-    if (glossaryMisses.length) runGlossary(1);
-    else runCompact(1);
-    } catch (e: any) { sendJson(res, 500, { error: e?.message ?? String(e) }); }
+    if (glossaryMisses.length) {
+      prog({ stage: 'glossary', pct: computePct('glossary'), detail: `용어 부록 — 새 용어 ${glossaryMisses.length}건 정의 생성` });
+      runGlossary(1);
+    } else runCompact(1);
+    } catch (e: any) { sendJsonP(500, { error: e?.message ?? String(e) }); }
   });
+}
+
+// 압축 진행률 구독 (SSE). 같은 id로 POST /api/compact가 돌고 있으면 그 상태를 흘려보내고,
+// 완료·실패 상태를 보낸 뒤 닫는다. 로컬 전용이라 헤더 검사 없이 GET으로 받는다(EventSource).
+function handleCompactProgress(url: URL, res: http.ServerResponse) {
+  const id = url.searchParams.get('id');
+  if (!isValidProgressId(id)) { res.writeHead(400); res.end(); return; }
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive', 'Cross-Origin-Resource-Policy': 'same-origin',
+  });
+  res.write(': ok\n\n');
+  let closed = false;
+  const unsub = PROGRESS.subscribe(id, (s) => {
+    if (closed) return;
+    res.write(`data: ${JSON.stringify(s)}\n\n`);
+    if (s.stage === 'done' || s.stage === 'error') { closed = true; unsub(); res.end(); }
+  });
+  // 진행 중엔 25초마다 주석 한 줄로 연결을 살려 둔다(프록시 없이도 idle 타임아웃 대비).
+  const ka = setInterval(() => { if (!closed) res.write(': ka\n\n'); }, 25_000);
+  res.on('close', () => { closed = true; unsub(); clearInterval(ka); });
 }
 
 // ── 해법 스킬 export (기능⑨): 문제를 해결한 턴 구간을 재사용 가능한 SKILL.md로 증류 ──
@@ -1858,6 +1932,8 @@ const server = http.createServer((req, res) => {
       })
       .catch((e: any) => sendJson(res, 500, { error: e?.message ?? String(e) }));
   }
+
+  if (url.pathname === '/api/compact/progress') return handleCompactProgress(url, res);
 
   if (url.pathname === '/api/compact/template') {
     // 현재 적용 중인 압축 프롬프트 — 어디서 왔는지(내장/파일)와 내용. UI 도움말·디버깅용.
