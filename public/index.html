@@ -983,6 +983,7 @@
     transition:transform .12s ease, opacity .12s ease;}
   .btn:active{transform:scale(.96);}
   .btn.primary{background:var(--accent); color:var(--accent-fg);}
+  .btn.primary.danger{background:var(--err); color:#fff;} /* 다이얼로그 확인 버튼의 danger — primary(뒤에 선언)가 덮지 않게 */
   .btn.primary:disabled{opacity:.55; cursor:wait;}
   .btn.ghost{background:var(--chip); color:var(--ink2);}
 
@@ -1116,6 +1117,18 @@
   #lightbox .x{position:fixed; top:18px; right:20px;}
 
 
+  /* ── toast: 가운데 하단(챕터 바 위)에 잠깐 뜨는 이벤트 메시지 — "압축을 중단했습니다" 류.
+     운행 안내판 어휘: 노선색 점 하나 + 한 줄 문장. 클릭을 막지 않고 3초 뒤 스스로 사라진다 ── */
+  #toast{position:fixed; left:50%; bottom:62px; transform:translate(-50%, 8px); z-index:65;
+    display:flex; align-items:center; gap:9px; padding:9px 16px 9px 13px; border-radius:12px;
+    background:color-mix(in srgb, var(--surface) 94%, transparent); border:1px solid var(--line);
+    box-shadow:0 10px 30px rgba(0,0,0,.25); backdrop-filter:blur(12px) saturate(1.4);
+    font-size:12.5px; font-weight:600; color:var(--ink); pointer-events:none;
+    opacity:0; transition:opacity .2s ease, transform .2s ease;}
+  #toast.on{opacity:1; transform:translate(-50%, 0);}
+  #toast::before{content:""; width:8px; height:8px; border-radius:50%; background:var(--exec);
+    box-shadow:0 0 0 3px color-mix(in srgb, var(--exec) 25%, transparent);}
+  #toast.warn::before{background:var(--err); box-shadow:0 0 0 3px color-mix(in srgb, var(--err) 25%, transparent);}
   #tooltip{position:fixed; z-index:50; pointer-events:none; max-width:280px;
     background:color-mix(in srgb, var(--ink) 92%, transparent); color:var(--bg);
     backdrop-filter:blur(20px) saturate(1.8); -webkit-backdrop-filter:blur(20px) saturate(1.8);
@@ -1135,14 +1148,62 @@
     box-shadow:0 18px 50px rgba(0,0,0,.3); pointer-events:none;
     backdrop-filter:blur(14px) saturate(1.4); -webkit-backdrop-filter:blur(14px) saturate(1.4);}
   #busy.on{display:flex; animation:fadeIn .18s ease;}
-  #busy .bz-line{fill:none; stroke:var(--exec); stroke-width:3; stroke-linecap:round;
-    stroke-dasharray:26 18; animation:bzflow 1.5s linear infinite;}
-  @keyframes bzflow{to{stroke-dashoffset:-88;}}
+  /* 크기는 해상도에 비례 — 노선은 화면 폭의 약 28%(264~440px), 글자·여백도 같이 커진다.
+     SVG 안의 역·라벨·열차는 viewBox 좌표라 자동으로 따라 커진다(열차 translateX도 user unit). */
+  /* 위치: 가운데 띄우면 압축 범위로 잡은 노드들을 가린다(8/22 피드백). 기본은 화면 위쪽
+     (선택 바 아래)이고, 선택 노드가 위쪽에 있으면 JS(placeBusyAwayFromSelection)가 .low를
+     붙여 아래쪽(챕터 바 위)으로 내린다. 둘 다 가장자리 기준이라 카드가 커져도 트리 쪽으로 안 온다 */
+  #busy{top:clamp(84px, 12vh, 150px); bottom:auto; transform:translate(-50%, 0);}
+  #busy.low{top:auto; bottom:clamp(64px, 9vh, 110px);}
+  #busy{--bz-w:clamp(264px, 28vw, 560px); padding:calc(var(--bz-w) * .06) calc(var(--bz-w) * .1) calc(var(--bz-w) * .055); gap:calc(var(--bz-w) * .028);}
+  #busy-map{width:var(--bz-w); height:auto;}
+  /* 노선: 바탕 레일 + 지나온 구간(.bz-done, pathLength=100이라 dasharray가 곧 %) */
+  #busy .bz-rail{fill:none; stroke:color-mix(in srgb, var(--line) 80%, transparent); stroke-width:3; stroke-linecap:round;}
+  #busy .bz-done{fill:none; stroke:var(--exec); stroke-width:3; stroke-linecap:round;
+    stroke-dasharray:0 100; transition:stroke-dasharray .45s cubic-bezier(.3,.7,.3,1);}
+  /* 불확정 모드(갈래·주제 분석): 진행 구간 대신 대시가 흐르고 열차가 왕복한다 */
+  #busy:not(.prog) .bz-done{stroke-dasharray:10 7; animation:bzflow 1.5s linear infinite;}
+  @keyframes bzflow{to{stroke-dashoffset:-34;}}
   #busy .bz-n{fill:var(--surface); stroke:var(--exec); stroke-width:2.5;
-    transform-box:fill-box; transform-origin:center;
-    animation:breathe 1.4s ease-in-out infinite;}
-  #busy-msg{font-size:13.5px; font-weight:700; color:var(--ink);}
-  #busy-sub{font-size:11.5px; color:var(--muted);}
+    transform-box:fill-box; transform-origin:center;}
+  #busy:not(.prog) .bz-n{animation:breathe 1.4s ease-in-out infinite;}
+  #busy.prog .bz-n{stroke:color-mix(in srgb, var(--exec) 45%, var(--line)); transition:stroke .3s;}
+  #busy.prog .bz-n.at{fill:var(--exec); stroke:var(--exec); animation:bzpop .4s cubic-bezier(.3,.7,.3,1.3);}
+  @keyframes bzpop{from{transform:scale(.6)} 60%{transform:scale(1.35)} to{transform:scale(1)}}
+  #busy .bz-lbl{font-size:9px; font-weight:600; fill:var(--muted); text-anchor:middle; display:none;
+    font-family:inherit; letter-spacing:-.01em;}
+  #busy.prog .bz-lbl{display:block;}
+  #busy.prog .bz-lbl.at{fill:var(--ink);}
+  /* 열차: 3량. 위치는 JS가 --bz-x(px)로 주고, 불확정 모드에선 CSS 애니메이션이 왕복시킨다
+     (애니메이션이 인라인 변수 기반 transform보다 우선하므로 같은 g를 두 모드가 공유한다) */
+  /* 위치 갱신은 JS 트윈(bzTween)이 프레임마다 주므로 CSS transition은 두지 않는다 —
+     서버 단계 경계에서 생기는 점프(예: 74→95)를 속도 상한으로 늘여 훅 지나가지 않게 한다 */
+  #bz-train{transform:translateX(var(--bz-x, 0px));}
+  #busy:not(.prog) #bz-train{animation:bzride 2.6s ease-in-out infinite alternate;}
+  @keyframes bzride{from{transform:translateX(0px)} to{transform:translateX(260px)}}
+  /* 차체는 실제 전동차처럼 무채색 — 노선색(--exec)은 선·역에만 남겨 열차가 "선 위를 달리는 것"으로 읽히게 */
+  #bz-train .car{fill:color-mix(in srgb, var(--ink) 38%, var(--surface)); stroke:color-mix(in srgb, var(--ink) 55%, var(--surface)); stroke-width:1;}
+  #bz-train .win{fill:color-mix(in srgb, var(--surface) 85%, var(--ink)); opacity:.95;}
+  #bz-train .lamp{fill:#ffd86b; opacity:.9;}
+  @media (prefers-reduced-motion:reduce){
+    #busy:not(.prog) .bz-done, #busy:not(.prog) .bz-n, #busy:not(.prog) #bz-train, #busy.prog .bz-n.at{animation:none;}
+    #busy:not(.prog) #bz-train{transform:translateX(130px);}
+    #bz-train, #busy .bz-done{transition:none;}
+  }
+  #busy-msg{font-size:clamp(13.5px, calc(var(--bz-w) * .05), 20px); font-weight:700; color:var(--ink);}
+  #busy-sub{font-size:clamp(11.5px, calc(var(--bz-w) * .04), 15.5px); color:var(--muted); text-align:center; max-width:calc(var(--bz-w) * 1.15);}
+  /* 진행률 숫자 — 제목 옆에 붙는다("압축 패키지 생성 중… 64%"). 압축처럼 단계·생성량을 아는
+     작업만 켠다(#busy.prog). 노선 자체가 막대다. */
+  #busy-pct{display:none; margin-left:.45em; color:var(--exec); font-variant-numeric:tabular-nums;}
+  #busy.prog #busy-pct{display:inline;}
+  /* 취소 × — 카드는 pointer-events:none(순수 안내)이지만 이 버튼만 받는다. 취소 가능한 작업(.cancel)에서만 */
+  #busy-x{display:none; position:absolute; top:6px; right:6px; --bz-xs:clamp(24px, calc(var(--bz-w) * .085), 34px);
+    width:var(--bz-xs); height:var(--bz-xs); border-radius:7px;
+    border:0; background:transparent; color:var(--muted); font-size:calc(var(--bz-xs) * .7); line-height:var(--bz-xs); text-align:center;
+    cursor:pointer; pointer-events:auto; font-family:inherit;}
+  #busy.cancel #busy-x{display:block;}
+  #busy-x:hover{background:color-mix(in srgb, var(--ink) 10%, transparent); color:var(--ink);}
+  #busy-x:focus-visible{outline:2px solid var(--exec); outline-offset:1px;}
 
   /* ── splash: shown the instant the page paints (pure CSS, no JS delay),
      faded out once the first project's tree has actually rendered ── */
@@ -1531,15 +1592,33 @@
 
   <!-- 작업 대기 오버레이: 스플래시와 같은 노선도 애니메이션 문법 (흐르는 선 + 숨쉬는 역) -->
   <div id="busy">
-    <svg width="132" height="46" viewBox="0 0 200 60">
-      <path class="bz-line" d="M14 30 L186 30"/>
-      <circle class="bz-n" cx="14" cy="30" r="7" style="animation-delay:0s"/>
-      <circle class="bz-n" cx="100" cy="30" r="7" style="animation-delay:.35s"/>
-      <circle class="bz-n" cx="186" cy="30" r="7" style="animation-delay:.7s"/>
+    <!-- 노선 x=20..280(길이 260). 역 5개는 압축 단계(준비·용어부록·본 압축·조립·완료)에 대응하고
+         진행 모드(.prog)에서만 라벨이 보인다. 열차(#bz-train)는 x=20 기준 translateX로 움직인다. -->
+    <svg id="busy-map" width="264" height="58" viewBox="0 0 300 66" aria-hidden="true">
+      <path class="bz-rail" d="M20 30 L280 30"/>
+      <path class="bz-done" d="M20 30 L280 30" pathLength="100"/>
+      <g id="bz-stations">
+        <circle class="bz-n" cx="20" cy="30" r="6" style="animation-delay:0s"/>
+        <circle class="bz-n" cx="56.4" cy="30" r="6" style="animation-delay:.2s"/>
+        <circle class="bz-n" cx="98" cy="30" r="6" style="animation-delay:.4s"/>
+        <circle class="bz-n" cx="280" cy="30" r="6" style="animation-delay:.6s"/>
+        <text class="bz-lbl" x="20" y="54">준비</text>
+        <text class="bz-lbl" x="56.4" y="54">용어</text>
+        <text class="bz-lbl" x="98" y="54">압축</text>
+        <text class="bz-lbl" x="280" y="54">완료</text>
+      </g>
+      <!-- 1량 — 차체 중심이 x=20(첫 역)에 오도록 -8..28. 3량은 어느 역에 있는지 읽기 어려웠다 -->
+      <g id="bz-train">
+        <rect class="car" x="12" y="22" width="16" height="16" rx="3.5"/>
+        <rect class="win" x="15" y="25.5" width="3.5" height="3.5" rx="1"/><rect class="win" x="21.5" y="25.5" width="3.5" height="3.5" rx="1"/>
+        <circle class="lamp" cx="26.5" cy="34" r="1.5"/>
+      </g>
     </svg>
-    <div id="busy-msg"></div>
+    <button id="busy-x" type="button" aria-label="취소" title="취소">×</button>
+    <div id="busy-msg"><span id="busy-msg-t"></span><span id="busy-pct" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">0%</span></div>
     <div id="busy-sub"></div>
   </div>
+  <div id="toast" role="status" aria-live="polite"></div>
   <div id="tooltip"></div>
 
 <script>
@@ -1679,7 +1758,7 @@ function hideTooltip() {
   clearTimeout(tooltipTimer);
   tooltipEl.classList.remove("show");
 }
-const api = (url, body) => fetch(url, { method:"POST",
+const api = (url, body, signal) => fetch(url, { method:"POST", signal,
   headers:{ "Content-Type":"application/json", "X-BranchPort":"1" }, body: JSON.stringify(body) }).then(r => r.json());
 
 // 압축 프롬프트 커스텀 (v3.11) — 현재 소스 표시 + 기본값 내보내기
@@ -1712,30 +1791,193 @@ document.getElementById("help-export-tpl")?.addEventListener("click", async () =
 refreshTemplateStatus();
 
 // 대기 오버레이 — 오래 걸리는 claude 호출 동안만
-function showBusy(msg, sub) {
-  document.getElementById("busy-msg").textContent = msg;
+// onCancel을 주면 오른쪽 위에 × 가 뜨고, 누르면 확인 다이얼로그를 거쳐 onCancel()을 부른다.
+let busyCancelFn = null;
+function showBusy(msg, sub, onCancel) {
+  document.getElementById("busy-msg-t").textContent = msg;
   document.getElementById("busy-sub").textContent = sub ?? "";
-  document.getElementById("busy").classList.add("on");
+  const b = document.getElementById("busy");
+  b.classList.remove("prog"); resetBusyMap();
+  busyCancelFn = typeof onCancel === "function" ? onCancel : null;
+  b.classList.toggle("cancel", !!busyCancelFn);
+  b.classList.add("on");
+  placeBusyAwayFromSelection();
+}
+// 카드가 선택 노드(.node.selected)를 가리지 않게 위/아래를 고른다. 위쪽 자리에 놓았을 때
+// 선택 노드와 겹치면 아래(.low)로, 아니면 위. 선택이 없으면 위. 화면 밖 노드는 무시한다.
+function placeBusyAwayFromSelection() {
+  const b = document.getElementById("busy");
+  b.classList.remove("low");
+  const nodes = [...document.querySelectorAll(".node.selected")].map(n => n.getBoundingClientRect())
+    .filter(r => r.bottom > 0 && r.top < innerHeight);
+  if (!nodes.length) return;
+  const card = b.getBoundingClientRect();
+  const overlapsTop = nodes.some(r => r.bottom > card.top - 8 && r.top < card.bottom + 8);
+  if (!overlapsTop) return;
+  b.classList.add("low");
+  const low = b.getBoundingClientRect();
+  const overlapsLow = nodes.some(r => r.bottom > low.top - 8 && r.top < low.bottom + 8);
+  // 아래도 겹치면 겹치는 면적이 덜한 쪽 — 선택 노드가 위쪽에 더 가까우면 아래에 둔다
+  if (overlapsLow) {
+    const midY = nodes.reduce((s, r) => s + (r.top + r.bottom) / 2, 0) / nodes.length;
+    b.classList.toggle("low", midY < innerHeight / 2);
+  }
+}
+// "취소 / 취소하기"는 어느 쪽이 멈추는 건지 헷갈려서 "계속 진행 / 중단(빨강)"으로 묻는다.
+// 묻는 동안 작업이 끝나면 hideBusy·완료 경로가 closeDlgIfTag("busy-cancel")로 이 창을 거둔다.
+document.getElementById("busy-x").addEventListener("click", async () => {
+  if (!busyCancelFn) return;
+  const yes = await bpConfirm("압축을 중단할까요?\n지금까지 생성된 내용은 버려집니다.", { ok: "중단", cancel: "계속 진행", danger: true, tag: "busy-cancel" });
+  if (yes && busyCancelFn) busyCancelFn();
+});
+// 가운데 하단 이벤트 메시지. 연속 호출이면 이전 타이머를 끊고 문구만 바꾼다.
+// kind: "info"(노선색 점) | "warn"(빨간 점 — 중단·실패처럼 사용자가 알아야 할 결과)
+let toastTimer = 0;
+function showToast(msg, { ms = 3000, kind = "info" } = {}) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.toggle("warn", kind === "warn");
+  t.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("on"), ms);
+}
+// 노선을 불확정 모드로 되돌린다 — 인라인 값(칠한 구간·열차 위치·도착 역)을 지워야
+// CSS의 흐르는 대시·왕복 애니메이션이 다시 적용된다(인라인이 스타일시트를 이긴다).
+function resetBusyMap() {
+  if (bz.timer) clearInterval(bz.timer);
+  bz.timer = 0; bz.shown = 0; bz.target = 0;
+  const map = document.getElementById("busy-map");
+  map.querySelector(".bz-done").style.removeProperty("stroke-dasharray");
+  document.getElementById("bz-train").style.removeProperty("--bz-x");
+  map.querySelectorAll(".at").forEach(el => el.classList.remove("at"));
+  const pctEl = document.getElementById("busy-pct");
+  pctEl.textContent = "0%"; pctEl.setAttribute("aria-valuenow", "0");
 }
 function hideBusy() {
+  closeDlgIfTag("busy-cancel", false); // 작업이 끝났으면 "중단할까요?"는 더 물을 이유가 없다
+  busyCancelFn = null;
   const b = document.getElementById("busy");
   // 완료 전환(handoff) 중이면 openModalFromBusy가 끝나고 스스로 정리한다 — 여기서 끄면 전환이 뚝 끊긴다
   if (!b.classList.contains("handoff")) b.classList.remove("on");
 }
+// 진행률 표시 — 압축처럼 서버가 단계·%를 알려주는 작업에서만 막대를 켠다.
+// pct는 0~100, sub를 주면 부제도 함께 바꾼다(단계 설명).
+// 노선 위 역 4개 = 서버 단계 경계(progress.ts STAGE_BANDS)의 pct. 본 압축(30~95)이 시간의
+// 대부분이라 선에서도 가장 긴 구간을 차지한다. 조립(95~99)은 한순간이라 역을 따로 두지 않고
+// 완료 역에 합쳤다(8/22 피드백). 열차·칠해진 구간은 pct를 구간 사이에서 선형 보간해 놓는다.
+const BZ_STATIONS = [{ pct: 0, at: 0 }, { pct: 10, at: 14 }, { pct: 30, at: 30 }, { pct: 100, at: 100 }];
+const BZ_LINE_PX = 260; // SVG 노선 길이(x=20..280)
+function bzLinePos(p) {
+  for (let i = 1; i < BZ_STATIONS.length; i++) {
+    const a = BZ_STATIONS[i - 1], b = BZ_STATIONS[i];
+    if (p <= b.pct) return a.at + (b.at - a.at) * ((p - a.pct) / (b.pct - a.pct));
+  }
+  return 100;
+}
+// 열차 트윈 — 서버가 준 목표 pct를 향해 화면 값이 속도 상한으로 따라간다.
+// 단계 경계(30→38, 74→95 같은 점프)를 그대로 그리면 열차가 훅 지나가므로, 초당 최대
+// BZ_MAX_SPEED %p씩만 움직인다(74→95는 약 1.5초). 완료(100)는 상한을 풀어 곧장 도착한다.
+// 역 도착·% 숫자는 화면 값 기준이라 열차가 실제로 닿을 때 역이 켜진다.
+// 구동은 requestAnimationFrame이 아니라 setInterval — 탭이 가려지면 rAF는 아예 멈춰(실측:
+// 백그라운드 탭에서 1초간 0프레임) 돌아왔을 때 열차가 처음부터 기어간다. interval은 가려진
+// 탭에서도 1초 주기로는 돌고, 1초 넘게 비었으면 따라가지 않고 목표로 바로 건너뛴다.
+const BZ_MAX_SPEED = 14, BZ_FINISH_SPEED = 60, BZ_TICK_MS = 30;
+const bz = { shown: 0, target: 0, timer: 0, last: 0 };
+function bzPaint(p) {
+  const pos = bzLinePos(p);
+  const map = document.getElementById("busy-map");
+  map.querySelector(".bz-done").style.strokeDasharray = `${pos} 100`;
+  document.getElementById("bz-train").style.setProperty("--bz-x", (pos / 100 * BZ_LINE_PX) + "px");
+  const nodes = map.querySelectorAll(".bz-n"), labels = map.querySelectorAll(".bz-lbl");
+  BZ_STATIONS.forEach((s, i) => {
+    const at = p >= s.pct - 0.01;
+    nodes[i].classList.toggle("at", at);
+    labels[i].classList.toggle("at", at);
+  });
+  const r = Math.round(p);
+  const pctEl = document.getElementById("busy-pct");
+  pctEl.textContent = r + "%"; pctEl.setAttribute("aria-valuenow", String(r));
+}
+function bzStep() {
+  const now = performance.now();
+  const elapsed = (now - bz.last) / 1000; bz.last = now;
+  const gap = bz.target - bz.shown;
+  if (Math.abs(gap) < 0.05) { bz.shown = bz.target; bzPaint(bz.shown); clearInterval(bz.timer); bz.timer = 0; return; }
+  // 트윈은 장식이 아니라 점프를 늘이는 속도 제한이라 prefers-reduced-motion에서도 끄지 않는다
+  // (OS "애니메이션 줄이기"가 켜진 환경에서 완료 주행까지 스냅돼 결과가 훅 뜨던 원인 후보).
+  const snap = elapsed > 1 || gap < 0;
+  const dt = Math.min(0.1, elapsed);
+  // 완료(100)는 종점까지 "마무리 주행" — 감속 없이 BZ_FINISH_SPEED로 곧장 달린다(65→100 약 0.6초).
+  // 결과창은 bzFinish가 이 주행이 끝난 뒤 열므로 80·90·완료 역이 건너뛰어지지 않되,
+  // 사용자 시간을 잡아먹지 않도록 최악에도 1.2초 안에 끝난다(bzFinish의 안전 상한).
+  const step = snap ? gap
+    : bz.target >= 100 ? Math.min(gap, BZ_FINISH_SPEED * dt)
+    // 목표에 가까워지면 감속(ease-out), 멀면 상한 속도로 — 둘 중 작은 쪽
+    : Math.sign(gap) * Math.min(Math.abs(gap), Math.max(Math.abs(gap) * 2.5, 0.6) * dt, BZ_MAX_SPEED * dt);
+  bz.shown += step;
+  bzPaint(bz.shown);
+}
+function setBusyProgress(pct, sub) {
+  bz.target = Math.max(0, Math.min(100, pct));
+  if (sub != null) document.getElementById("busy-sub").textContent = sub;
+  if (!bz.timer) { bz.last = performance.now(); bz.timer = setInterval(bzStep, BZ_TICK_MS); }
+}
+// 완료 처리: 열차를 종점까지 달리게 하고 실제로 도착했을 때 resolve한다. 호출부는 이걸
+// await한 뒤 결과창을 연다. 보통 0.6초 안팎이고, 안전 상한 1.2초를 넘기면(탭이 가려져 틱이
+// 안 돌 때 등) 기다리지 않고 넘어간다 — 연출이 작업 시간을 잡아먹어선 안 된다.
+function bzFinish(sub) {
+  setBusyProgress(100, sub ?? "완료");
+  const busyEl = document.getElementById("busy");
+  if (!busyEl.classList.contains("prog")) return Promise.resolve();
+  return new Promise(resolve => {
+    const t0 = performance.now();
+    const check = () => {
+      if (bz.shown >= 99.5 || !busyEl.classList.contains("on") || performance.now() - t0 > 1200) { setTimeout(resolve, 120); return; } // 도착 후 한 박자
+      setTimeout(check, 30);
+    };
+    check();
+  });
+}
+// 압축 진행률 구독(SSE). 서버가 같은 id로 기록하는 단계·%를 받아 busy 카드에 반영한다.
+// 반환한 함수로 닫는다. 연결 실패는 치명적이지 않다 — 막대만 안 움직이고 결과는 POST로 온다.
+function watchCompactProgress(id) {
+  let es = null;
+  try {
+    es = new EventSource(`/api/compact/progress?id=${encodeURIComponent(id)}`);
+    document.getElementById("busy").classList.add("prog");
+    es.onmessage = (ev) => {
+      let s; try { s = JSON.parse(ev.data); } catch { return; }
+      if (!s || typeof s.pct !== "number") return;
+      if (s.stage === "error") { es.close(); return; } // 실패 문구는 POST 응답의 alert가 맡는다
+      setBusyProgress(s.pct, s.detail || undefined);
+      if (s.stage === "done") es.close();
+    };
+    es.onerror = () => { /* 재접속은 브라우저가 알아서 — 끝난 작업이면 서버가 곧 닫는다 */ };
+  } catch { /* EventSource 미지원·차단 — 막대 없이 진행 */ }
+  return () => { try { es && es.close(); } catch {} };
+}
+const newProgressId = () => {
+  const a = new Uint8Array(12); crypto.getRandomValues(a);
+  return Array.from(a, b => b.toString(16).padStart(2, "0")).join("");
+};
 
 // ── 자체 다이얼로그: OS confirm/alert/prompt 대신 사인 시스템의 카드로 묻는다.
 // Promise를 돌려주므로 호출부는 await(또는 .then)로 답을 받는다 — 네이티브와 달리
 // 스레드를 멈추지 않는다는 것만 다르고 의미는 같다.
 const dlgEl = document.getElementById("dlg");
-let dlgResolve = null, dlgMode = "alert";
-function openDlg({ msg, mode = "alert", value = "", ok = "확인", danger = false }) {
+let dlgResolve = null, dlgMode = "alert", dlgTag = null;
+// tag: 호출부가 "내가 연 다이얼로그"를 나중에 닫을 수 있게 하는 표식(closeDlgIfTag).
+// cancel: 닫기 버튼 문구 — 확인 버튼이 "중단" 같은 부정어일 때 "취소"와 헷갈리지 않게 바꾼다.
+function openDlg({ msg, mode = "alert", value = "", ok = "확인", cancel = "취소", danger = false, tag = null }) {
   return new Promise(resolve => {
-    dlgResolve = resolve; dlgMode = mode;
+    dlgResolve = resolve; dlgMode = mode; dlgTag = tag;
     document.getElementById("dlg-msg").textContent = msg;
     const inp = document.getElementById("dlg-input");
     inp.style.display = mode === "prompt" ? "" : "none";
     inp.value = value;
-    document.getElementById("dlg-cancel").style.display = mode === "alert" ? "none" : "";
+    const cancelBtn = document.getElementById("dlg-cancel");
+    cancelBtn.style.display = mode === "alert" ? "none" : "";
+    cancelBtn.textContent = cancel;
     const okBtn = document.getElementById("dlg-ok");
     okBtn.textContent = ok;
     okBtn.classList.toggle("danger", danger);
@@ -1745,8 +1987,13 @@ function openDlg({ msg, mode = "alert", value = "", ok = "확인", danger = fals
 }
 function closeDlg(val) {
   dlgEl.classList.remove("open");
-  const r = dlgResolve; dlgResolve = null;
+  const r = dlgResolve; dlgResolve = null; dlgTag = null;
   if (r) r(val);
+}
+// 특정 tag로 열린 다이얼로그만 닫는다 — 예: "중단할까요?"를 띄워둔 채 압축이 끝나면
+// 물음 자체가 무의미해지므로 호출부가 이걸로 거둬들인다. 다른 다이얼로그는 건드리지 않는다.
+function closeDlgIfTag(tag, val) {
+  if (dlgResolve && dlgTag === tag) closeDlg(val);
 }
 const dlgCancel = () => closeDlg(dlgMode === "prompt" ? null : false);
 const bpAlert = (msg) => openDlg({ msg, mode: "alert" });
@@ -4409,10 +4656,30 @@ document.getElementById("sb-go").addEventListener("click", async (ev) => {
   }
   compactWarnedKey = null;
   btn.disabled = true; btn.textContent = "생성 중… (최대 7분)";
-  showBusy("압축 패키지 생성 중…", `${ids.length}턴 원문 압축 — 최대 7분`);
+  // 진행률: POST와 같은 id로 SSE를 먼저 열어 두면 서버가 기록하는 단계·%가 막대에 차오른다
+  const progressId = newProgressId();
+  // 취소: × → 확인 다이얼로그 → 서버에 자식 프로세스 중단 요청 + 이쪽 fetch 중단.
+  // 서버는 409 {cancelled:true}로 끝내고 아무것도 저장하지 않는다.
+  const ctrl = new AbortController();
+  let cancelled = false;
+  showBusy("압축 패키지 생성 중…", `${ids.length}턴 원문 압축 — 최대 7분`, () => {
+    cancelled = true;
+    api("/api/compact/cancel", { progressId }).catch(() => {});
+    ctrl.abort();
+  });
+  const stopWatch = watchCompactProgress(progressId);
   try {
-    const j = await api("/api/compact", { project: CURRENT_PROJECT, turnIds: ids, request: document.getElementById("sb-request").value.trim() || undefined, glossary: glossaryOn() ? undefined : false });
+    const j = await api("/api/compact", { project: CURRENT_PROJECT, turnIds: ids, progressId, request: document.getElementById("sb-request").value.trim() || undefined, glossary: glossaryOn() ? undefined : false }, ctrl.signal);
+    if (j.cancelled) cancelled = true;
+    if (cancelled) throw new Error("취소됨");
     if (j.error) throw new Error(j.error);
+    // 응답이 온 순간 "중단할까요?"가 떠 있으면 거둔다 — 마무리 주행 0.6초 동안 떠 있지 않게.
+    // 이미 완료된 것을 중단할 수는 없으므로 결과는 그대로 보여준다.
+    closeDlgIfTag("busy-cancel", false); busyCancelFn = null;
+    document.getElementById("busy").classList.remove("cancel");
+    // 결과창은 열차가 종점에 닿은 뒤 연다 — 서버가 끝나는 순간 바로 열면 60~70%에서
+    // 80·90·완료 역을 못 본 채 넘어간다(실사용 피드백 8/22). 데이터 준비는 그 사이에 한다.
+    const arrived = bzFinish("완료 — 패키지 여는 중");
     PKG = j;
     // 완료 즉시 선택을 해제하므로, 갈래 버튼이 쓸 앵커(범위 마지막 턴)는 여기서 붙잡아 둔다
     PKG._anchorId = ids[ids.length - 1];
@@ -4425,9 +4692,14 @@ document.getElementById("sb-go").addEventListener("click", async (ev) => {
     reqEl.innerHTML = usedReq ? `<b>요청</b> — ${esc(usedReq)}` : "";
     showTab("md");
     clearSel(); // 완료되면 압축 여부를 묻던 선택 바는 걷고 결과 창만 남긴다
+    await arrived; // 열차 종점 도착 후 결과창으로 전환
     openModalFromBusy();
-  } catch (e) { hideBusy(); bpAlert("압축 실패: " + e.message); }
-  finally { hideBusy(); btn.disabled = false; btn.textContent = "압축 패키지 생성"; }
+  } catch (e) {
+    hideBusy();
+    if (cancelled) showToast("압축을 중단했습니다", { kind: "warn" }); // 사용자가 고른 결과 — 다이얼로그 대신 가벼운 이벤트 메시지
+    else bpAlert("압축 실패: " + e.message);
+  }
+  finally { stopWatch(); hideBusy(); btn.disabled = false; btn.textContent = "압축 패키지 생성"; }
 });
 function showTab(k) {
   document.getElementById("tab-md").classList.toggle("on", k === "md");
