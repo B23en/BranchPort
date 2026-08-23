@@ -129,6 +129,14 @@
   /* 모션 최소화 설정 사용자: 시간만 0으로 줄이고 끝 상태(forwards)는 남긴다 —
      animation을 none으로 끄면 popIn이 만들던 opacity:1이 사라져 노드가 통째로 안 보인다.
      휠 카메라 글라이드는 JS 쪽 REDUCED_MOTION 게이트가 같은 역할을 한다. */
+  /* ── 스크롤바 — 앱 전역 한 문법: 투명 트랙 + 둥근 썸, 컨테이너 라운드 안쪽에서 시작.
+     카드(.detail)·도움말·압축 모달·diff·도구 출력 등 모든 스크롤 영역이 같은 생김새를 갖는다 ── */
+  *::-webkit-scrollbar{width:10px; height:10px;}
+  *::-webkit-scrollbar-track{background:transparent; margin:8px;}
+  *::-webkit-scrollbar-thumb{background:color-mix(in srgb, var(--axis) 60%, transparent);
+    border-radius:99px; border:3px solid transparent; background-clip:padding-box;}
+  *::-webkit-scrollbar-thumb:hover{background:var(--axis); border:3px solid transparent; background-clip:padding-box;}
+  *::-webkit-scrollbar-corner{background:transparent;}
   @media (prefers-reduced-motion:reduce){
     *, *::before, *::after{
       animation-duration:.01ms !important; animation-iteration-count:1 !important;
@@ -208,18 +216,18 @@
   select#session-select, select#project-select{display:none;}
   #proj-wrap{position:relative; display:inline-flex;}
   /* 폴더·세션은 같은 너비 — 검색창이 중앙에 오는 좌우 대칭 구도의 왼팔 */
-  #proj-trigger{display:inline-flex; align-items:center; gap:7px; width:150px;}
+  #proj-trigger{display:inline-flex; align-items:center; gap:7px; width:clamp(150px, 14vw, 200px);}
   #proj-trigger #proj-label{flex:1; min-width:0; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   #proj-trigger svg{width:9px; height:6px; flex:none; opacity:.6;}
-  #proj-pop{display:none; position:absolute; top:calc(100% + 8px); left:0; min-width:280px; max-width:400px;
+  #proj-pop{display:none; position:absolute; top:calc(100% + 8px); left:0; min-width:340px; max-width:520px;
     max-height:min(480px, 70vh); overflow-y:auto; z-index:65;
     background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:6px;
     box-shadow:0 12px 32px rgba(15,13,8,.15), 0 2px 6px rgba(15,13,8,.06);}
   #proj-pop.open{display:block; animation:fadeIn .14s ease;}
-  #sess-trigger{display:inline-flex; align-items:center; gap:7px; width:150px;}
+  #sess-trigger{display:inline-flex; align-items:center; gap:7px; width:clamp(150px, 14vw, 200px);}
   #sess-trigger #sess-label{flex:1; min-width:0; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   #sess-trigger svg{width:9px; height:6px; flex:none; opacity:.6;}
-  #sess-pop{display:none; position:absolute; top:calc(100% + 8px); left:0; min-width:300px; max-width:380px;
+  #sess-pop{display:none; position:absolute; top:calc(100% + 8px); left:0; min-width:360px; max-width:500px;
     max-height:min(480px, 70vh); overflow-y:auto; z-index:65;
     background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:6px;
     box-shadow:0 12px 32px rgba(15,13,8,.15), 0 2px 6px rgba(15,13,8,.06);}
@@ -228,13 +236,16 @@
   .spop .sg{font-size:10px; letter-spacing:.12em; font-weight:750; color:var(--muted);
     padding:8px 9px 4px; text-transform:uppercase;}
   .spop .sg:not(:first-child){margin-top:2px; border-top:1px solid color-mix(in srgb, var(--line) 75%, transparent); padding-top:9px;}
-  .spop .si{display:flex; align-items:center; gap:8px; width:100%; text-align:left;
-    border:0; background:none; border-radius:8px; padding:6px 9px; font-size:12.5px; color:var(--ink2);
+  .spop .si{display:flex; align-items:center; gap:9px; width:100%; text-align:left;
+    border:0; background:none; border-radius:8px; padding:8px 10px; font-size:13.5px; color:var(--ink2);
     cursor:pointer; transition:background .12s ease, color .12s ease;}
   .spop .si:hover{background:var(--chip); color:var(--ink);}
-  .spop .si .dot{width:8px; height:8px; border-radius:50%; flex:none;
+  .spop .si .dot{width:9px; height:9px; border-radius:50%; flex:none;
     border:2px solid var(--axis); background:var(--surface);}
-  .spop .si.cur{color:var(--ink); font-weight:650;}
+  /* 현재 항목: 굵기만으로는 고해상도에서 안 잡힌다 — 실행색 틴트 면 + 왼쪽 레일 */
+  .spop .si.cur{color:var(--ink); font-weight:700;
+    background:color-mix(in srgb, var(--exec) 10%, transparent);
+    box-shadow:inset 3px 0 0 var(--exec);}
   .spop .si.cur .dot{border-color:var(--exec); background:var(--exec);}
   .spop .si .t{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   #settings-box h4{margin:0 0 8px; font-size:11px; letter-spacing:.08em; text-transform:uppercase;
@@ -747,9 +758,14 @@
   header #topic-btn{margin-left:auto;}
   /* 넓은 화면: 검색창이 헤더 정중앙에 앉고, 누르면 좌우로 대칭으로 자란다
      (absolute + translateX(-50%) 중심 고정이라 양옆으로 늘어난다) */
-  @media (min-width:1001px){
+  /* 중앙 고정은 1320px부터 — 그 아래에선 150px 버튼 둘만으로도 열린 검색창(380px)과
+     겹친다(실측 계산). 그 아래는 흐름 배치라 구조적으로 겹칠 수 없다. */
+  @media (min-width:1320px){
     #search-wrap{position:absolute; left:50%; transform:translateX(-50%);}
     header #search-box{width:220px; --sw-open:380px;}
+    /* 버튼 폭 = (열린 검색창 왼쪽 가장자리 − 로고·여백 154px − 간격 12px) ÷ 2
+       = 25vw − 178px. 1320px에서 152px, 1600px에서 222px, 1832px부터 280px 상한 */
+    #proj-trigger, #sess-trigger{width:clamp(150px, calc(25vw - 178px), 280px);}
   }
   /* 결과가 열리면 캡슐이 아래로 길어진 "한 몸" — 입력칸은 아래 모서리를 펴고(윗반쪽),
      결과 목록은 같은 폭·같은 테두리로 바로 이어 붙는다(아랫반쪽). 사이 구분선은
@@ -2056,11 +2072,22 @@ async function loadProjects() {
       sel.innerHTML = "<option>세션을 찾을 수 없음</option>";
       return;
     }
-    for (const p of projects) {
-      const opt = document.createElement("option");
-      opt.value = p.dirName; opt.textContent = `${p.displayPath} (${p.sessionCount})`;
-      sel.appendChild(opt);
+    // 팀원 피드백: 프로젝트는 파일 경로라 앞부분이 길게 겹쳐 어느 게 어느 건지 안 읽힌다 —
+    // 모든 항목에 공통인 앞쪽 세그먼트를 잘라 "…/뒷부분"만 보여준다(전체 경로는 title로).
+    // 마지막 세그먼트는 항상 남기고, 프로젝트가 하나뿐이면 자르지 않는다.
+    const segs = projects.map(p => p.displayPath.split("/"));
+    let common = 0;
+    if (segs.length > 1) {
+      const keep = Math.min(...segs.map(x => x.length)) - 1;
+      while (common < keep && segs.every(x => x[common] === segs[0][common])) common++;
     }
+    projects.forEach((p, i) => {
+      const opt = document.createElement("option");
+      opt.value = p.dirName;
+      opt.textContent = `${common ? "…/" : ""}${segs[i].slice(common).join("/")} (${p.sessionCount})`;
+      opt.title = p.displayPath;
+      sel.appendChild(opt);
+    });
     sel.addEventListener("change", () => loadTurns(sel.value));
     // 첫 화면 = 가장 최근에 대화한 프로젝트 (목록 첫 항목이 아니라)
     let initial = projects[0].dirName;
@@ -3535,6 +3562,7 @@ function attachSelectPanel(selId, trigId, popId, labelId, fallback) {
       b.className = "si" + (opt.selected ? " cur" : "");
       b.setAttribute("role", "option");
       b.setAttribute("aria-selected", String(opt.selected));
+      if (opt.title) b.title = opt.title; // 예: 잘라낸 프로젝트 경로의 전체 경로
       b.innerHTML = `<span class="dot"></span><span class="t">${esc(opt.textContent)}</span>`;
       b.addEventListener("click", () => {
         toggle(false);
