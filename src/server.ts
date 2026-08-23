@@ -1147,8 +1147,13 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
     const job = { cancel: () => {}, cancelled: false };
     if (pid) COMPACT_JOBS.set(pid, job);
     const track = (h: { cancel: () => void } | undefined) => { if (h) job.cancel = h.cancel; };
+    // 클라이언트가 응답 전에 끊기면(새로고침·탭 닫기·fetch abort) 취소 POST가 못 올 수 있다.
+    // 그 경우에도 claude 자식을 죽여 아무도 받지 않을 결과에 토큰을 쓰지 않는다.
+    let responded = false;
+    res.on('close', () => { if (responded || job.cancelled) return; console.log('[compact] 클라이언트 연결 끊김 — 취소'); job.cancelled = true; try { job.cancel(); } catch {} });
     // 응답을 내보내는 모든 경로에서 진행 상태도 함께 닫는다 — SSE 구독자가 끝을 알게.
     const sendJsonP = (status: number, data: any) => {
+      responded = true;
       if (pid) COMPACT_JOBS.delete(pid);
       if (status === 200) prog({ stage: 'done', pct: 100, detail: '완료' });
       else prog({ stage: 'error', pct: 0, detail: String(data?.error ?? '실패').slice(0, 200) }, { allowBackward: true });
@@ -1346,6 +1351,9 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
     // 재시도(attempt 2)는 막대가 30으로 되돌아가는 걸 허용하고 detail에 표시한다.
     const expectedChars = expectedOutputChars(transcript.length);
     const runCompact = (attempt: number) => {
+      // LLM을 띄우기 전에 취소를 본다 — 범위 해석(await) 중이나 용어부록 직후에 취소됐으면
+      // 여기서 멈춰야 가장 비싼 호출이 헛돌지 않는다.
+      if (job.cancelled) return sendCancelled();
       prog({ stage: 'compact', pct: computePct('compact'), attempt, outputChars: 0, thinkingChars: 0,
              detail: attempt > 1 ? '본 압축 — 응답 절단으로 재시도 중' : '본 압축 — 모델 응답 대기' }, { allowBackward: attempt > 1 });
       return track(askClaude(prompt, {
@@ -1583,7 +1591,9 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
     // 실패해도 compact는 진행한다 (부록은 보강 계층이지 필수 아님).
     // glossaryModel: 부록 전용 모델 오버라이드 — 정의 추출은 기계적 성격이라 저비용 모델
     // 라우팅 후보(비용 실측: 부록이 compact 본체와 맞먹는 $0.15/세션). 미지정 시 compact와 동일.
-    const runGlossary = (attempt: number) => track(askClaude(buildGlossaryPrompt(glossaryMisses), {
+    const runGlossary = (attempt: number) => {
+      if (job.cancelled) return sendCancelled();
+      return track(askClaude(buildGlossaryPrompt(glossaryMisses), {
       model: typeof glossaryModel === 'string' ? glossaryModel : typeof model === 'string' ? model : undefined,
       systemPrompt: COMPACT_SYSTEM_PROMPT, json: true, noTools: true, timeoutMs: 180_000,
     }, (gout, gerr, _gcode, gm) => {
@@ -1608,6 +1618,7 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
       }
       runCompact(1);
     }));
+    };
     // 미스 0건이면(전량 캐시 히트, 또는 후보 자체가 없음) LLM 호출을 생략하고 바로 진행.
     if (glossaryMisses.length) {
       prog({ stage: 'glossary', pct: computePct('glossary'), detail: `용어 부록 — 새 용어 ${glossaryMisses.length}건 정의 생성` });
@@ -1618,7 +1629,7 @@ function handleCompact(req: http.IncomingMessage, res: http.ServerResponse) {
 }
 
 // 압축 취소 — 진행 중인 claude 자식을 죽이고 해당 요청은 409 {cancelled:true}로 끝난다.
-// 아직 LLM 단계 전(범위 해석 중)이면 플래그만 세워 다음 onDone에서 멈춘다.
+// 아직 LLM 단계 전(범위 해석 중)이면 플래그만 세우고, runGlossary/runCompact 진입부가 그 플래그를 보고 호출 없이 멈춘다.
 function handleCompactCancel(req: http.IncomingMessage, res: http.ServerResponse) {
   readBody(req, res, 2_000, ({ progressId }) => {
     if (!isValidProgressId(progressId)) return sendJson(res, 400, { error: 'progressId가 필요합니다' });
