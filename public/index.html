@@ -216,18 +216,18 @@
   select#session-select, select#project-select{display:none;}
   #proj-wrap{position:relative; display:inline-flex;}
   /* 폴더·세션은 같은 너비 — 검색창이 중앙에 오는 좌우 대칭 구도의 왼팔 */
-  #proj-trigger{display:inline-flex; align-items:center; gap:7px; width:150px;}
+  #proj-trigger{display:inline-flex; align-items:center; gap:7px; width:clamp(150px, 14vw, 200px);}
   #proj-trigger #proj-label{flex:1; min-width:0; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   #proj-trigger svg{width:9px; height:6px; flex:none; opacity:.6;}
-  #proj-pop{display:none; position:absolute; top:calc(100% + 8px); left:0; min-width:280px; max-width:400px;
+  #proj-pop{display:none; position:absolute; top:calc(100% + 8px); left:0; min-width:340px; max-width:520px;
     max-height:min(480px, 70vh); overflow-y:auto; z-index:65;
     background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:6px;
     box-shadow:0 12px 32px rgba(15,13,8,.15), 0 2px 6px rgba(15,13,8,.06);}
   #proj-pop.open{display:block; animation:fadeIn .14s ease;}
-  #sess-trigger{display:inline-flex; align-items:center; gap:7px; width:150px;}
+  #sess-trigger{display:inline-flex; align-items:center; gap:7px; width:clamp(150px, 14vw, 200px);}
   #sess-trigger #sess-label{flex:1; min-width:0; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   #sess-trigger svg{width:9px; height:6px; flex:none; opacity:.6;}
-  #sess-pop{display:none; position:absolute; top:calc(100% + 8px); left:0; min-width:300px; max-width:380px;
+  #sess-pop{display:none; position:absolute; top:calc(100% + 8px); left:0; min-width:360px; max-width:500px;
     max-height:min(480px, 70vh); overflow-y:auto; z-index:65;
     background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:6px;
     box-shadow:0 12px 32px rgba(15,13,8,.15), 0 2px 6px rgba(15,13,8,.06);}
@@ -758,9 +758,14 @@
   header #topic-btn{margin-left:auto;}
   /* 넓은 화면: 검색창이 헤더 정중앙에 앉고, 누르면 좌우로 대칭으로 자란다
      (absolute + translateX(-50%) 중심 고정이라 양옆으로 늘어난다) */
-  @media (min-width:1001px){
+  /* 중앙 고정은 1320px부터 — 그 아래에선 150px 버튼 둘만으로도 열린 검색창(380px)과
+     겹친다(실측 계산). 그 아래는 흐름 배치라 구조적으로 겹칠 수 없다. */
+  @media (min-width:1320px){
     #search-wrap{position:absolute; left:50%; transform:translateX(-50%);}
     header #search-box{width:220px; --sw-open:380px;}
+    /* 버튼 폭 = (열린 검색창 왼쪽 가장자리 − 로고·여백 154px − 간격 12px) ÷ 2
+       = 25vw − 178px. 1320px에서 152px, 1600px에서 222px, 1832px부터 280px 상한 */
+    #proj-trigger, #sess-trigger{width:clamp(150px, calc(25vw - 178px), 280px);}
   }
   /* 결과가 열리면 캡슐이 아래로 길어진 "한 몸" — 입력칸은 아래 모서리를 펴고(윗반쪽),
      결과 목록은 같은 폭·같은 테두리로 바로 이어 붙는다(아랫반쪽). 사이 구분선은
