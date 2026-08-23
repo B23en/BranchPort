@@ -116,3 +116,24 @@ test('isValidProgressId: 클라이언트가 만든 16진 24자는 통과, 경로
   assert.ok(!isValidProgressId(null));
   assert.ok(!isValidProgressId(12345678));
 });
+
+test('ProgressHub: POST 없이 SSE만 붙은 빈 자리는 구독이 떨어지면 즉시, 아니면 retainMs 뒤에 지워진다', async () => {
+  const hub = new ProgressHub(20);
+  // 구독 해제로 정리
+  const unsub = hub.subscribe('orphan01', () => {});
+  assert.strictEqual(hub.get('orphan01').detail, '대기');
+  unsub();
+  assert.strictEqual(hub.get('orphan01'), null);
+  // 구독이 남아 있어도 start()가 안 오면 retainMs 뒤 정리
+  const got = [];
+  hub.subscribe('orphan02', s => got.push(s.stage));
+  await new Promise(r => setTimeout(r, 60));
+  assert.strictEqual(hub.get('orphan02'), null);
+  assert.deepStrictEqual(got, ['prepare', 'error']); // 만료 시 종료 상태를 보내 SSE가 닫히게
+  // 시작된 작업은 구독이 떨어져도 유지된다(재구독·지연 구독 대비)
+  const u3 = hub.subscribe('live0003', () => {});
+  hub.start('live0003');
+  u3();
+  assert.strictEqual(hub.get('live0003').stage, 'prepare');
+  hub.update('live0003', { stage: 'done', pct: 100 });
+});

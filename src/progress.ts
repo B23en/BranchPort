@@ -114,14 +114,16 @@ export class LineSplitter {
 // ── 진행률 허브: 작업 id별 상태 + 구독자. 서버가 갱신하고 SSE 핸들러가 구독한다 ──
 // 작업이 끝난 뒤에도 잠시 상태를 남겨, 구독이 완료 직후에 붙어도 마지막 상태를 받게 한다.
 export class ProgressHub {
-  private jobs = new Map<string, { state: ProgressState; subs: Set<(s: ProgressState) => void>; timer?: ReturnType<typeof setTimeout> }>();
+  // started=false는 SSE가 POST보다 먼저 붙어 만든 빈 자리. 구독이 다 떨어지거나 retainMs가
+  // 지나도 start()가 안 오면 지운다 — 그렇지 않으면 버려진 id마다 항목이 영원히 남는다.
+  private jobs = new Map<string, { state: ProgressState; subs: Set<(s: ProgressState) => void>; started: boolean; timer?: ReturnType<typeof setTimeout> }>();
   constructor(private retainMs = 60_000, private now: () => number = () => Date.now()) {}
 
   start(id: string): ProgressState {
     const state: ProgressState = { stage: 'prepare', pct: 0, detail: '준비', attempt: 1, outputChars: 0, thinkingChars: 0, updatedAt: this.now() };
     const prev = this.jobs.get(id);
     if (prev?.timer) clearTimeout(prev.timer);
-    this.jobs.set(id, { state, subs: prev?.subs ?? new Set() });
+    this.jobs.set(id, { state, subs: prev?.subs ?? new Set(), started: true });
     this.emit(id);
     return state;
   }
@@ -137,22 +139,39 @@ export class ProgressHub {
     j.state = next;
     this.emit(id);
     if (next.stage === 'done' || next.stage === 'error') {
-      if (j.timer) clearTimeout(j.timer);
-      j.timer = setTimeout(() => this.jobs.delete(id), this.retainMs);
-      if (typeof (j.timer as any)?.unref === 'function') (j.timer as any).unref();
+      this.expire(id, j);
     }
+  }
+
+  // retainMs 뒤 항목 제거(완료·실패 상태 보존용, 또는 start()가 안 온 빈 자리 정리용)
+  private expire(id: string, j: { timer?: ReturnType<typeof setTimeout> }) {
+    if (j.timer) clearTimeout(j.timer);
+    j.timer = setTimeout(() => {
+      const cur = this.jobs.get(id);
+      // 끝내 시작되지 않은 빈 자리면 구독자(SSE)에게 종료를 알려 연결이 닫히게 한다
+      if (cur && !cur.started) { cur.state = { ...cur.state, stage: 'error', detail: '시작되지 않음', updatedAt: this.now() }; this.emit(id); }
+      this.jobs.delete(id);
+    }, this.retainMs);
+    if (typeof (j.timer as any)?.unref === 'function') (j.timer as any).unref();
   }
 
   subscribe(id: string, fn: (s: ProgressState) => void): () => void {
     let j = this.jobs.get(id);
     if (!j) {
       // 아직 시작 전이면 빈 자리를 만들어 둔다 — POST보다 SSE가 먼저 붙는 경우
-      j = { state: { stage: 'prepare', pct: 0, detail: '대기', attempt: 1, outputChars: 0, thinkingChars: 0, updatedAt: this.now() }, subs: new Set() };
+      j = { state: { stage: 'prepare', pct: 0, detail: '대기', attempt: 1, outputChars: 0, thinkingChars: 0, updatedAt: this.now() }, subs: new Set(), started: false };
       this.jobs.set(id, j);
+      this.expire(id, j);
     }
     j.subs.add(fn);
     fn(j.state);
-    return () => { j!.subs.delete(fn); };
+    return () => {
+      const cur = this.jobs.get(id);
+      if (!cur) return;
+      cur.subs.delete(fn);
+      // 시작되지 않은 빈 자리에 구독자가 하나도 없으면 바로 지운다
+      if (!cur.started && cur.subs.size === 0) { if (cur.timer) clearTimeout(cur.timer); this.jobs.delete(id); }
+    };
   }
 
   private emit(id: string) {
