@@ -2,7 +2,11 @@
   "name": "branchport",
   "version": "0.1.0",
   "description": "BranchPort prototype: render scattered Claude Code session logs as one tree in the browser",
-  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/B23en/BranchPort.git"
+  },
   "type": "commonjs",
   "main": "dist/server.js",
   "scripts": {
