@@ -207,6 +207,59 @@ interface AskOptions {
   onProgress?: (p: { outputChars: number; thinkingChars: number }) => void;
 }
 
+// ── claude 실행 경로 해석 (Windows 대응) ──────────────────────────────────
+// Windows에서 `claude`는 실행파일이 아니라 npm shim 3종(claude · claude.cmd · claude.ps1)이다.
+// 확장자 없는 `claude`는 sh 스크립트라 Windows가 실행하지 못하고, Node의 spawn은
+// shell:false에서 PATHEXT 해석을 하지 않아 ENOENT로 죽는다 — 즉 Windows에서는 압축·
+// 제목생성·갈래대화 세 기능이 통째로 동작하지 않았다(실측: Node 24.15 · claude 2.1.158).
+// 터미널에서 `claude --version`이 되는 것은 셸이 sh 스크립트를 대신 실행해 주기 때문이라
+// 착시다.
+//
+// 채택하지 않은 대안:
+//  - shell:true — 동작은 하지만 인자가 이스케이프 없이 명령줄로 이어붙는다(Node DEP0190).
+//    여기 인자에는 --system-prompt(사용자가 ~/.branchport/compact-system.md로 갈아끼우는
+//    자유 텍스트)와 --json-schema(따옴표·중괄호 JSON)가 실리므로 인젝션 표면을 만든다.
+//  - spawn('claude.cmd') — Node 24가 EINVAL로 차단한다(배치파일 직접 spawn 금지).
+// 그래서 shim이 가리키는 실체를 찾아 직접 부른다. shell이 필요 없으니 이스케이프 문제도
+// 함께 사라진다. 못 찾으면 종전대로 'claude'에 맡겨 에러 메시지가 그대로 전달되게 한다.
+interface ClaudeBin { cmd: string; prefix: string[] }
+let claudeBinCache: ClaudeBin | null = null;
+
+function isFile(p: string): boolean {
+  try { return fs.statSync(p).isFile(); } catch { return false; }
+}
+
+function resolveClaudeBin(): ClaudeBin {
+  if (claudeBinCache) return claudeBinCache;
+  let resolved: ClaudeBin = { cmd: 'claude', prefix: [] };
+  if (process.platform === 'win32') {
+    for (const dir of (process.env.PATH ?? '').split(path.delimiter)) {
+      if (!dir) continue;
+      const exe = path.join(dir, 'claude.exe');
+      if (isFile(exe)) { resolved = { cmd: exe, prefix: [] }; break; }
+      // npm 전역 설치: PATH에는 shim만 있고 실체는 그 옆 node_modules 안에 있다.
+      // 경로를 상수로 박지 않고 배치 shim 본문에서 읽어낸다 — 패키지 레이아웃이 바뀌어도
+      // 따라가고, 다른 사람 컴퓨터의 설치 위치에도 그대로 맞는다.
+      const shim = path.join(dir, 'claude.cmd');
+      if (!isFile(shim)) continue;
+      let body = '';
+      try { body = fs.readFileSync(shim, 'utf8'); } catch { continue; }
+      const m = body.match(/"%dp0%\\?([^"]+\.(?:exe|js))"/i);
+      if (!m) continue;
+      const target = path.join(dir, m[1]);
+      if (!isFile(target)) continue;
+      // cli.js 형태로 배포된 경우엔 node로 직접 실행한다(현재 배포는 .exe지만 과거 형태 대비).
+      resolved = /\.js$/i.test(target)
+        ? { cmd: process.execPath, prefix: [target] }
+        : { cmd: target, prefix: [] };
+      break;
+    }
+    console.log(`[claude 실행 경로] ${resolved.cmd}${resolved.prefix.length ? ' ' + resolved.prefix[0] : ''}`);
+  }
+  claudeBinCache = resolved;
+  return resolved;
+}
+
 function askClaude(prompt: string, opts: AskOptions, onDone: (out: string, err: string, code: number | null, metrics: ClaudeMetrics | null) => void) {
   const args = ['-p'];
   const streaming = !!(opts.json && opts.onProgress);
@@ -216,7 +269,8 @@ function askClaude(prompt: string, opts: AskOptions, onDone: (out: string, err: 
   if (opts.noTools) args.push('--tools', '');
   if (opts.schema) args.push('--json-schema', JSON.stringify(opts.schema));
   if (opts.model && ALLOWED_MODELS.has(opts.model)) args.push('--model', opts.model);
-  const child = spawn('claude', args, { cwd: os.tmpdir() });
+  const bin = resolveClaudeBin();
+  const child = spawn(bin.cmd, [...bin.prefix, ...args], { cwd: os.tmpdir() });
   let out = '', err = '', done = false;
   // 스트리밍: 줄마다 해석해 진행 글자수를 보고하고, result 줄만 out에 남긴다(= json 래퍼와 동형).
   // result가 끝내 안 오면(절단·타임아웃) out이 비어 기존 "응답 없음" 경로를 탄다.
