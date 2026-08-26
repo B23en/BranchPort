@@ -51,6 +51,12 @@ node dist/server.js --export-compact-config
 작업 규칙(브랜치 · PR · 머지 절차)과 코드 규칙은 [CLAUDE.md](./CLAUDE.md)에 있습니다.
 용어는 [GLOSSARY.md](./GLOSSARY.md), 프로젝트 방향과 하지 않을 것들은 [DIRECTION.md](./DIRECTION.md)를 참고하세요.
 
+## 라이선스
+
+[MIT License](./LICENSE) — 자유롭게 사용·수정·재배포할 수 있습니다.
+
+런타임 의존성은 없으며, 빌드에만 쓰는 devDependencies(TypeScript — Apache-2.0, `@types/node` — MIT)도 모두 허용형 라이선스입니다.
+
 ## 참고
 
 - 서버는 `127.0.0.1`에만 바인딩되는 완전 로컬 도구입니다. 외부에 노출하지 마세요.
