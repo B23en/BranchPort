@@ -1419,6 +1419,12 @@
         <div class="set-sec">
           <div id="set-branches" aria-live="polite"></div>
         </div>
+        <h4>제목·요약</h4>
+        <div class="set-sec">
+          <div id="set-label-status" class="set-note" style="margin:0 0 8px" aria-live="polite"></div>
+          <button class="btn ghost" id="set-label-now" title="아직 제목이 없는 턴의 제목·요약을 지금 만듭니다">지금 생성</button>
+          <div class="set-note">평소에는 방금 끝난 턴(5분 이내)을 건너뛰고 3분마다 자동으로 만듭니다 — 진행 중인 턴을 미리 라벨링하면 완결 뒤 다시 만들어야 하기 때문입니다. 기다리지 않고 바로 채우려면 이 버튼을 누르세요.</div>
+        </div>
         <h4>압축 옵션</h4>
         <div class="set-sec">
           <div class="chk"><input type="checkbox" id="set-glossary" checked aria-label="용어 부록 포함">
@@ -3233,7 +3239,7 @@ function toggleSettings(open) {
   if (!v) closeSelectPanels(); // 모달 안 테마 지정 패널이 열린 채 숨겨지지 않게
   setPop.classList.toggle("open", v);
   setBtn.setAttribute("aria-expanded", String(v));
-  if (v) { SET_SNAPSHOT = collectSettings(); hideTooltip(); renderBranchList(); }
+  if (v) { SET_SNAPSHOT = collectSettings(); hideTooltip(); renderBranchList(); updateLabelStatus(); }
 }
 setBtn.addEventListener("click", (e) => { e.stopPropagation(); toggleSettings(); });
 // 중앙 모달 — 오버레이(어두운 배경) 클릭·× 로 닫는다
@@ -3404,6 +3410,47 @@ function saveSettings() {
 }
 document.getElementById("set-save").addEventListener("click", saveSettings);
 document.getElementById("set-reset").addEventListener("click", () => applySettings(SET_DEFAULTS));
+
+// ── 제목·요약 "지금 생성": 5분 신선 게이트를 건너뛰고 미라벨 턴을 즉시 라벨링 ──
+// 자동 경로(refreshLabels)는 진행 중인 턴을 건너뛰고 3분마다 재시도하므로 새 턴은
+// 최대 8분 뒤에야 제목이 붙는다. 시연·검토처럼 기다릴 수 없을 때를 위한 수동 경로.
+// 설정 저장 모델과 무관한 즉시 실행 동작이라 [저장]을 거치지 않는다.
+const missingLabelCount = () => TURNS.filter(t => !LABELS[t.hash]).length;
+function updateLabelStatus(msg) {
+  const el = document.getElementById("set-label-status");
+  const btn = document.getElementById("set-label-now");
+  if (!el || !btn) return;
+  const missing = missingLabelCount();
+  el.textContent = msg ?? (TURNS.length === 0 ? "표시할 턴이 없습니다"
+    : missing ? `제목이 아직 없는 턴 ${missing}개 (전체 ${TURNS.length}개)`
+              : `전체 ${TURNS.length}개 턴에 제목이 있습니다`);
+  btn.disabled = !missing || !CURRENT_PROJECT;
+}
+document.getElementById("set-label-now").addEventListener("click", async (ev) => {
+  const btn = ev.currentTarget;
+  if (btn.disabled) return;
+  btn.disabled = true;
+  const project = CURRENT_PROJECT;
+  try {
+    // refreshLabels와 같은 반복 구조 — 한 번에 최대 40턴이라 남으면 이어서 돈다
+    for (let guard = 0; guard < 20; guard++) {
+      updateLabelStatus(`생성 중… ${TURNS.length - missingLabelCount()}/${TURNS.length}`);
+      const r = await api("/api/label", { project, session: SESSION_SCOPE || undefined, force: true });
+      if (project !== CURRENT_PROJECT) return;            // 도는 중에 프로젝트를 바꿨으면 중단
+      if (r.error) { updateLabelStatus("생성 실패: " + String(r.error).slice(0, 90)); return; }
+      if (r.busy) { updateLabelStatus("자동 생성이 이미 돌고 있습니다 — 잠시 뒤 다시 눌러주세요"); return; }
+      LABELS = await fetchLabels(project);
+      if (project !== CURRENT_PROJECT) return;
+      applyLabels();
+      if (!r.labeled || !r.remaining) break;
+    }
+    updateLabelStatus();
+  } catch (e) {
+    updateLabelStatus("생성 실패: " + (e && e.message ? e.message : String(e)));
+  } finally {
+    if (project === CURRENT_PROJECT) updateLabelStatus();
+  }
+});
 
 // 갈래 관리: 현재 프로젝트의 갈래를 나열 — 이름 변경·삭제
 // 갈래 관리: 모든 프로젝트의 갈래를 한 목록에 — 어디서 설정을 열어도 전부 보인다.
