@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/B23en/BranchPort/actions/workflows/ci.yml/badge.svg)](https://github.com/B23en/BranchPort/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![for Claude Code](https://img.shields.io/badge/for-Claude%20Code-D97757?logo=claude&logoColor=white)](https://claude.com/claude-code)
 ![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-339933?logo=node.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white)
 ![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
