@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 같은 브랜치에 새 커밋이 올라오면 진행 중이던 실행은 취소한다 — 마지막 상태만 의미가 있다
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: 빌드 · 테스트
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # 개발·검증 환경과 같은 메이저 버전
+          node-version: '20'
+          cache: npm
+
+      # package-lock.json 기준 정확 설치 — 로컬과 같은 의존성 트리를 보장한다
+      - name: 의존성 설치
+        run: npm ci
+
+      # npm test = tsc -p . && node --test test/*.test.js
+      # 타입 검사와 단위 테스트가 한 번에 돈다
+      - name: 빌드 · 테스트
+        run: npm test

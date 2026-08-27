@@ -1,5 +1,8 @@
 # BranchPort
 
+[![CI](https://github.com/B23en/BranchPort/actions/workflows/ci.yml/badge.svg)](https://github.com/B23en/BranchPort/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+
 Claude Code 세션 로그(`~/.claude/projects/`)를 파싱해서 트리/그래프로 시각화하는 로컬 도구입니다.
 
 ## 설치 & 실행
