@@ -375,7 +375,7 @@ function glossaryCacheFile(project: string): string {
 const labelingInFlight = new Set<string>();
 
 function handleLabel(req: http.IncomingMessage, res: http.ServerResponse) {
-  readBody(req, res, 10_000, async ({ project, session }) => {
+  readBody(req, res, 10_000, async ({ project, session, force }) => {
     if (!project) return sendJson(res, 400, { error: 'project가 필요합니다' });
     if (labelingInFlight.has(project)) return sendJson(res, 200, { busy: true, labeled: 0, remaining: -1 });
     labelingInFlight.add(project);
@@ -384,8 +384,11 @@ function handleLabel(req: http.IncomingMessage, res: http.ServerResponse) {
       const all = flattenTurns(buildTurnForest(forest.roots, forest.compactBoundaries, forest.queuedPrompts));
       const labels = loadLabels(project);
       // 진행 중일 수 있는 최신 턴(5분 이내)은 제외 — 완결 후 해시가 바뀌면 그때 라벨링
+      // force=true(설정의 "지금 생성")면 이 게이트를 건너뛴다. 진행 중이던 턴이 나중에
+      // 완결되면 해시가 바뀌어 한 번 더 라벨링되지만, 시연·검토처럼 지금 당장 제목이
+      // 필요한 경우가 있어 사용자가 그 비용을 알고 선택하는 수동 경로로 둔다.
       const now = Date.now();
-      const fresh = (t: Turn) => t.endTimestamp != null && now - Date.parse(t.endTimestamp) < 5 * 60_000;
+      const fresh = (t: Turn) => !force && t.endTimestamp != null && now - Date.parse(t.endTimestamp) < 5 * 60_000;
       let todoAll = all.filter(t => !labels[t.hash] && !fresh(t));
       // 우선순위: ① 보고 있는 세션 ② 사람 세션(최신부터) ③ 에이전트 기록은 마지막
       const humanSet = new Set(listSessionFiles(project).map(f => f.sessionId));
