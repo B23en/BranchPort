@@ -51,8 +51,11 @@ node dist/server.js --export-compact-config
 
 ## 기여하기
 
-작업 규칙(브랜치 · PR · 머지 절차)과 코드 규칙은 [CLAUDE.md](./CLAUDE.md)에 있습니다.
+기여 절차(개발 환경 · 검증 · Fork 기반 PR)는 [CONTRIBUTING.md](./CONTRIBUTING.md)에 있습니다.
+버그 신고와 기능 제안은 [이슈](https://github.com/B23en/BranchPort/issues)로 받습니다.
+
 용어는 [GLOSSARY.md](./GLOSSARY.md), 프로젝트 방향과 하지 않을 것들은 [DIRECTION.md](./DIRECTION.md)를 참고하세요.
+팀원용 작업 규칙(브랜치 · PR · 머지 절차)은 [CLAUDE.md](./CLAUDE.md)에 있습니다.
 
 ## 라이선스
 
